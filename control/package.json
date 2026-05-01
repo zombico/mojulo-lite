@@ -1,0 +1,32 @@
+{
+  "name": "mojulo-lite-control",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Mojulo-Lite control plane — portable bot compiler (wizard + chat builder inverted flow)",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "build:bot": "docker build -t mojulo/bot:latest ../lite-template"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1011.0",
+    "@huggingface/transformers": "^4.2.0",
+    "archiver": "^7.0.1",
+    "better-sqlite3": "^12.4.1",
+    "dotenv": "^17.2.3",
+    "franc-min": "^6.2.0",
+    "next": "^16.0.7",
+    "next-intl": "^4.8.3",
+    "officeparser": "^5.2.2",
+    "pdf2json": "^4.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "swr": "^2.4.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "tailwindcss": "^4"
+  }
+}

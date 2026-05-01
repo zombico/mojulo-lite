@@ -1,0 +1,36 @@
+{
+    "config": {
+        "documentsPath": "./documents",
+        "instructions": "./config/instructions.txt",
+        "ragSummary": "./config/ragSummary.txt",
+        "name": "",
+        "chatDisplayName": "",
+        "placeholder": "",
+        "firstMessage": "",
+        "suggestedPrompts": [],
+        "isRouter": false,
+        "triage": false,
+        "triagePrompts": [],
+        "isForm": false,
+        "formStructure": "",
+        "formCompletionWebhook": "",
+        "formSendHome": false,
+        "formSendHomeUrl": "",
+        "afterSubmitChatMessage": "",
+        "isCalendar": false,
+        "rag": {
+            "locale": "en"
+        }
+    },
+    "llm": {
+        "provider": "anthropic",
+        "anthropic": {
+            "apiKey": "",
+            "model": "claude-sonnet-4-6",
+            "baseURL": "https://api.anthropic.com/v1",
+            "endpoint": "/messages",
+            "timeout": 300000,
+            "maxTokens": 4096
+        }
+    }
+}

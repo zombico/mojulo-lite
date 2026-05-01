@@ -1,0 +1,40 @@
+# Node modules - will be installed in container
+node_modules/
+npm-debug.log*
+
+# Environment files - should be injected at runtime
+.env
+.env.local
+
+# Development files
+.git/
+.gitignore
+*.md
+README.md
+
+# Runtime data - ephemeral, not part of image
+conversation.db
+conversation.db-*
+
+# Documents - included in image for now (was: injected by control plane at deployment)
+# documents/*
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+
+# Test files
+test/
+*.test.js

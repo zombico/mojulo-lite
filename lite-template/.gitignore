@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+
+# OS generated files
+.DS_Store
+Thumbs.db
+data/
+
+# IDE files
+.vscode/
+.idea/
+
+# Build outputs
+dist/
+build/
+data/conversation.db
+/documents
+/integration
+
+# Embedding model weights (fetched at build time via scripts/fetch-embed-model.js)
+models/**/*.onnx

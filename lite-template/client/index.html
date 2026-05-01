@@ -1,0 +1,1978 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <title>Chatbot Debugger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Terms and Conditions Modal -->
+    <div id="tcModal" class="tc-modal" role="dialog" aria-modal="true" aria-labelledby="tcModalTitle">
+        <div class="tc-modal-backdrop"></div>
+        <div class="tc-modal-content">
+            <div class="tc-modal-header">
+                <h2 id="tcModalTitle">Terms and Conditions</h2>
+                <button type="button" class="tc-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="tc-modal-body" id="tcModalBody"></div>
+            <div class="tc-modal-footer">
+                <button type="button" class="tc-modal-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skip to main content link -->
+    <a href="#userInput" class="skip-link">Skip to chat input</a>
+
+    <!-- Left Side: Chat -->
+    <main class="chat-container">
+        <header class="chat-header" id="header-container">
+            <h1 id="header-title" aria-live="polite">Loading</h1>
+        </header>
+
+        <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions" aria-atomic="false">
+            <div class="message bot" role="article" aria-label="Bot message" id="firstMessageContainer">
+                <div class="message-label vanish" id="firstMessageLabel">Helper</div>
+                <div class="message-content" id="firstMessageDiv"></div>
+        </div>
+            <div class="suggested-prompts-container" id="suggested-prompts" aria-label="Suggested prompts"></div>
+
+        </div>
+        
+        <div class="input-section">
+            <form class="input-container" aria-label="Message input form" id="messageInputForm">
+                <div class="input-wrapper">
+                    <label for="userInput" class="visually-hidden">Chat message</label>
+                    <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off" aria-label="Type your message" />
+                    
+                    <button type="submit" class="main-btn" id="sendBtn" aria-label="Send message">➢</button>
+                </div>
+            </form>
+            <form class="input-container form-type" aria-label="Data collection form" id="formFieldsForm">
+                <div class="form-fields-container vanish" id="formFieldsContainer">
+                    <button type="button" class="form-fields-hider vanish" id="form-shower-btn" aria-label="Show form">︽ <span style="font-size: .8em;">Show Form</span></button>
+                    <button type="button" class="form-fields-hider" id="form-hider-btn" aria-label="Hide form">︾</button>
+                    <div class="form-content-wrapper" id="formContentWrapper">
+                        <div class="form-fields-left-side">
+                            <div id="formFields"></div>
+                            <div class="form-progress-bar-container" id="formProgressBarContainer">
+
+                                <div class="form-field-label progress">Progress</div>
+                                <div class="form-progress-bar" id="formProgressBar">
+                                    <div class="form-progress-fill" id="formProgressFill"></div>
+                                </div>
+                                <div class="form-progress-text" id="formProgressText">0%</div>
+                            </div>
+                        </div>
+                        <div class="form-fields-buttonpanel" id="formFieldButtons">
+                            <button type="button" class="chat-reveal-btn" id="showChatBtn" aria-label="Show Chat">Chat</button>
+                            <div id="formButtonPanelSpacer" class="content-spacer vanish"></div>
+                            <button type="submit" class="form-update-btn" id="formSubmitBtn" aria-label="Submit form">✎ Update</button>                        
+                        </div>
+                    </div>
+
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <!-- Right Side: Logs -->
+    <aside class="logs-container" id="system-logs" aria-label="System Logs">
+        <header class="logs-header">
+            <div class="flex">
+                
+                <h2 id="botNameDisplay"></h2>
+                <br/>
+                <span>Debug Mode</span>
+            </div>
+            
+        </header>
+        <div class="logs-content" id="logs" role="log" aria-live="polite" aria-atomic="false">
+            <div class="log-entry">
+                <div class="log-data">System initialized - Displaying current session chat logs</div>
+                <br/>
+                <div class="log-timestamp">Powered by Mojulo-Lite</div>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        // Use current origin for API calls (works both locally and in production)
+        const API_URL = window.location.origin;
+
+        let turn = 1;
+        let machineState = {};
+        let botContext;
+        let conversationId = null;
+        let formStructure = null;
+
+        const messagesDiv = document.getElementById('messages');
+        const chatContainer = document.querySelector('.chat-container');
+        const headerContainerDiv = document.getElementById('header-container');
+        const headerTitleDiv = document.getElementById('header-title');
+        const logsContainer = document.getElementById('system-logs');
+        const logsDiv = document.getElementById('logs');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const formUpdateBtn = document.getElementById('formSubmitBtn')
+        const formButtonPanelSpacer = document.getElementById('formButtonPanelSpacer'); 
+        const suggestedPromptsContainer = document.getElementById('suggested-prompts');
+        const firstMessageDiv = document.getElementById('firstMessageDiv');
+        const firstMessageLabel = document.getElementById('firstMessageLabel');
+        const firstMessageContainer = document.getElementById('firstMessageContainer');
+        const formHiderBtn = document.getElementById('form-hider-btn');
+        const formShowerBtn = document.getElementById('form-shower-btn');
+        const formFieldsContainer = document.getElementById('formFieldsContainer');
+        const formContentWrapper = document.getElementById('formContentWrapper')
+        const formFields = document.getElementById('formFields');
+        const showChatBtn = document.getElementById('showChatBtn');
+        const formProgressFill = document.getElementById('formProgressFill');
+        const formProgressText = document.getElementById('formProgressText');
+        const formProgressBarContainer = document.getElementById('formProgressBarContainer');
+        let botDisplayName = '';
+
+        // Centralized Form Input Registry
+        // Tracks all form inputs across chunks and provides unified access
+        // Automatically syncs with input changes via event listeners
+        //
+        // Usage Examples:
+        //   - Get all values: FormInputRegistry.getAllValues()
+        //   - Get specific value: FormInputRegistry.getValue('fieldId')
+        //   - Check if field exists: FormInputRegistry.hasField('fieldId')
+        //   - Get all field IDs: FormInputRegistry.getFieldIds()
+        //   - Get filled values only: FormInputRegistry.getFilledValues()
+        //   - Debug snapshot: FormInputRegistry.getSnapshot()
+        //   - Listen to changes: FormInputRegistry.addChangeListener((fieldId, value, allValues) => {...})
+        //   - Access from console: window.FormInputRegistry
+        const FormInputRegistry = {
+            inputs: new Map(), // Map of fieldId -> input element reference
+            changeListeners: [], // Array of callback functions called on any input change
+
+            // Helper function to get value from an input element based on its type
+            _getInputValue(inputElement) {
+                if (!inputElement) return '';
+
+                // Handle checkbox inputs
+                if (inputElement.type === 'checkbox') {
+                    return inputElement.checked ? 'true' : '';
+                }
+
+                // Handle radio group pseudo-inputs
+                if (inputElement.classList && inputElement.classList.contains('radio-group')) {
+                    return inputElement.value || '';
+                }
+
+                // Handle all other input types (text, email, tel, date, textarea, select, etc.)
+                return inputElement.value || '';
+            },
+
+            // Helper function to safely trim a value if it's a string
+            _trimValue(value) {
+                return typeof value === 'string' ? value.trim() : value;
+            },
+
+            // Register a new input element
+            register(fieldId, inputElement) {
+                this.inputs.set(fieldId, inputElement);
+                console.log(`FormInputRegistry: Registered field "${fieldId}". Total fields: ${this.inputs.size}`);
+            },
+
+            // Unregister an input element
+            unregister(fieldId) {
+                const removed = this.inputs.delete(fieldId);
+                if (removed) {
+                    console.log(`FormInputRegistry: Unregistered field "${fieldId}". Total fields: ${this.inputs.size}`);
+                }
+                return removed;
+            },
+
+            // Get all current form values
+            getAllValues() {
+                const values = {};
+                this.inputs.forEach((inputElement, fieldId) => {
+                    values[fieldId] = this._getInputValue(inputElement);
+                });
+                return values;
+            },
+
+            // Get a specific input value
+            getValue(fieldId) {
+                const inputElement = this.inputs.get(fieldId);
+                return inputElement ? this._getInputValue(inputElement) : undefined;
+            },
+
+            // Set a specific input value
+            setValue(fieldId, value) {
+                const inputElement = this.inputs.get(fieldId);
+                if (inputElement) {
+                    inputElement.value = value;
+                    return true;
+                }
+                return false;
+            },
+
+            // Get all registered field IDs
+            getFieldIds() {
+                return Array.from(this.inputs.keys());
+            },
+
+            // Get all input elements
+            getInputElements() {
+                return Array.from(this.inputs.values());
+            },
+
+            // Check if a field is registered
+            hasField(fieldId) {
+                return this.inputs.has(fieldId);
+            },
+
+            // Clear all registered inputs
+            clear() {
+                console.log(`FormInputRegistry: Clearing ${this.inputs.size} registered fields`);
+                this.inputs.clear();
+                this.changeListeners = [];
+            },
+
+            // Get count of registered inputs
+            size() {
+                return this.inputs.size;
+            },
+
+            // Get all filled (non-empty) values
+            getFilledValues() {
+                const filled = {};
+                this.inputs.forEach((inputElement, fieldId) => {
+                    const value = this._getInputValue(inputElement);
+                    const trimmedValue = this._trimValue(value);
+                    if (trimmedValue !== '') {
+                        filled[fieldId] = trimmedValue;
+                    }
+                });
+                return filled;
+            },
+
+            // Get a snapshot of the registry state for debugging
+            getSnapshot() {
+                return {
+                    totalFields: this.size(),
+                    fieldIds: this.getFieldIds(),
+                    allValues: this.getAllValues(),
+                    filledValues: this.getFilledValues()
+                };
+            },
+
+            // Notify that a field's value has changed
+            // Called automatically by input event listeners
+            notifyChange(fieldId, newValue) {
+                console.log(`FormInputRegistry: Field "${fieldId}" changed to "${newValue}"`);
+
+                // Trigger all registered change listeners
+                this.changeListeners.forEach(listener => {
+                    try {
+                        listener(fieldId, newValue, this.getAllValues());
+                    } catch (error) {
+                        console.error('Error in FormInputRegistry change listener:', error);
+                    }
+                });
+            },
+
+            // Add a listener that gets called whenever any field changes
+            // Callback signature: (fieldId, newValue, allValues) => void
+            addChangeListener(callback) {
+                if (typeof callback === 'function') {
+                    this.changeListeners.push(callback);
+                    console.log(`FormInputRegistry: Added change listener. Total listeners: ${this.changeListeners.length}`);
+                }
+            },
+
+            // Remove a change listener
+            removeChangeListener(callback) {
+                const index = this.changeListeners.indexOf(callback);
+                if (index > -1) {
+                    this.changeListeners.splice(index, 1);
+                    console.log(`FormInputRegistry: Removed change listener. Total listeners: ${this.changeListeners.length}`);
+                    return true;
+                }
+                return false;
+            },
+
+            // Validate all required fields
+            // Returns { isValid: boolean, missingFields: string[] }
+            validateRequired() {
+                const missingFields = [];
+
+                this.inputs.forEach((inputElement, fieldId) => {
+                    if (inputElement.required) {
+                        const value = this._getInputValue(inputElement);
+                        const trimmedValue = this._trimValue(value);
+                        if (trimmedValue === '') {
+                            missingFields.push({
+                                fieldId,
+                                label: inputElement.labels?.[0]?.textContent?.replace('*', '').trim() || fieldId,
+                                element: inputElement
+                            });
+                        }
+                    }
+                });
+
+                return {
+                    isValid: missingFields.length === 0,
+                    missingFields
+                };
+            },
+
+            // Highlight invalid fields
+            highlightInvalidFields(missingFields) {
+                // First, clear any existing error styles
+                this.inputs.forEach(input => {
+                    input.classList.remove('field-error');
+                    const wrapper = input.closest('.form-field-wrapper');
+                    if (wrapper) {
+                        const existingError = wrapper.querySelector('.field-error-message');
+                        if (existingError) existingError.remove();
+                    }
+                });
+
+                // Add error styles to missing required fields
+                missingFields.forEach(({ fieldId, label, element }) => {
+                    element.classList.add('field-error');
+
+                    const wrapper = element.closest('.form-field-wrapper');
+                    if (wrapper) {
+                        const errorMsg = document.createElement('div');
+                        errorMsg.className = 'field-error-message';
+                        errorMsg.setAttribute('role', 'alert');
+                        wrapper.appendChild(errorMsg);
+                    }
+                });
+            },
+
+            // Clear all validation errors
+            clearValidationErrors() {
+                this.inputs.forEach(input => {
+                    input.classList.remove('field-error');
+                    const wrapper = input.closest('.form-field-wrapper');
+                    if (wrapper) {
+                        const existingError = wrapper.querySelector('.field-error-message');
+                        if (existingError) existingError.remove();
+                    }
+                });
+            }
+        };
+
+        // Expose registry to window for debugging
+        window.FormInputRegistry = FormInputRegistry;
+
+        // Terms and Conditions Modal handling
+        const tcModal = document.getElementById('tcModal');
+        const tcModalBody = document.getElementById('tcModalBody');
+        const tcModalBackdrop = tcModal.querySelector('.tc-modal-backdrop');
+        const tcModalCloseBtn = tcModal.querySelector('.tc-modal-close');
+        const tcModalCloseFooterBtn = tcModal.querySelector('.tc-modal-close-btn');
+
+        function showTCModal(termsText) {
+            // Parse markdown and sanitize
+            const parsedTerms = DOMPurify.sanitize(marked.parse(termsText));
+            tcModalBody.innerHTML = parsedTerms;
+            tcModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            // Focus the close button for accessibility
+            tcModalCloseBtn.focus();
+        }
+
+        function hideTCModal() {
+            tcModal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Modal event listeners
+        tcModalBackdrop.addEventListener('click', hideTCModal);
+        tcModalCloseBtn.addEventListener('click', hideTCModal);
+        tcModalCloseFooterBtn.addEventListener('click', hideTCModal);
+        tcModal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') hideTCModal();
+        });
+
+        // Generate special consentToTC element with T&C link
+        function generateConsentToTCElement(field) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-field-wrapper consent-tc-wrapper';
+            wrapper.dataset.fieldId = field.id;
+
+            // Create checkbox container
+            const checkboxContainer = document.createElement('div');
+            checkboxContainer.className = 'consent-tc-container';
+
+            // Create checkbox input
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = 'field-consentToTC';
+            input.name = 'consentToTC';
+            input.className = 'form-input consent-tc-checkbox';
+            input.value = 'true';
+            input.required = field.required !== false;
+
+            // Create label with clickable T&C link
+            const label = document.createElement('label');
+            label.className = 'form-field-label consent-tc-label';
+            label.setAttribute('for', 'field-consentToTC');
+
+            // Split label to insert clickable link
+            const labelText = document.createTextNode('I agree to the ');
+            const tcLink = document.createElement('a');
+            tcLink.href = '#';
+            tcLink.className = 'tc-link';
+            tcLink.textContent = 'Terms and Conditions';
+            tcLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showTCModal(field.termsText);
+            });
+
+            label.appendChild(labelText);
+            label.appendChild(tcLink);
+            if (field.required !== false) {
+                const requiredSpan = document.createElement('span');
+                requiredSpan.className = 'required';
+                requiredSpan.textContent = ' *';
+                label.appendChild(requiredSpan);
+            }
+
+            checkboxContainer.appendChild(input);
+            checkboxContainer.appendChild(label);
+            wrapper.appendChild(checkboxContainer);
+
+            // Register with FormInputRegistry
+            FormInputRegistry.register('consentToTC', input);
+
+            // Add change listener
+            input.addEventListener('change', (e) => {
+                FormInputRegistry.notifyChange('consentToTC', e.target.checked);
+            });
+
+            return wrapper;
+        }
+
+        // Add message to chat
+        // Set streamEffect = true to progressively reveal bot messages with a typewriter effect
+        function addMessage(content, isBot = false, thinking = false, userPrompt = null, sources = null, metadata = null, skipLabel = false, streamEffect = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isBot ? 'bot' : 'user'}`;
+            messageDiv.setAttribute('role', 'article');
+            messageDiv.setAttribute('aria-label', isBot ? 'Bot message' : 'User message');
+
+            const label = document.createElement('div');
+            label.className =  (isBot && !skipLabel) ? 'message-label' : 'vanish';
+            label.textContent = (isBot && !skipLabel) ? botDisplayName : null;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            if (thinking) {
+                contentDiv.id = 'thinking-div';
+                contentDiv.setAttribute('aria-label', 'Bot is thinking');
+            }
+
+            // Use stream effect for bot messages when requested
+            if (isBot && streamEffect && content && !thinking) {
+                contentDiv.textContent = '';
+                messageDiv.appendChild(contentDiv);
+                messagesDiv.appendChild(messageDiv);
+
+                // Progressively reveal text word by word
+                const words = content.split(' ');
+                let wordIndex = 0;
+                const streamInterval = setInterval(() => {
+                    if (wordIndex < words.length) {
+                        contentDiv.textContent += (wordIndex > 0 ? ' ' : '') + words[wordIndex];
+                        wordIndex++;
+                        // Keep scrolling to bottom as text appears
+                        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    } else {
+                        clearInterval(streamInterval);
+                    }
+                }, 60); // 60ms per word - adjust for faster/slower effect
+            } else {
+                contentDiv.textContent = content;
+                messageDiv.appendChild(contentDiv);
+                messagesDiv.appendChild(messageDiv);
+            }
+        }
+
+        // Stream HTML content progressively (for markdown-parsed responses)
+        // onComplete callback is called when streaming finishes
+        function streamHtmlContent(container, html, scrollTarget, onComplete = null) {
+            // Parse the HTML into a temporary container
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+
+            // Wrap each text node in a span with a unique ID to track it through innerHTML
+            const textData = [];
+            const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null, false);
+            const nodesToWrap = [];
+            while (walker.nextNode()) {
+                if (walker.currentNode.textContent.trim()) {
+                    nodesToWrap.push(walker.currentNode);
+                }
+            }
+
+            // Wrap text nodes in marked spans
+            nodesToWrap.forEach((node, index) => {
+                const span = document.createElement('span');
+                span.setAttribute('data-stream-id', index);
+                span.textContent = '';  // Start empty
+                textData.push({ id: index, text: node.textContent });
+                node.parentNode.replaceChild(span, node);
+            });
+
+            // Insert the marked structure
+            container.innerHTML = tempDiv.innerHTML;
+
+            // Stream text into spans by their data-stream-id
+            let nodeIndex = 0;
+            let wordIndex = 0;
+            let currentWords = textData[0] ? textData[0].text.split(' ') : [];
+
+            const streamInterval = setInterval(() => {
+                if (nodeIndex >= textData.length) {
+                    clearInterval(streamInterval);
+                    // Clean up: unwrap the spans after streaming is done
+                    container.querySelectorAll('[data-stream-id]').forEach(span => {
+                        const text = document.createTextNode(span.textContent);
+                        span.parentNode.replaceChild(text, span);
+                    });
+                    if (onComplete) onComplete();
+                    return;
+                }
+
+                if (wordIndex < currentWords.length) {
+                    const span = container.querySelector(`[data-stream-id="${textData[nodeIndex].id}"]`);
+                    if (span) {
+                        span.textContent += (wordIndex > 0 ? ' ' : '') + currentWords[wordIndex];
+                    }
+                    wordIndex++;
+                    if (scrollTarget) {
+                        scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }
+                } else {
+                    nodeIndex++;
+                    wordIndex = 0;
+                    currentWords = textData[nodeIndex] ? textData[nodeIndex].text.split(' ') : [];
+                }
+            }, 25); // 25ms per word
+        }
+
+
+        // Find a field in the form structure by its ID
+        function findFieldById(fieldId) {
+            if (!formStructure || !formStructure.sections) {
+                return null;
+            }
+
+            for (const section of formStructure.sections) {
+                // Check regular fields
+                if (section.fields) {
+                    const field = section.fields.find(f => f.id === fieldId);
+                    if (field) {
+                        return { field, section };
+                    }
+                }
+                // Check prototype fields for repeatable sections
+                if (section.prototype && section.prototype.fields) {
+                    const field = section.prototype.fields.find(f => f.id === fieldId);
+                    if (field) {
+                        return { field, section, isPrototype: true };
+                    }
+                }
+            }
+            
+            return null;
+        }
+
+        // Count total required fields from formStructure
+        function countRequiredFields() {
+            if (!formStructure || !formStructure.sections) return 0;
+
+            let count = 0;
+            for (const section of formStructure.sections) {
+                if (section.fields) {
+                    count += section.fields.filter(field => field.required).length;
+                }
+                // Also check prototype fields for repeatable sections
+                if (section.prototype && section.prototype.fields) {
+                    count += section.prototype.fields.filter(field => field.required).length;
+                }
+            }
+            return count;
+        }
+
+        // Count total fields (all fields, not just required) from formStructure
+        function countTotalFields() {
+            if (!formStructure || !formStructure.sections) return 0;
+
+            let count = 0;
+            for (const section of formStructure.sections) {
+                if (section.fields) {
+                    count += section.fields.length;
+                }
+                // Also check prototype fields for repeatable sections
+                if (section.prototype && section.prototype.fields) {
+                    count += section.prototype.fields.length;
+                }
+            }
+            return count;
+        }
+
+        // Generate form element from field definition
+        function generateFormElement(fieldId) {
+            const fieldData = findFieldById(fieldId);
+            if (!fieldData) {
+                return null;
+            }
+
+            const { field, section, isPrototype } = fieldData;
+
+            // Special handling for consentToTC field
+            if (field.id === 'consentToTC' && field.termsText) {
+                return generateConsentToTCElement(field);
+            }
+
+            // Create wrapper div for the form element
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-field-wrapper';
+            wrapper.dataset.fieldId = fieldId;
+            wrapper.dataset.sectionId = section.id;
+
+            // Create label
+            const label = document.createElement('label');
+            label.textContent = field.label;
+            label.className = 'form-field-label';
+            label.setAttribute('for', `field-${fieldId}`);
+            if (field.required) {
+                label.innerHTML += ' <span class="required">*</span>';
+            }
+
+            // Create input based on field type
+            let input;
+            switch (field.type) {
+                case 'text':
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    break;
+                case 'email':
+                    input = document.createElement('input');
+                    input.type = 'email';
+                    break;
+                case 'tel':
+                    input = document.createElement('input');
+                    input.type = 'tel';
+                    break;
+                case 'number':
+                    input = document.createElement('input');
+                    input.type = 'number';
+                    if (field.min !== undefined) input.min = field.min;
+                    if (field.max !== undefined) input.max = field.max;
+                    break;
+                case 'date':
+                    input = document.createElement('input');
+                    input.type = 'date';
+                    input.value="2001-06-01"
+                    break;
+                case 'textarea':
+                    input = document.createElement('textarea');
+                    if (field.rows !== undefined) input.rows = field.rows;
+                    if (field.cols !== undefined) input.cols = field.cols;
+                    break;
+                case 'dropdown':
+                    input = document.createElement('select');
+                    // Add placeholder option
+                    const placeholderOption = document.createElement('option');
+                    placeholderOption.value = '';
+                    placeholderOption.textContent = field.placeholder || 'Select an option...';
+                    placeholderOption.disabled = true;
+                    placeholderOption.selected = true;
+                    input.appendChild(placeholderOption);
+                    // Add options from field.options array
+                    if (field.options && Array.isArray(field.options)) {
+                        field.options.forEach(option => {
+                            const optionEl = document.createElement('option');
+                            optionEl.value = option.value || option;
+                            optionEl.textContent = option.label || option;
+                            input.appendChild(optionEl);
+                        });
+                    }
+                    break;
+                case 'checkbox':
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.value = 'true';
+                    break;
+                case 'radio':
+                    // Create a container for radio buttons
+                    input = document.createElement('div');
+                    input.className = 'radio-group';
+                    input.id = `field-${fieldId}`;
+
+                    // Add radio options from field.options array
+                    if (field.options && Array.isArray(field.options)) {
+                        field.options.forEach((option, index) => {
+                            const radioWrapper = document.createElement('div');
+                            radioWrapper.className = 'radio-option';
+
+                            const radioInput = document.createElement('input');
+                            radioInput.type = 'radio';
+                            radioInput.id = `field-${fieldId}-${index}`;
+                            radioInput.name = fieldId;
+                            radioInput.value = option.value || option;
+                            radioInput.className = 'radio-input';
+
+                            if (field.required) {
+                                radioInput.required = true;
+                            }
+
+                            const radioLabel = document.createElement('label');
+                            radioLabel.setAttribute('for', `field-${fieldId}-${index}`);
+                            radioLabel.textContent = option.label || option;
+                            radioLabel.className = 'radio-label';
+
+                            radioWrapper.appendChild(radioInput);
+                            radioWrapper.appendChild(radioLabel);
+                            input.appendChild(radioWrapper);
+                        });
+                    }
+                    break;
+                default:
+                    input = document.createElement('input');
+                    input.type = 'text';
+            }
+
+            // Handle radio buttons differently since they're a group
+            if (field.type === 'radio') {
+                // For radio groups, we already set the id and name on individual inputs
+                // Just add the form-input class to the container
+                input.classList.add('form-input');
+
+                if (field.pii) {
+                    input.dataset.pii = 'true';
+                }
+
+                // Create a pseudo-input object for the registry that represents the radio group
+                const radioGroupInput = {
+                    get value() {
+                        const selected = input.querySelector('input[type="radio"]:checked');
+                        return selected ? selected.value : '';
+                    },
+                    set value(val) {
+                        const radioToSelect = input.querySelector(`input[type="radio"][value="${val}"]`);
+                        if (radioToSelect) radioToSelect.checked = true;
+                    },
+                    required: field.required || false,
+                    get labels() {
+                        return [label];
+                    },
+                    classList: input.classList,
+                    closest: input.closest.bind(input)
+                };
+
+                // Register the pseudo-input with the registry
+                FormInputRegistry.register(fieldId, radioGroupInput);
+
+                // Add change listener to all radio inputs in the group
+                const radioInputs = input.querySelectorAll('input[type="radio"]');
+                radioInputs.forEach(radioInput => {
+                    radioInput.addEventListener('change', function(event) {
+                        if (event.target.checked) {
+                            FormInputRegistry.notifyChange(fieldId, event.target.value);
+                        }
+                    });
+                });
+            } else {
+                // Standard input handling
+                input.id = `field-${fieldId}`;
+                input.name = fieldId;
+                input.className = 'form-input';
+                if (field.required) {
+                    input.required = true;
+                }
+                if (field.pii) {
+                    input.dataset.pii = 'true';
+                }
+                // Apply pattern validation if specified
+                if (field.pattern && input.setAttribute) {
+                    input.setAttribute('pattern', field.pattern);
+                    if (field.patternError) {
+                        input.setAttribute('title', field.patternError);
+                    }
+                }
+                // Apply placeholder if specified
+                if (field.placeholder && input.placeholder !== undefined) {
+                    input.placeholder = field.placeholder;
+                }
+
+                // Register the input with the centralized registry
+                FormInputRegistry.register(fieldId, input);
+
+                // Add event listener to keep registry in sync with input changes
+                if (field.type === 'checkbox') {
+                    input.addEventListener('change', function(event) {
+                        FormInputRegistry.notifyChange(fieldId, event.target.checked);
+                    });
+                } else if (field.type === 'dropdown') {
+                    input.addEventListener('change', function(event) {
+                        FormInputRegistry.notifyChange(fieldId, event.target.value);
+                    });
+                } else {
+                    input.addEventListener('input', function(event) {
+                        FormInputRegistry.notifyChange(fieldId, event.target.value);
+                    });
+                }
+            }
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(input);
+
+            return wrapper;
+        }
+
+        // Update the form progress bar based on live form input or machineState
+        function updateFormProgress() {
+            // Get total fields from formStructure as denominator
+            const totalFields = countTotalFields();
+
+            if (totalFields === 0) {
+                // No form structure loaded, hide progress bar or show 0/0
+                formProgressFill.style.width = '0%';
+                formProgressText.textContent = '0/0';
+                return;
+            }
+
+            // Use live form data from registry for numerator
+            const filledFields = Object.keys(FormInputRegistry.getFilledValues()).length;
+            const percentage = Math.min((filledFields / totalFields * 100), 100);
+
+            // Update progress bar width
+            formProgressFill.style.width = `${percentage}%`;
+
+            // Update progress text as fraction (filled / total)
+            formProgressText.textContent = `${filledFields}/${totalFields}`;
+        }
+
+        // Add a change listener to update progress bar in real-time
+        FormInputRegistry.addChangeListener((fieldId, newValue, allValues) => {
+            updateFormProgress();
+        });
+
+        // Handle when form collection is complete
+        async function handleFormComplete() {
+            console.log('Form collection completed - all required fields filled');
+
+            // Add visual indicator that form is complete
+            formProgressBarContainer.classList.add('complete');
+            formProgressFill.style.backgroundColor = '#4caf50'; // Green color
+
+            // Show a completion message in the form area
+            const completionMessage = document.createElement('div');
+            completionMessage.className = 'form-completion-message';
+            completionMessage.innerHTML = '✓ Form complete! Ready to submit.';
+            completionMessage.style.cssText = 'color: #4caf50; font-weight: bold; padding: 10px; text-align: center;';
+
+            // Add completion message if it doesn't already exist
+            if (!formContentWrapper.querySelector('.form-completion-message')) {
+                // Insert before the progress bar container (inside left side)
+                const leftSide = formContentWrapper.querySelector('.form-fields-left-side');
+                if (leftSide && formProgressBarContainer) {
+                    leftSide.insertBefore(completionMessage, formProgressBarContainer);
+                } else {
+                    formContentWrapper.appendChild(completionMessage);
+                }
+            }
+
+            // Highlight the submit button
+            formUpdateBtn.classList.add('ready');
+            formUpdateBtn.setAttribute('aria-label', 'Submit completed form');
+
+            // Log completion to system logs
+            addLog('info', { message: 'Form collection complete - all required fields filled' }, conversationId);
+
+            let sendHomeSuccess = false;
+            let webhookSuccess = false;
+
+            // Always POST to /api/submit-form on completion. The server captures
+            // the submission to its local form_submissions table and, when
+            // formSendHome is configured, also relays to the control plane.
+            sendHomeSuccess = await sendFormToControlPlane();
+
+            // Send webhook if configured
+            if (botContext?.formCompletionWebhook) {
+                webhookSuccess = await sendFormCompletionWebhook();
+            }
+
+            // If either submission succeeded, show after-submit message and disable inputs
+            if (sendHomeSuccess || webhookSuccess) {
+                if (botContext?.afterSubmitChatMessage) {
+                    addMessage(botContext.afterSubmitChatMessage, true, false, null, null, null, true, true);
+                }
+                disableAllInputs();
+            }
+        }
+
+        // Send form data to control plane via server
+        // Returns true on success, false on failure
+        async function sendFormToControlPlane() {
+            try {
+                const formData = FormInputRegistry.getAllValues();
+
+                const response = await fetch(`${API_URL}/api/submit-form`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        conversationId,
+                        formData,
+                        metadata: {
+                            formTitle: formStructure?.title || 'Form Submission',
+                            completedAt: new Date().toISOString(),
+                            turn: machineState.turn
+                        }
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('Form data sent to control plane');
+                    addLog('info', { message: 'Form data sent to control plane' }, conversationId);
+                    return true;
+                } else {
+                    const error = await response.json();
+                    console.error('Failed to send form to control plane:', error);
+                    addLog('error', { message: `Failed to send to control plane: ${error.error}` }, conversationId);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error sending form to control plane:', error);
+                addLog('error', { message: `Error sending to control plane: ${error.message}` }, conversationId);
+                return false;
+            }
+        }
+
+        // Send form data to webhook endpoint via server proxy (avoids CORS)
+        // Returns true on success, false on failure
+        async function sendFormCompletionWebhook() {
+            if (!botContext?.formCompletionWebhook) {
+                console.warn('No webhook URL configured');
+                return false;
+            }
+
+            try {
+                const formData = FormInputRegistry.getAllValues();
+
+                // Payload includes the webhook URL for the server to forward to
+                const payload = {
+                    webhookUrl: botContext.formCompletionWebhook,
+                    data: {
+                        timestamp: new Date().toISOString(),
+                        conversationId: conversationId,
+                        formData: formData,
+                        metadata: {
+                            formTitle: formStructure?.title || 'Form Submission',
+                            completedAt: new Date().toISOString()
+                        }
+                    }
+                };
+
+                console.log('Sending form completion webhook via server proxy');
+
+                // Proxy through server to avoid CORS issues
+                const response = await fetch(`${API_URL}/api/send-webhook`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    console.log('Webhook sent successfully via proxy:', response.status);
+                    addLog('info', { message: `Form data sent to webhook successfully (${response.status})` }, conversationId);
+                    return true;
+                } else {
+                    const error = await response.json();
+                    console.error('Webhook proxy failed:', response.status, error);
+                    addLog('error', { message: `Webhook failed: ${response.status} ${error.error || ''}` }, conversationId);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error sending webhook via proxy:', error);
+                addLog('error', { message: `Webhook error: ${error.message}` }, conversationId);
+                return false;
+            }
+        }
+
+        // Disable all inputs after form submission to end the conversation
+        function disableAllInputs() {
+            // Disable form submit button
+            formUpdateBtn.disabled = true;
+
+            // Make all form fields in the registry read-only and disabled
+            FormInputRegistry.getInputElements().forEach(input => {
+                // For radio group pseudo-inputs, we need to find the actual DOM elements
+                if (input.classList && input.classList.contains('radio-group')) {
+                    const radioInputs = input.querySelectorAll('input[type="radio"]');
+                    radioInputs.forEach(radio => {
+                        radio.disabled = true;
+                    });
+                } else if (input.disabled !== undefined) {
+                    input.disabled = true;
+                }
+
+                // Also make them read-only for text inputs
+                if (input.readOnly !== undefined) {
+                    input.readOnly = true;
+                }
+            });
+
+            // Also disable all form fields in persisted forms in the chat history
+            const allFormMessages = messagesDiv.querySelectorAll('.form-message');
+            allFormMessages.forEach(formMessage => {
+                const inputs = formMessage.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    input.disabled = true;
+                    if (input.readOnly !== undefined) {
+                        input.readOnly = true;
+                    }
+                });
+            });
+
+            console.log('Form inputs disabled - form submitted');
+            addLog('info', { message: 'Form submitted - form inputs disabled' }, conversationId);
+        }
+
+        // Add "Refresh Chatbot" button to the last message
+        function addRefreshButton() {
+            const lastMessageDiv = messagesDiv.lastChild;
+            if (!lastMessageDiv) return;
+
+            // Check if button already exists
+            if (lastMessageDiv.querySelector('.refresh-chatbot-btn')) {
+                return;
+            }
+
+            // Create refresh button
+            const refreshBtn = document.createElement('button');
+            refreshBtn.className = 'refresh-chatbot-btn';
+            refreshBtn.textContent = '⟳ Refresh Chatbot';
+            refreshBtn.setAttribute('aria-label', 'Refresh chatbot to start a new session');
+            
+            const backBtn = document.createElement('button');
+            // Add click handler to reload the page
+            refreshBtn.addEventListener('click', () => {
+                window.location.reload();
+            });
+
+            // Append to last message
+            lastMessageDiv.appendChild(refreshBtn);
+        }
+
+        // Add "Refresh Chatbot" button to the last message
+        function addBackButton() {
+            const lastMessageDiv = messagesDiv.lastChild;
+            if (!lastMessageDiv) return;
+
+            // Create back button
+            const backBtn = document.createElement('button');
+            backBtn.className = 'refresh-chatbot-btn';
+            backBtn.textContent = '< Back';
+            backBtn.setAttribute('aria-label', 'Go back to the previous bot');
+            
+            // Add click handler to reload the page
+            backBtn.addEventListener('click', () => {
+                window.history.back();
+            });
+
+            // Append to last message
+            lastMessageDiv.appendChild(backBtn);
+        }
+
+        // Process form suggestions and generate form elements
+        function processFormSuggestions(formSuggestions, clearExisting = false) {
+            if (!formSuggestions || formSuggestions.length === 0) {
+                return;
+            }
+
+            // Optionally clear existing form fields and registry
+            if (clearExisting) {
+                formFields.innerHTML = '';
+                FormInputRegistry.clear();
+            }
+
+            // Generate form elements only for NEW suggestions (not already in registry)
+            const newFieldIds = formSuggestions.filter(fieldId => !FormInputRegistry.hasField(fieldId));
+            
+            const formElements = newFieldIds
+                .map(fieldId => generateFormElement(fieldId))
+                .filter(element => element !== null);
+
+            // Render form elements in the container
+            formElements.forEach(element => {
+                formFields.appendChild(element);
+            });
+
+            // Show form container and unhide showChat
+            formFieldsContainer.classList.remove('vanish');
+            formButtonPanelSpacer.classList.remove('vanish');
+            showChatBtn.classList.remove('vanish');
+
+            // Focus the first input element when form is first shown
+            const firstInput = formFields.querySelector('.form-input');
+            if (firstInput) {
+                // Use setTimeout to ensure DOM is ready
+                setTimeout(() => {
+                    if (firstInput.focus) {
+                        firstInput.focus();
+                    } else if (firstInput.querySelector) {
+                        // For radio groups, focus the first radio button
+                        const firstRadio = firstInput.querySelector('input[type="radio"]');
+                        if (firstRadio) firstRadio.focus();
+                    }
+                }, 100);
+            }
+        }
+
+        // Wire up cloned form inputs to work with the registry
+        function wireClonedFormToRegistry(formClone) {
+            const clonedInputs = formClone.querySelectorAll('.form-input');
+
+            clonedInputs.forEach(input => {
+                const fieldId = input.name;
+
+                // Register cloned input with registry (replaces original)
+                FormInputRegistry.register(fieldId, input);
+
+                // Add event listener to sync changes
+                input.addEventListener('input', function(event) {
+                    FormInputRegistry.notifyChange(fieldId, event.target.value);
+                });
+            });
+
+            console.log(`Wired ${clonedInputs.length} cloned inputs to FormInputRegistry`);
+        }
+
+        // Handle form submission
+        function handleFormSubmit() {
+            // Check HTML5 validation first (including pattern validation)
+            if (!formFieldsForm.checkValidity()) {
+                // Let the browser show validation errors
+                formFieldsForm.reportValidity();
+                return;
+            }
+
+            // Validate required fields
+            const validation = FormInputRegistry.validateRequired();
+
+            if (!validation.isValid) {
+                console.warn('Form validation failed. Missing required fields:', validation.missingFields);
+
+                // Highlight invalid fields
+                FormInputRegistry.highlightInvalidFields(validation.missingFields);
+
+                // Focus on first invalid field
+                if (validation.missingFields.length > 0) {
+                    validation.missingFields[0].element.focus();
+                }
+
+                return; // Stop form submission
+            }
+
+            // Clear any previous validation errors
+            FormInputRegistry.clearValidationErrors();
+
+            // Collect all form field values from the registry
+            const formData = FormInputRegistry.getAllValues();
+
+            console.log('Form data collected from registry:', formData);
+            console.log('Total fields submitted:', FormInputRegistry.size());
+
+            // Clone the form container and add it to messages as a persistent state element
+            const formClone = formFieldsContainer.cloneNode(true);
+            formClone.id = 'persistentForm-' + Date.now(); // Unique ID for this instance
+            formClone.classList.remove('vanish');
+
+            // Restore form values in the clone (cloneNode doesn't preserve selected state for dropdowns)
+            Object.entries(formData).forEach(([fieldId, value]) => {
+                const clonedInput = formClone.querySelector(`[name="${fieldId}"]`);
+                if (clonedInput) {
+                    if (clonedInput.tagName === 'SELECT') {
+                        // For dropdowns, set the selected value
+                        clonedInput.value = value;
+                    } else if (clonedInput.type === 'checkbox') {
+                        // For checkboxes, set checked state
+                        clonedInput.checked = value === 'true' || value === true;
+                    } else if (clonedInput.type === 'radio') {
+                        // For radio buttons, find and check the right one
+                        const radioToCheck = formClone.querySelector(`[name="${fieldId}"][value="${value}"]`);
+                        if (radioToCheck) radioToCheck.checked = true;
+                    } else {
+                        // For text inputs, set value
+                        clonedInput.value = value;
+                    }
+                }
+            });
+
+            // Create a message container for the form
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user form-message';
+            messageDiv.setAttribute('role', 'article');
+            messageDiv.setAttribute('aria-label', 'Form submission');
+
+            // Add the cloned form to the message
+            messageDiv.appendChild(formClone);
+
+            // Wire the cloned inputs to the registry so they stay reactive
+            wireClonedFormToRegistry(formClone);
+
+            // Remove the buttons from the cloned form
+            const clonedUpdateBtn = formClone.querySelector('#formSubmitBtn');
+            if (clonedUpdateBtn) {
+                clonedUpdateBtn.remove();
+            }
+            const clonedShowChatBtn = formClone.querySelector('#showChatBtn');
+            if (clonedShowChatBtn) {
+                clonedShowChatBtn.remove();
+            }
+            const clonedStatusBar = formClone.querySelector('#formProgressBarContainer');
+            if (clonedStatusBar) {
+                clonedStatusBar.remove();
+            }
+            const clonedHideFormBtn = formClone.querySelector('#form-hider-btn')
+            if (clonedHideFormBtn) {
+                clonedHideFormBtn.remove()
+            }
+
+            // Add the form message to the chat
+            messagesDiv.appendChild(messageDiv);
+
+            // Scroll to the last message element
+            const lastMessage = messagesDiv.lastElementChild;
+            if (lastMessage) {
+                lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+
+            // Create a message with field names and their status (filled or skipped)
+            const fieldStatuses = Object.entries(formData)
+                .map(([key, value]) => {
+                    const trimmedValue = typeof value === 'string' ? value.trim() : value;
+                    const isFilled = trimmedValue !== '' && trimmedValue !== false;
+
+                    if (isFilled) {
+                        return `{${key}_filled}`;
+                    } else {
+                        // Check if field is required
+                        const inputElement = FormInputRegistry.inputs.get(key);
+                        const isRequired = inputElement?.required || false;
+
+                        // Only mark as skipped if it's optional (not required)
+                        if (!isRequired) {
+                            return `{${key}_skipped}`;
+                        }
+                    }
+                    return null;
+                })
+                .filter(status => status !== null)
+                .join(' ');
+
+            const message = fieldStatuses || '{form_submitted}';
+
+            // Send the field names as a message then remove it
+            userInput.value = message;
+            sendMessage();
+            const isFormSubmission = /\{[a-zA-Z0-9_]+(filled|skipped)\}/.test(message);
+            if (isFormSubmission) messagesDiv.children[messagesDiv.children.length-2].remove(); 
+
+            // Clear the form fields and registry
+            formFields.innerHTML = '';
+            //FormInputRegistry.clear();
+
+            // Hide form container
+            formFieldsContainer.classList.add('vanish');
+        }
+
+        // Auto-display suggestions in chat if they exist
+        function displaySuggestionsInChat(suggestions) {
+            if (!suggestions || suggestions.length === 0) return;
+
+            const suggestedPromptsArray = suggestions.map(e => ({
+                suggestedPrompt: e
+            }))
+            suggestedPromptsContainer.innerHTML = ""
+            mapToSuggestedPrompts(suggestedPromptsArray)
+            
+            // Get the last message div
+            const lastMessageDiv = messagesDiv.lastChild;
+            
+            // Append to the message
+            lastMessageDiv.appendChild(suggestedPromptsContainer);
+            console.log('Appended suggested prompts (no action bar found)');
+            
+            // Show the suggested prompts
+            suggestedPromptsContainer.style.display = '';
+        }
+
+        // Add log entry
+        function addLog(type, data, conversationId) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.createElement('div');
+            logDiv.className = 'log-entry';
+
+            const typeSpan = document.createElement('span');
+            typeSpan.className = `log-type ${type}`;
+            typeSpan.textContent = type;
+
+            const timestampDiv = document.createElement('div');
+            timestampDiv.className = 'log-timestamp';
+            timestampDiv.textContent = timestamp;
+            timestampDiv.prepend(typeSpan);
+
+            const dataDiv = document.createElement('div');
+            dataDiv.className = 'log-data';
+            dataDiv.textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+
+            logDiv.appendChild(timestampDiv);
+            logDiv.appendChild(dataDiv);
+
+            if (type === 'hash') {
+                const conversationIdDiv = document.createElement('div');
+                conversationIdDiv.className = 'log-data'
+                conversationIdDiv.textContent = `Conversation Id: ${conversationId}`
+                logDiv.appendChild(conversationIdDiv)
+                const verifyButton = document.createElement('a');
+                verifyButton.className = 'log-type verify'
+                verifyButton.textContent = 'Verify hash';
+                verifyButton.href = `/verify/${conversationId}`
+                verifyButton.target = "_blank"
+                logDiv.appendChild(verifyButton);
+            }
+
+            logsDiv.insertBefore(logDiv, logsDiv.firstChild);
+        }
+
+        // Send message to server using SSE for real-time updates
+        async function sendMessage(event) {
+            if (event) {
+                event.preventDefault(); // Prevent form submission
+            }
+
+            const prompt = userInput.value.trim();
+            if (!prompt) return;
+
+            // Remove placeholder text after first turn
+            if (turn === 1 && userInput.placeholder) {
+                userInput.placeholder = '';
+            }
+
+            // Hide suggested prompt
+            suggestedPromptsContainer.style.display = 'none';
+
+            // Disable input while processing
+            sendBtn.disabled = true;
+            userInput.disabled = true;
+            sendBtn.setAttribute('aria-busy', 'true');
+            userInput.setAttribute('aria-busy', 'true');
+
+            // Add user message to chat
+            addMessage(prompt, false);
+
+            // Log request
+            addLog('request', { prompt, turn });
+
+            // Clear input
+            userInput.value = '';
+
+            // Show thinking
+            addMessage(" ", isBot = true, thinking = true, null, null, null, false, true)
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt, turn, conversationId })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                messagesDiv.removeChild(messagesDiv.lastChild); // Remove thinking
+
+                if (!data?.response) {
+                    throw new Error('Invalid response from server');
+                }
+
+                conversationId = data.conversationId;
+
+                // Log response
+                await addLog('response', data.response, conversationId);
+                await addLog('trace', data.trace, conversationId)
+                await addLog('hash', data.hashMsg, conversationId)
+
+                // Log RAG sources if present
+                if (data.sources && data.sources.length > 0) {
+                    const ragInfo = data.sources.map(s => {
+                        const chunkLabel = (typeof s.chunkCount === 'number')
+                            ? `${s.chunkIndex + 1}/${s.chunkCount}`
+                            : String(s.chunkIndex);
+                        const charRange = (s.charStart != null && s.charEnd != null)
+                            ? `[${s.charStart}..${s.charEnd}]`
+                            : null;
+                        const previewSrc = typeof s.content === 'string' ? s.content : '';
+                        return {
+                            file: s.filename,
+                            chunk: chunkLabel,
+                            chars: charRange,
+                            hash: s.contentHash,
+                            score: s.score,
+                            preview: previewSrc.length > 100
+                                ? previewSrc.substring(0, 100) + '...'
+                                : previewSrc,
+                        };
+                    });
+                    await addLog('rag', ragInfo, conversationId);
+                }
+                // Update machine state
+                if (data.response.turn !== undefined) {
+                    turn = data.response.turn + 1;
+                    machineState = data.response;  // Keep the entire response object
+                    machineState.turn = turn;  // Update turn for next iteration
+                }
+
+
+
+                // Update form progress bar
+                updateFormProgress();
+
+                // Check if form collection is complete
+                console.log('Checking isComplete:', data.response.isComplete, 'Type:', typeof data.response.isComplete);
+                if (data.response.isComplete === true || data.response.isComplete === 'true') {
+                    console.log('Form collection is complete!');
+                    handleFormComplete();
+                } else {
+                    console.log('Form not yet complete');
+                }
+
+                // Prepare metadata, manually modify turn view here bc it got changed in state above
+                const modelApiInfo = data.trace?.model && data.trace?.url
+                    ? `${data.trace.model} | ${data.trace.url}`
+                    : data.trace?.model || data.trace?.url || 'N/A';
+
+                const metadata = {
+                    'Conversation ID': conversationId,
+                    'Turn': data.response.turn !== undefined ? data.response.turn - 1 : turn - 1,
+                    'Timestamp': new Date().toLocaleString(),
+                    'Hash': data.hashMsg || 'N/A',
+                    'Model / API URL': modelApiInfo
+                };
+
+                // Add bot response to chat
+
+                // Helper to show post-message content (triage card, suggestions, form fields)
+                const showPostMessageContent = () => {
+                    // Display triage card if triage is enabled in response
+                    console.log('Triage check - triage:', data.response.triage, 'starterPrompt:', data.response.starterPrompt);
+                    if (data.response.triage && data.response.starterPrompt) {
+                        let triageLink = data.response.link;
+                        let directedBotName = null;
+                        console.log('Triage enabled - initial link:', triageLink, 'deploymentId:', data.response.deploymentId);
+                        console.log('botContext.triageRoutes:', botContext.triageRoutes);
+                        // If deploymentId is provided, look up URL from triageRoutes
+                        if (data.response.deploymentId && botContext.triageRoutes) {
+                            console.log('Looking up route for deploymentId:', data.response.deploymentId);
+                            const route = botContext.triageRoutes.find(r => r.deploymentId === data.response.deploymentId);
+                            console.log('Route lookup result:', route);
+                            if (route) {
+                                triageLink = route.url;
+                                directedBotName = route.name;
+                                console.log('Found route - url:', triageLink, 'name:', directedBotName);
+                            } else {
+                                console.log('No matching route found for deploymentId:', data.response.deploymentId);
+                                console.log('Available deploymentIds:', botContext.triageRoutes.map(r => r.deploymentId));
+                            }
+                        } else {
+                            console.log('Skipping route lookup - deploymentId:', data.response.deploymentId, 'triageRoutes exists:', !!botContext.triageRoutes);
+                        }
+                        console.log('Final triageLink:', triageLink);
+                        if (triageLink) {
+                            const triageCard = createTriageCard(triageLink, data.response.starterPrompt, directedBotName);
+                            messagesDiv.lastChild.querySelector('.message-content').appendChild(triageCard);
+                        } else {
+                            console.log('Triage card NOT created - triageLink is falsy');
+                        }
+                    } else {
+                        console.log('Triage card skipped - triage or starterPrompt missing');
+                    }
+
+                    // Process form suggestions after streaming completes
+                    if (data.response.formSuggestions && data.response.formSuggestions.length > 0) {
+                        console.log('Received formSuggestions from response:', data.response.formSuggestions);
+                        messageInputForm.classList.add('vanish');
+                        // Process form suggestions and generate form elements
+                        processFormSuggestions(data.response.formSuggestions);
+                    } else {
+                        console.log('No formSuggestions in response');
+                    }
+
+                    // Auto-display suggestions if they exist in machineState
+                    // But skip if formSuggestions are present (form mode active)
+                    const hasFormSuggestions = data.response.formSuggestions && data.response.formSuggestions.length > 0;
+                    if (machineState.suggestions && machineState.suggestions.length > 0 && !hasFormSuggestions) {
+                        displaySuggestionsInChat(machineState.suggestions);
+                    }
+
+                    // Show calendar launch button if enabled in config and response
+                    if (botContext.isCalendar && data.response.showCalendarLaunchButton === "true") {
+                        const calendarCard = createCalendarCard(data.response.calendarId);
+                        if (calendarCard) {
+                            messagesDiv.lastChild.querySelector('.message-content').appendChild(calendarCard);
+                        }
+                    }
+
+                    // Scroll to the last message element
+                    const lastMessage = messagesDiv.lastElementChild;
+                    if (lastMessage) {
+                        lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }
+                };
+
+                if (data.response.answer) {
+                    // Preprocess bullet characters (•, ◦, ▪, ▸, ●) into markdown list syntax
+                    const preprocessed = data.response.answer.replace(/^[ \t]*[•◦▪▸●]\s*/gm, '- ');
+                    const parsedResponse = DOMPurify.sanitize(marked.parse(preprocessed));
+                    addMessage('', true, false, prompt, data.sources, metadata, true);
+                    const contentDiv = messagesDiv.lastChild.querySelector('.message-content');
+                    // Stream the HTML content progressively, then show suggestions
+                    streamHtmlContent(contentDiv, parsedResponse, messagesDiv.lastChild, showPostMessageContent);
+                } else if (typeof data.response === 'string') {
+                    addMessage(data.response, true, false, prompt, data.sources, metadata, true, true);
+                    showPostMessageContent();
+                } else {
+                    addMessage(JSON.stringify(data.response), true, false, prompt, data.sources, metadata, true, true);
+                    showPostMessageContent();
+                }
+
+            } catch (error) {
+                // Remove thinking div
+                messagesDiv.removeChild(messagesDiv.lastChild)
+                console.error('Error:', error);
+                addLog('error', error.message);
+                addMessage('Error: Failed to get response from server', true, false, null, null, null, false, true);
+                // Add alert role to error message
+                const errorDiv = messagesDiv.lastChild;
+                errorDiv.setAttribute('role', 'alert');
+
+                // Scroll to the last message element
+                const lastMessage = messagesDiv.lastElementChild;
+                if (lastMessage) {
+                    lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+            } finally {
+                // Re-enable input
+                sendBtn.disabled = false;
+                userInput.disabled = false;
+                sendBtn.removeAttribute('aria-busy');
+                userInput.removeAttribute('aria-busy');
+                userInput.focus();
+            }
+        }
+        async function mapToSuggestedPrompts(suggestions) {
+            suggestions.forEach(suggestion => {
+                const card = document.createElement('div');
+                card.className = 'suggested-prompt-card';
+                card.setAttribute('role', 'button');
+                card.setAttribute('tabindex', '0');
+
+                const promptElement = document.createElement('span');
+                promptElement.className = 'suggested-prompt';
+                promptElement.textContent = suggestion.suggestedPrompt;
+                card.appendChild(promptElement);
+
+                // Add click handler to send the prompt directly
+                card.addEventListener('click', () => {
+                    userInput.value = suggestion.suggestedPrompt;
+                    // Hide suggested prompts after selection
+                    suggestedPromptsContainer.style.display = 'none';
+                    // Trigger send button click
+                    sendBtn.click();
+                });
+
+                // Add keyboard support (Enter or Space)
+                card.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        userInput.value = suggestion.suggestedPrompt;
+                        suggestedPromptsContainer.style.display = 'none';
+                        sendBtn.click();
+                    }
+                });
+
+                suggestedPromptsContainer.appendChild(card);
+            });
+        }
+
+        // Calendly loader for direct page use (lazy load)
+        let calendlyLoaded = false;
+        function loadCalendly(callback) {
+            if (calendlyLoaded && window.Calendly) {
+                return callback();
+            }
+
+            // Add Calendly CSS
+            const link = document.createElement('link');
+            link.href = 'https://assets.calendly.com/assets/external/widget.css';
+            link.rel = 'stylesheet';
+            document.head.appendChild(link);
+
+            // Add Calendly JS
+            const script = document.createElement('script');
+            script.src = 'https://assets.calendly.com/assets/external/widget.js';
+            script.onload = () => {
+                calendlyLoaded = true;
+                callback();
+            };
+            document.head.appendChild(script);
+        }
+
+        // Get calendar config by ID from the calendarConfig array
+        // Falls back to first calendar if no ID specified or not found
+        function getCalendarById(calendarId) {
+            if (!botContext.calendarConfig || !Array.isArray(botContext.calendarConfig)) {
+                return null;
+            }
+            if (calendarId) {
+                const found = botContext.calendarConfig.find(c => c.id === calendarId);
+                if (found) return found;
+            }
+            // Fall back to first calendar
+            return botContext.calendarConfig[0] || null;
+        }
+
+        // Create a calendar card element for scheduling
+        // Clicking triggers Calendly popup on parent page via postMessage
+        // calendarId is optional - if not provided, uses the first calendar in config
+        function createCalendarCard(calendarId = null) {
+            const calendar = getCalendarById(calendarId);
+            if (!calendar) {
+                console.warn('No calendar config found');
+                return null;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'calendar-card-container';
+
+            const card = document.createElement('button');
+            card.className = 'calendar-card';
+            card.setAttribute('type', 'button');
+
+            card.addEventListener('click', () => {
+                // Collect prefill data from form registry at click time (may have more data now)
+                const filledValues = FormInputRegistry.getFilledValues();
+                const prefillData = {
+                    name: filledValues.name || filledValues.firstName || '',
+                    email: filledValues.email || '',
+                    smsReminderNumber: filledValues.phone || filledValues.phoneNumber || ''
+                };
+
+                // Send message to parent to open Calendly popup
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'mojulo-bot-open-calendly',
+                        url: calendar.popupUrl,
+                        prefill: prefillData
+                    }, '*');
+                } else {
+                    // Direct page (not in iframe) - load Calendly and show popup
+                    loadCalendly(() => {
+                        Calendly.initPopupWidget({
+                            url: calendar.popupUrl,
+                            prefill: prefillData
+                        });
+                    });
+                }
+            });
+
+
+            const labelElement = document.createElement('span');
+            labelElement.className = 'calendar-card-label';
+            labelElement.textContent = calendar.label || 'Book appointment';
+            card.appendChild(labelElement);
+
+            const iconElement = document.createElement('span');
+            iconElement.className = 'calendar-card-icon';
+            iconElement.textContent = '📅';
+            card.appendChild(iconElement);
+            
+            container.appendChild(card);
+            return container;
+        }
+
+        // Create a triage card element (with link and starterPrompt)
+        // Clicking navigates to link with ?prompt=starterPrompt&source=configName to auto-start conversation
+        function createTriageCard(link, starterPrompt, directedBotName) {
+            const container = document.createElement('div');
+            container.className = 'triage-prompts-container';
+
+            const card = document.createElement('a');
+            card.className = 'triage-prompt-card';
+
+            // Build URL with prompt and source parameters
+            const url = new URL(link);
+            url.searchParams.set('prompt', starterPrompt);
+            url.searchParams.set('source', botContext.name);
+            card.href = url.toString();
+
+            card.setAttribute('role', 'link');
+
+            // Show routing overlay on click
+            card.addEventListener('click', () => {
+                const overlay = document.createElement('div');
+                overlay.className = 'routing-overlay';
+
+                const spinner = document.createElement('div');
+                spinner.className = 'routing-overlay-spinner';
+
+                const text = document.createElement('div');
+                text.className = 'routing-overlay-text';
+                const routingTarget = directedBotName || 'new assistant';
+                text.textContent = `Routing to ${routingTarget}...`;
+
+                overlay.appendChild(spinner);
+                overlay.appendChild(text);
+                document.body.appendChild(overlay);
+            });
+
+            const labelElement = document.createElement('span');
+            labelElement.className = 'triage-prompt-label';
+            labelElement.textContent = starterPrompt;
+            card.appendChild(labelElement);
+
+            const linkIcon = document.createElement('span');
+            linkIcon.className = 'triage-prompt-icon';
+            linkIcon.textContent = '↗';
+            card.appendChild(linkIcon);
+
+            container.appendChild(card);
+
+            // Add helper text if directed bot name is provided
+            if (directedBotName) {
+                const helperText = document.createElement('div');
+                helperText.style.cssText = 'font-size: 12px; color: #888; margin: 3px 0 0 3px;';
+                helperText.textContent = `Redirects query to ${directedBotName} bot`;
+                container.appendChild(helperText);
+            }
+
+            return container;
+        }
+
+        // Get URL parameter by name
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        async function getContext() {
+            try {
+                // Check if config was injected by server
+                let data = window.__INITIAL_CONFIG__;
+
+                // Fallback to API call if not injected (for backwards compatibility)
+                if (!data) {
+                    const response = await fetch('/context');
+                    data = await response.json();
+                }
+
+                console.log('Config:', data);
+                // Store form structure if available
+                if (data.formStructure) {
+                    formStructure = data.formStructure;
+                }
+                
+                if (data.suggestedPrompts && data.suggestedPrompts.length > 0) {
+                    mapToSuggestedPrompts(data.suggestedPrompts)
+                }
+
+                // populate form template
+                botContext = data
+                
+                document.title = data.name;
+                botDisplayName=data.chatDisplayName;
+                headerTitleDiv.textContent = data.chatDisplayName;
+
+                firstMessageDiv.textContent = data.firstMessage;
+                firstMessageLabel.textContent = data.chatDisplayName;
+
+                // Update sticky bot name header
+                const botNameDisplay = document.getElementById('botNameDisplay');
+                if (botNameDisplay) {
+                    botNameDisplay.textContent = data.chatDisplayName;
+                }
+
+                // Move suggested prompts after the first message
+                firstMessageDiv.appendChild(suggestedPromptsContainer);
+
+
+                // Check for orchestration URL parameters
+                const autoPrompt = getUrlParameter('prompt');
+                const sourceBot = getUrlParameter('source');
+                const contextParam = getUrlParameter('context');
+
+                // Store source for analytics/tracking
+                if (sourceBot) {
+                    console.log('Received handoff from:', sourceBot);
+                    botContext.sourceBot = sourceBot;
+                }
+
+                // Parse and store context (not output yet, available for future use)
+                if (contextParam) {
+                    try {
+                        botContext.handoffContext = JSON.parse(decodeURIComponent(contextParam));
+                        console.log('Received context:', botContext.handoffContext);
+                    } catch (e) {
+                        console.warn('Failed to parse context param:', e);
+                    }
+                }
+
+                // Auto-send prompt to kickstart conversation
+                if (autoPrompt) {
+                    firstMessageContainer.classList.add('vanish');
+                    console.log('Auto-sending prompt from URL:', autoPrompt);
+                    
+                    userInput.value = autoPrompt;
+                    // Use setTimeout to ensure UI is ready
+                    setTimeout(() => {
+                        sendMessage();
+                    }, 100);
+                }
+            } catch (e) {
+                console.error(e)
+            }
+        }
+
+        function unhideChatPane() {
+            messageInputForm.classList.remove('vanish');
+            showChatBtn.classList.add('hide');
+            userInput.placeholder = "Only use fields for requested information.";
+            hideForm();
+        }
+        function showForm() {
+            messageInputForm.classList.add('vanish');
+            formContentWrapper.classList.remove('vanish')
+            showChatBtn.classList.remove('hide');
+            formHiderBtn.classList.remove('vanish')
+            formShowerBtn.classList.add('vanish')
+        }
+        function hideForm() {
+            formContentWrapper.classList.add('vanish')
+            formShowerBtn.classList.remove('vanish')
+            formHiderBtn.classList.add('vanish')
+        }
+
+        // Event listeners
+        const messageInputForm = document.getElementById('messageInputForm');
+        const formFieldsForm = document.getElementById('formFieldsForm');
+
+        messageInputForm.addEventListener('submit', sendMessage);
+        formFieldsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleFormSubmit();
+        });
+        showChatBtn.addEventListener('click', unhideChatPane)
+        formShowerBtn.addEventListener('click', showForm)
+        formHiderBtn.addEventListener('click', hideForm)
+
+        // Drag down to hide form
+        let dragStartY = 0;
+        let isDragging = false;
+        const DRAG_THRESHOLD = 50; // pixels to drag down before triggering hide
+
+        formHiderBtn.addEventListener('touchstart', (e) => {
+            dragStartY = e.touches[0].clientY;
+            isDragging = true;
+        }, { passive: true });
+
+        formHiderBtn.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const currentY = e.touches[0].clientY;
+            const deltaY = currentY - dragStartY;
+            if (deltaY > DRAG_THRESHOLD) {
+                hideForm();
+                isDragging = false;
+            }
+        }, { passive: true });
+
+        formHiderBtn.addEventListener('touchend', () => {
+            isDragging = false;
+        }, { passive: true });
+
+        // Mouse drag support for desktop
+        formHiderBtn.addEventListener('mousedown', (e) => {
+            dragStartY = e.clientY;
+            isDragging = true;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const deltaY = e.clientY - dragStartY;
+            if (deltaY > DRAG_THRESHOLD) {
+                hideForm();
+                isDragging = false;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Close widget button
+        const closeWidgetBtn = document.getElementById('closeWidgetBtn');
+        if (closeWidgetBtn) {
+            closeWidgetBtn.addEventListener('click', () => {
+                window.closeWidget();
+            });
+        }
+
+        getContext();
+
+        // Widget control functions - can be called from anywhere in the chatbot
+        window.closeWidget = function() {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'mojulo-bot-close' }, '*');
+            }
+        };
+
+        window.openWidget = function() {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'mojulo-bot-open' }, '*');
+            }
+        };
+
+        window.toggleWidget = function() {
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'mojulo-bot-toggle' }, '*');
+            }
+        };
+
+        // Listen for focus request from parent widget
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'mojulo-bot-focus-input') {
+                userInput.focus();
+            }
+        });
+        
+    </script>
+</body>
+
+</html>

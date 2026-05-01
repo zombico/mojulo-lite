@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  mojulo-bot:
+    build: .
+    image: mojulo-bot:latest
+    container_name: mojulo-bot
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DOCKER_RUN=true
+      - PORT=3000
+      - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+    # Uncomment to override documents/config at runtime (for testing)
+    volumes:
+      - ./data:/data
+    #   - ./documents:/app/documents
+    #   - ./config:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

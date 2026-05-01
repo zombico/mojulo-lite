@@ -1,0 +1,393 @@
+/**
+ * LLM Provider Configurations
+ * Shared between ConfigForm and config-builder
+ */
+
+export const LLM_PROVIDERS = {
+  openai: {
+    name: 'OpenAI',
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    defaultModel: 'gpt-4o',
+    baseURL: 'https://api.openai.com/v1',
+    endpoint: '/responses'
+  },
+  anthropic: {
+    name: 'Anthropic',
+    models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    defaultModel: 'claude-sonnet-4-6',
+    baseURL: 'https://api.anthropic.com/v1',
+    endpoint: '/messages'
+  },
+  gemini: {
+    name: 'Google Gemini',
+    models: ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    defaultModel: 'gemini-2.5-flash',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/models/',
+    endpoint: ':generateContent'
+  },
+  cohere: {
+    name: 'Cohere',
+    models: ['command-a-03-2025', 'command-r-plus', 'command-r'],
+    defaultModel: 'command-a-03-2025',
+    baseURL: 'https://api.cohere.ai/',
+    endpoint: 'v2/chat'
+  },
+  bedrock: {
+    name: 'AWS Bedrock (Claude)',
+    // Base model IDs without geographic prefix - prefix is added dynamically based on region
+    models: [
+      { id: 'anthropic.claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+      { id: 'anthropic.claude-opus-4-6', name: 'Claude Opus 4.6' },
+      { id: 'anthropic.claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
+      { id: 'anthropic.claude-opus-4-5', name: 'Claude Opus 4.5' },
+      { id: 'anthropic.claude-haiku-4-5', name: 'Claude Haiku 4.5' },
+    ],
+    defaultModel: 'anthropic.claude-sonnet-4-6',
+    // Regions grouped by geographic prefix for cross-region inference
+    regions: [
+      { id: 'us-east-1', name: 'US East (N. Virginia)', geoPrefix: 'us' },
+      { id: 'us-west-2', name: 'US West (Oregon)', geoPrefix: 'us' },
+      { id: 'eu-west-1', name: 'Europe (Ireland)', geoPrefix: 'eu' },
+      { id: 'eu-central-1', name: 'Europe (Frankfurt)', geoPrefix: 'eu' },
+      { id: 'ap-northeast-1', name: 'Asia Pacific (Tokyo)', geoPrefix: 'apac' },
+      { id: 'ap-southeast-1', name: 'Asia Pacific (Singapore)', geoPrefix: 'apac' },
+    ],
+    authModes: ['credentials', 'iam-role'],
+  }
+};
+
+/**
+ * Get default Bedrock region from environment or fallback
+ * @returns {string} Default AWS region for Bedrock
+ */
+export function getDefaultBedrockRegion() {
+  return process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+}
+
+/**
+ * Get geographic prefix for cross-region inference based on AWS region
+ * @param {string} region - AWS region ID (e.g., 'us-east-1')
+ * @returns {string} Geographic prefix (e.g., 'us', 'eu', 'apac')
+ */
+export function getBedrockGeoPrefix(region) {
+  // Handle undefined/null region - default to 'us'
+  if (!region) {
+    return 'us';
+  }
+
+  const regionConfig = LLM_PROVIDERS.bedrock.regions.find(r => r.id === region);
+  if (regionConfig?.geoPrefix) {
+    return regionConfig.geoPrefix;
+  }
+
+  // Fallback mapping for regions not in the list
+  if (region.startsWith('us-') || region.startsWith('ca-')) return 'us';
+  if (region.startsWith('eu-') || region.startsWith('il-')) return 'eu';
+  if (region.startsWith('ap-') || region.startsWith('me-')) return 'apac';
+
+  // Default to 'us' if unknown
+  return 'us';
+}
+
+/**
+ * Build the full Bedrock model ID with geographic prefix for cross-region inference
+ * @param {string} baseModelId - Base model ID without prefix (e.g., 'anthropic.claude-sonnet-4-6')
+ * @param {string} region - AWS region ID (e.g., 'us-east-1')
+ * @returns {string} Full model ID with prefix (e.g., 'us.anthropic.claude-sonnet-4-6')
+ */
+export function buildBedrockModelId(baseModelId, region) {
+  // If already prefixed (starts with us., eu., apac.), return as-is
+  if (/^(us|eu|apac)\./.test(baseModelId)) {
+    return baseModelId;
+  }
+  const geoPrefix = getBedrockGeoPrefix(region);
+  return `${geoPrefix}.${baseModelId}`;
+}
+
+/**
+ * Strip the geographic prefix from a Bedrock model ID
+ * @param {string} modelId - Full model ID (e.g., 'us.anthropic.claude-sonnet-4-6')
+ * @returns {string} Base model ID without prefix (e.g., 'anthropic.claude-sonnet-4-6')
+ */
+export function stripBedrockModelPrefix(modelId) {
+  if (!modelId) return modelId;
+  // Remove geographic prefix (us., eu., apac.) if present
+  return modelId.replace(/^(us|eu|apac)\./, '');
+}
+
+/**
+ * Generate summary using specified LLM provider
+ * @param {string} provider - The LLM provider (cohere, gemini, openai, anthropic)
+ * @param {string} content - The content to summarize
+ * @param {string} apiKey - The API key for the provider
+ * @param {string} customPrompt - Optional custom prompt
+ * @param {string} model - Optional model override
+ * @returns {Promise<string>} - The generated summary
+ */
+export async function generateSummary(provider, content, apiKey, customPrompt = null, model = null) {
+  const providerConfig = LLM_PROVIDERS[provider];
+
+  if (!providerConfig) {
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
+
+  const selectedModel = model || providerConfig.defaultModel;
+
+  const defaultPrompt = `You are a helpful RAG (Retrieval-Augmented Generation) assistant. Analyze the following documents and provide a concise summary that:
+
+1. Identifies key terms, concepts, and topics covered
+2. Highlights the main themes and subject areas
+3. Describes what kind of questions this knowledge base can answer
+4. Lists important entities, processes, or procedures mentioned
+
+IMPORTANT: Generate the summary in the SAME LANGUAGE as the original document. If the document is in French, write the summary in French. If in German, write in German. Match the source language exactly.
+
+Keep the summary clear, structured, and focused on what information is available in these documents.`;
+
+  const systemInstruction = customPrompt || defaultPrompt;
+
+  switch (provider) {
+    case 'cohere':
+      return await generateSummaryWithCohere(content, apiKey, systemInstruction, selectedModel, providerConfig);
+
+    case 'gemini':
+      return await generateSummaryWithGemini(content, apiKey, systemInstruction, selectedModel, providerConfig);
+
+    case 'openai':
+      return await generateSummaryWithOpenAI(content, apiKey, systemInstruction, selectedModel, providerConfig);
+
+    case 'anthropic':
+      return await generateSummaryWithAnthropic(content, apiKey, systemInstruction, selectedModel, providerConfig);
+
+    case 'bedrock': {
+      // For Bedrock, apiKey is actually JSON credentials
+      let credentials;
+      try {
+        credentials = JSON.parse(apiKey);
+      } catch (e) {
+        throw new Error('Invalid Bedrock credentials format. Please reconfigure your AWS credentials.');
+      }
+      if (!credentials.region) {
+        credentials.region = 'us-east-1'; // Fallback region
+      }
+      return await generateSummaryWithBedrock(content, credentials, systemInstruction, selectedModel);
+    }
+
+    default:
+      throw new Error(`Provider ${provider} not implemented`);
+  }
+}
+
+/**
+ * Generate summary using Cohere API
+ */
+async function generateSummaryWithCohere(content, apiKey, systemInstruction, model, config) {
+  const url = `${config.baseURL}${config.endpoint}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: content
+        },
+        {
+          role: 'system',
+          content: systemInstruction
+        }
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Cohere API error: ${errorData.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.message?.content?.[0]?.text || data.text || 'No summary generated';
+}
+
+/**
+ * Generate summary using Gemini API
+ */
+async function generateSummaryWithGemini(content, apiKey, systemInstruction, model, config) {
+  const url = `${config.baseURL}${model}${config.endpoint}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: 'model',
+          parts: [{ text: systemInstruction }]
+        },
+        {
+          role: 'user',
+          parts: [{ text: content }]
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const candidates = data.candidates?.[0];
+  const text = candidates?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error('No summary generated from Gemini');
+  }
+
+  return text;
+}
+
+/**
+ * Generate summary using OpenAI API
+ */
+async function generateSummaryWithOpenAI(content, apiKey, systemInstruction, model, config) {
+  const url = `${config.baseURL}/chat/completions`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: [
+        {
+          role: 'system',
+          content: systemInstruction
+        },
+        {
+          role: 'user',
+          content: content
+        }
+      ],
+      max_tokens: 4096
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || 'No summary generated';
+}
+
+/**
+ * Generate summary using Anthropic API
+ */
+async function generateSummaryWithAnthropic(content, apiKey, systemInstruction, model, config) {
+  const url = `${config.baseURL}${config.endpoint}`;
+
+  // If content is empty, use systemInstruction as the user message
+  // Anthropic API requires non-empty content in all messages
+  const hasContent = content && content.trim().length > 0;
+
+  const body = {
+    model: model,
+    max_tokens: 4096,
+    messages: [
+      {
+        role: 'user',
+        content: hasContent ? content : systemInstruction
+      }
+    ]
+  };
+
+  // Only include system prompt if we have separate content
+  if (hasContent) {
+    body.system = systemInstruction;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Anthropic API error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.content?.[0]?.text || 'No summary generated';
+}
+
+/**
+ * Generate summary using AWS Bedrock API
+ */
+async function generateSummaryWithBedrock(content, credentials, systemInstruction, model) {
+  const { BedrockRuntimeClient, ConverseCommand } = await import('@aws-sdk/client-bedrock-runtime');
+
+  const clientConfig = { region: credentials.region };
+
+  // Only set explicit credentials if not using IAM role
+  if (!credentials.useIamRole && credentials.accessKeyId) {
+    clientConfig.credentials = {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+    };
+  }
+
+  const client = new BedrockRuntimeClient(clientConfig);
+
+  // Build the full model ID with geographic prefix for cross-region inference
+  const fullModelId = buildBedrockModelId(model, credentials.region);
+
+  // If content is empty, use systemInstruction as the user message
+  const hasContent = content && content.trim().length > 0;
+
+  const command = new ConverseCommand({
+    modelId: fullModelId,
+    system: hasContent ? [{ text: systemInstruction }] : undefined,
+    messages: [{ role: 'user', content: [{ text: hasContent ? content : systemInstruction }] }],
+    inferenceConfig: { maxTokens: 4096 },
+  });
+
+  try {
+    const response = await client.send(command);
+    const textBlock = response.output?.message?.content?.find(b => b.text);
+    return textBlock?.text || 'No summary generated';
+  } catch (error) {
+    // Provide more helpful error messages for common Bedrock errors
+    if (error.name === 'AccessDeniedException') {
+      throw new Error(`Bedrock access denied: ${error.message}. Check your AWS credentials and model access permissions.`);
+    }
+    if (error.name === 'ValidationException') {
+      throw new Error(`Bedrock validation error: ${error.message}. Model ID: ${fullModelId}`);
+    }
+    if (error.name === 'ResourceNotFoundException') {
+      throw new Error(`Bedrock model not found: ${fullModelId}. Ensure the model is available in region ${credentials.region}.`);
+    }
+    if (error.name === 'ThrottlingException') {
+      throw new Error('Bedrock rate limit exceeded. Please try again in a few moments.');
+    }
+    throw new Error(`Bedrock API error: ${error.message}`);
+  }
+}
