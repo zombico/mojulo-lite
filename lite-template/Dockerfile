@@ -4,7 +4,12 @@
 # against glibc, and Alpine uses musl. The artifact would build but crash
 # on first import with "Error loading shared library ld-linux-x86-64.so.2".
 # Debian slim is ~50MB larger and Just Works for native deps.
-FROM --platform=linux/amd64 node:20-bookworm-slim
+#
+# No --platform pin: the published GHCR image is built multi-arch
+# (linux/amd64 + linux/arm64) so Apple Silicon users get a native pull
+# instead of QEMU emulation. better-sqlite3 compiles from source per arch;
+# onnxruntime-node ships arm64 prebuilds.
+FROM node:20-bookworm-slim
 
 # Build deps for better-sqlite3 (native compile) + ca-certificates so any
 # outbound HTTPS the bot does (LLM provider calls) verifies properly.

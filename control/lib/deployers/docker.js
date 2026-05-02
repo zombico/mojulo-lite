@@ -16,6 +16,16 @@ const ARTIFACTS_DIR =
 
 const BOT_DEFAULT_PORT = process.env.BOT_DEFAULT_PORT || '3000';
 
+// Prebuilt bot image published by .github/workflows/publish-bot-image.yml.
+// Pin an exact version per release — never ship :latest to users.
+const BOT_IMAGE =
+  process.env.BOT_IMAGE || 'ghcr.io/zombico/mojulo-bot:0.1.0';
+
+// Escape hatch for users who can't reach ghcr.io (air-gapped networks,
+// firewalls). Set MOJULO_OFFLINE_BUILD=1 on the control plane and the
+// emitted artifact bundles the full source + Dockerfile and builds locally.
+const OFFLINE_BUILD = process.env.MOJULO_OFFLINE_BUILD === '1';
+
 const TEMPLATE_EXCLUDES = new Set([
   'node_modules',
   '.next',
@@ -26,19 +36,38 @@ const TEMPLATE_EXCLUDES = new Set([
   'config',
 ]);
 
+// In prebuilt-image mode the source code, Dockerfile, and node-side assets
+// are baked into ghcr.io/zombico/mojulo-bot. Including them in the ZIP
+// would just be dead weight — the artifact only needs the per-bot config,
+// docs, and compose file.
+const PREBUILT_EXCLUDES = new Set([
+  ...TEMPLATE_EXCLUDES,
+  'Dockerfile',
+  '.dockerignore',
+  'server.js',
+  'package.json',
+  'package-lock.json',
+  'helper',
+  'middleware',
+  'client',
+  'models',
+  'scripts',
+  'integration',
+]);
+
 async function ensureDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
 }
 
-async function copyTemplateFiles(srcRoot, dstRoot) {
+async function copyTemplateFiles(srcRoot, dstRoot, excludes) {
   const entries = await fsp.readdir(srcRoot, { withFileTypes: true });
   for (const entry of entries) {
-    if (TEMPLATE_EXCLUDES.has(entry.name)) continue;
+    if (excludes.has(entry.name)) continue;
     const srcPath = path.join(srcRoot, entry.name);
     const dstPath = path.join(dstRoot, entry.name);
     if (entry.isDirectory()) {
       await ensureDir(dstPath);
-      await copyTemplateFiles(srcPath, dstPath);
+      await copyTemplateFiles(srcPath, dstPath, excludes);
     } else {
       await fsp.copyFile(srcPath, dstPath);
     }
@@ -46,12 +75,16 @@ async function copyTemplateFiles(srcRoot, dstRoot) {
 }
 
 function buildDockerCompose(botName) {
+  const imageOrBuild = OFFLINE_BUILD
+    ? `build: .
+    image: mojulo/bot:local`
+    : `image: ${BOT_IMAGE}`;
+
   return `version: '3.8'
 
 services:
   ${botName}:
-    build: .
-    image: mojulo/bot:local
+    ${imageOrBuild}
     container_name: ${botName}
     ports:
       - "${BOT_DEFAULT_PORT}:3000"
@@ -136,11 +169,8 @@ Admin endpoints (require \`x-mojulo-api-key: <MOJULO_API_KEY>\`):
   UTF-8 BOM so non-Latin field values render correctly in Excel.
 ` : '';
 
-  return `# ${botName}
-
-Portable Mojulo bot artifact. One image, one zip, one command.
-
-## Quick start (60-second first run, instant thereafter)
+  const quickStart = OFFLINE_BUILD
+    ? `## Quick start
 
 1. Paste your LLM provider API key into \`.env\` (see \`.env.example\`).
 2. Build and run:
@@ -149,13 +179,35 @@ Portable Mojulo bot artifact. One image, one zip, one command.
    docker compose up --build
    \`\`\`
 
-   First run builds the image locally (~60s). Subsequent runs skip straight to start.
+   First run builds the image locally (~3min). Subsequent runs skip straight to start.
 
-3. Open http://localhost:${BOT_DEFAULT_PORT}.
+3. Open http://localhost:${BOT_DEFAULT_PORT}.`
+    : `## Quick start
+
+1. Paste your LLM provider API key into \`.env\` (see \`.env.example\`).
+2. Run:
+
+   \`\`\`bash
+   docker compose up
+   \`\`\`
+
+   First run pulls the bot image from GHCR (~30s on a typical connection); subsequent runs are instant.
+
+3. Open http://localhost:${BOT_DEFAULT_PORT}.`;
+
+  const composeLine = OFFLINE_BUILD
+    ? `\`docker-compose.yml\` — builds \`mojulo/bot:local\` from the Dockerfile in this directory.`
+    : `\`docker-compose.yml\` — pulls \`${BOT_IMAGE}\` and runs it with your config mounted.`;
+
+  return `# ${botName}
+
+Portable Mojulo bot artifact. One image, one zip, one command.
+
+${quickStart}
 
 ## What's inside
 
-- \`docker-compose.yml\` — builds \`mojulo/bot:local\` from the Dockerfile in this directory.
+- ${composeLine}
 - \`.env.example\` — LLM keys + webhook URLs.
 - \`config/\`
   - \`instructions.txt\` — composed protocol cartridges.
@@ -233,8 +285,12 @@ export class DockerDeployer {
     if (fs.existsSync(stagingDir)) await fsp.rm(stagingDir, { recursive: true, force: true });
     await ensureDir(stagingDir);
 
-    // 1. Copy lite-template source into the staging root
-    await copyTemplateFiles(LITE_TEMPLATE_PATH, stagingDir);
+    // 1. Copy lite-template source into the staging root.
+    //    Prebuilt-image mode (default) drops everything baked into the
+    //    published GHCR image; offline mode keeps the full template so
+    //    `docker compose up` can build from source on the user's machine.
+    const excludes = OFFLINE_BUILD ? TEMPLATE_EXCLUDES : PREBUILT_EXCLUDES;
+    await copyTemplateFiles(LITE_TEMPLATE_PATH, stagingDir, excludes);
 
     // 2. Create config, documents dirs
     const configDir = path.join(stagingDir, 'config');

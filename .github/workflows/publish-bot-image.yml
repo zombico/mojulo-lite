@@ -1,0 +1,51 @@
+name: Publish bot image
+
+# Builds and pushes ghcr.io/zombico/mojulo-bot for tags shaped like
+# bot-v0.1.0. The git tag's version (0.1.0) becomes the image tag, and
+# pushes from the default branch also move :latest. Manual runs from
+# the Actions tab are supported via workflow_dispatch.
+#
+# See GHCR_container_plan.md for the broader plan this workflow fits into.
+
+on:
+  push:
+    tags:
+      - 'bot-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/mojulo-bot
+          tags: |
+            type=match,pattern=bot-v(.*),group=1
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./lite-template
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

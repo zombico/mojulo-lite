@@ -61,18 +61,6 @@ control/
 4. The zip is saved to `data/artifacts/` and linked to the deployment record in SQLite.
 5. `/api/deployments/[id]/download` streams it back to the user.
 
-## What got swapped vs. Full
-
-| Full | Lite |
-|------|------|
-| Kubernetes deployer | Docker deployer (zip artifact) |
-| Postgres + Drizzle | SQLite + `better-sqlite3` |
-| S3 / MinIO | Local filesystem (`data/storage/`) |
-| Infinity embeddings server | Keyword RAG only (container already supports `ragSummary`) |
-| NextAuth + bot spaces + RBAC | Single-user stub (`lib/auth/service.js`) |
-| Billing / entitlements / quotas | All permissive |
-| 12 locales | English only (i18n lib retained for future locales) |
-
 ## Env vars
 
 See `.env.example`. The main knobs:
