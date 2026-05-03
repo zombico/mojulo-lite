@@ -86,17 +86,6 @@ export default function ModularBotCreationWizard() {
     };
   }, []);
 
-  // Snap back to the documents tab if the current tab disappears after a RAG
-  // mode flip (keyword hides embeddings, vector hides ragSummary).
-  useEffect(() => {
-    const isVectorMode = formData.ragMode === 'vector';
-    if (isVectorMode && step3ActiveTab === 'ragSummary') {
-      setStep3ActiveTab('documents');
-    } else if (!isVectorMode && step3ActiveTab === 'embeddings') {
-      setStep3ActiveTab('documents');
-    }
-  }, [formData.ragMode, step3ActiveTab]);
-
   // Load deployment config if 'from' parameter is present
   useEffect(() => {
     if (deploymentId) {
@@ -179,7 +168,6 @@ export default function ModularBotCreationWizard() {
           enabledProtocols: parsedState.enabledProtocols,
           botName: parsedState.core?.botName,
           documentsCount: existingDocuments?.length || 0,
-          ragSummaryLength: parsedState.protocolData.knowledge.ragSummary?.length || 0,
         });
       }
 
@@ -293,28 +281,15 @@ export default function ModularBotCreationWizard() {
         return [{ id: 'desktop', label: t('tabs.desktop') }];
       case 'knowledge':
         const docCount = formData.documents ? formData.documents.length : 0;
-        const hasRagSummary = !!formData.ragSummary;
-        const isVectorMode = formData.ragMode === 'vector';
         const hasEmbeddings = !!formData.embeddings?.storageKey;
-        const knowledgeTabs = [
+        return [
           { id: 'documents', label: t('tabs.documents'), badge: docCount > 0 ? docCount : null },
-        ];
-        // Right-side affordances are locked to the active RAG mode: keyword =
-        // ragSummary tab, vector = embeddings tab.
-        if (isVectorMode) {
-          knowledgeTabs.push({
+          {
             id: 'embeddings',
             label: 'Embeddings',
             badge: hasEmbeddings ? formData.embeddings.chunkCount || '✓' : '!',
-          });
-        } else {
-          knowledgeTabs.push({
-            id: 'ragSummary',
-            label: t('tabs.ragSummary'),
-            badge: hasRagSummary ? '✓' : null,
-          });
-        }
-        return knowledgeTabs;
+          },
+        ];
       case 'form-gathering':
         // Get field count for badge
         let fieldCount = 0;

@@ -16,24 +16,8 @@
  */
 export const BUILDER_TOOLS = [
   {
-    name: 'set_rag_mode',
-    description:
-      "Lock the RAG strategy for this bot. Call BEFORE process_documents. 'keyword' uses local keyword search and is the default; 'vector' uses the bundled multilingual-e5-small ONNX model for semantic recall (no API key required — model weights ship in the artifact).",
-    input_schema: {
-      type: 'object',
-      properties: {
-        mode: {
-          type: 'string',
-          enum: ['keyword', 'vector'],
-          description: "'keyword' (default) or 'vector' (semantic recall via bundled local model)",
-        },
-      },
-      required: ['mode'],
-    },
-  },
-  {
     name: 'process_documents',
-    description: 'Parse uploaded documents and generate a RAG summary for knowledge-based responses. Call this first when documents are attached.',
+    description: 'Parse uploaded documents and embed them locally via the bundled multilingual-e5-small ONNX model. Call this first when documents are attached.',
     input_schema: {
       type: 'object',
       properties: {
@@ -48,7 +32,7 @@ export const BUILDER_TOOLS = [
   },
   {
     name: 'infer_intent',
-    description: 'Analyze the user message and RAG summary to determine the bot type and required capabilities. Returns intent classification with confidence score.',
+    description: 'Analyze the user message and document digest to determine the bot type and required capabilities. Returns intent classification with confidence score.',
     input_schema: {
       type: 'object',
       properties: {
@@ -56,9 +40,9 @@ export const BUILDER_TOOLS = [
           type: 'string',
           description: 'The user\'s original message describing what they want',
         },
-        ragSummary: {
+        domainDigest: {
           type: 'string',
-          description: 'Summary of processed documents (if any)',
+          description: 'Build-time digest of processed documents (if any) — produced by process_documents',
         },
       },
       required: ['userMessage'],
@@ -74,9 +58,9 @@ export const BUILDER_TOOLS = [
           type: 'string',
           description: 'The inferred intent (e.g., support_bot, lead_gen, appointment_scheduler)',
         },
-        ragSummary: {
+        domainDigest: {
           type: 'string',
-          description: 'Summary of processed documents',
+          description: 'Build-time digest of processed documents — produced by process_documents',
         },
         userMessage: {
           type: 'string',
@@ -120,9 +104,9 @@ export const BUILDER_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        ragSummary: {
+        domainDigest: {
           type: 'string',
-          description: 'Context from documents about appointment types/services',
+          description: 'Build-time digest of documents — used to extract appointment types/services',
         },
         businessType: {
           type: 'string',
@@ -168,9 +152,9 @@ export const BUILDER_TOOLS = [
           },
           description: 'Array of routing destinations',
         },
-        ragSummary: {
+        domainDigest: {
           type: 'string',
-          description: 'Context from documents to help infer appropriate routes',
+          description: 'Build-time digest of documents — used to infer appropriate routes',
         },
         userMessage: {
           type: 'string',
@@ -182,7 +166,7 @@ export const BUILDER_TOOLS = [
   },
   {
     name: 'compose_identity',
-    description: 'Generate the bot\'s identity including name, objective, first message, and suggested prompts. Pass userMessage and ragSummary for contextual LLM-generated identity.',
+    description: 'Generate the bot\'s identity including name, objective, first message, and suggested prompts. Pass userMessage and domainDigest for contextual LLM-generated identity.',
     input_schema: {
       type: 'object',
       properties: {
@@ -190,13 +174,13 @@ export const BUILDER_TOOLS = [
           type: 'string',
           description: 'The inferred bot intent/type',
         },
-        ragSummary: {
+        domainDigest: {
           type: 'string',
-          description: 'Summary of documents for context - used to generate contextual firstMessage and objective',
+          description: 'Build-time document digest — used to generate contextual firstMessage and objective',
         },
         userMessage: {
           type: 'string',
-          description: 'The original user message describing what they want - used with ragSummary to generate contextual identity',
+          description: 'The original user message describing what they want - used with domainDigest to generate contextual identity',
         },
         organizationName: {
           type: 'string',
@@ -260,7 +244,6 @@ export const BUILDER_TOOLS = [
  * Tool name to display label mapping
  */
 export const TOOL_LABELS = {
-  set_rag_mode: 'Selecting RAG mode',
   process_documents: 'Processing documents',
   infer_intent: 'Analyzing intent',
   recommend_protocols: 'Recommending protocols',
@@ -277,7 +260,6 @@ export const TOOL_LABELS = {
  * Tool name to icon mapping (for UI)
  */
 export const TOOL_ICONS = {
-  set_rag_mode: 'sliders',
   process_documents: 'document',
   infer_intent: 'target',
   recommend_protocols: 'puzzle',

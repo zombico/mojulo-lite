@@ -243,7 +243,7 @@ function renderToolResultSummary(toolName, result) {
 
   switch (toolName) {
     case 'process_documents':
-      return `Parsed ${result.documentsProcessed || 0} document(s), ${result.pageCount || 0} pages`;
+      return `Embedded ${result.documentsProcessed || 0} document(s) into ${result.chunkCount || 0} chunks`;
 
     case 'infer_intent':
       const confidence = Math.round((result.confidence || 0) * 100);

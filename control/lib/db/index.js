@@ -99,6 +99,40 @@ function migrateDeploymentColumns(db) {
   if (!have.has('embedding_chunk_count')) {
     db.exec('ALTER TABLE deployments ADD COLUMN embedding_chunk_count INTEGER');
   }
+  // Cloud deploy state. Cloud orchestration runs the published GHCR image on
+  // a remote provider (Fly.io first) using user-supplied credentials. The
+  // existing artifact-build state above is independent: cloud deploys reuse
+  // the staged config files but don't replace the local-ZIP path.
+  if (!have.has('cloud_provider')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_provider TEXT');
+  }
+  if (!have.has('cloud_app_name')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_app_name TEXT');
+  }
+  if (!have.has('cloud_status')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_status TEXT');
+  }
+  if (!have.has('cloud_url')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_url TEXT');
+  }
+  if (!have.has('cloud_progress')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_progress TEXT');
+  }
+  if (!have.has('cloud_options')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_options TEXT');
+  }
+  if (!have.has('cloud_error')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_error TEXT');
+  }
+  if (!have.has('cloud_last_deployed_at')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_last_deployed_at INTEGER');
+  }
+  if (!have.has('cloud_machine_id')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_machine_id TEXT');
+  }
+  if (!have.has('cloud_volume_id')) {
+    db.exec('ALTER TABLE deployments ADD COLUMN cloud_volume_id TEXT');
+  }
 }
 
 export function getDb() {

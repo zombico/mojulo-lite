@@ -263,6 +263,16 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
           )}
         </ActionGroup>
 
+        <ActionGroup label="Cloud">
+          <Link
+            key="cloud-deploy"
+            href={`/dashboard/deployments/${deployment.id}/cloud-deploy`}
+            className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
+          >
+            Deploy to Cloud
+          </Link>
+        </ActionGroup>
+
         <ActionGroup label="Connect">
           {isReady && !hasUrl && (
             <button

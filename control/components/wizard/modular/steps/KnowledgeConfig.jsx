@@ -13,39 +13,6 @@ export default function KnowledgeConfig({ stepConfig, onTabSwitch, botSpaceId = 
   const [loadingBotSpaceDocs, setLoadingBotSpaceDocs] = useState(false);
   const [showBotSpaceSelector, setShowBotSpaceSelector] = useState(false);
 
-  // The bundled multilingual-e5-small ONNX model is always available —
-  // weights ship with the artifact. Fetch the model name once for display.
-  const [embeddingsModel, setEmbeddingsModel] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/settings/embeddings-status');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled) return;
-        setEmbeddingsModel(data.model || null);
-      } catch {
-        /* non-fatal — vector mode stays available */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const ragMode = formData.ragMode || 'keyword';
-
-  function handleRagModeChange(nextMode) {
-    if (nextMode === ragMode) return;
-    // Flipping mode invalidates any prior vector artifact — embeddings must be
-    // re-generated against the new corpus / mode pair.
-    updateFormData({ ragMode: nextMode, embeddings: null });
-    clearError('embeddings');
-    clearError('documents');
-  }
-
   // Fetch bot space documents when selector is opened
   useEffect(() => {
     if (showBotSpaceSelector && botSpaceId && botSpaceDocuments.length === 0) {
@@ -122,74 +89,6 @@ export default function KnowledgeConfig({ stepConfig, onTabSwitch, botSpaceId = 
       description={stepConfig.description}
     >
       <div className="space-y-6">
-        {/* RAG Strategy toggle (keyword vs vector). The chat builder has the
-            equivalent set_rag_mode tool; this is the wizard mirror. */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-100">RAG Strategy</h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Locked at build time. Switching after embedding will invalidate the existing artifact.
-              </p>
-            </div>
-            {ragMode === 'vector' && formData.embeddings?.storageKey && onTabSwitch && (
-              <button
-                type="button"
-                onClick={() => onTabSwitch('embeddings')}
-                className="text-xs text-teal-400 hover:text-teal-300 font-medium whitespace-nowrap"
-              >
-                Review embeddings →
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handleRagModeChange('keyword')}
-              className={`text-left p-3 rounded-lg border transition ${
-                ragMode === 'keyword'
-                  ? 'border-teal-500 bg-teal-900/30 text-teal-200'
-                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold">Keyword search</span>
-                <span className="px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[10px] font-medium">
-                  Default
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-500 leading-snug">
-                Local TF-IDF over document text. No factory dependency at runtime.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleRagModeChange('vector')}
-              className={`text-left p-3 rounded-lg border transition ${
-                ragMode === 'vector'
-                  ? 'border-teal-500 bg-teal-900/30 text-teal-200'
-                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold">Vector embeddings</span>
-                <span className="px-1.5 py-0.5 bg-teal-900/50 text-teal-400 rounded text-[10px] font-medium">
-                  {embeddingsModel ? embeddingsModel.split('-').slice(-2).join('-') : 'local'}
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-500 leading-snug">
-                Semantic recall via the bundled multilingual ONNX model. Embeds in-process — no factory dependency at runtime.
-              </p>
-            </button>
-          </div>
-
-          {errors.embeddings && (
-            <p className="text-xs text-red-400">{errors.embeddings}</p>
-          )}
-        </div>
-
         {/* Document Uploader */}
             <div>
               <DocumentUploader

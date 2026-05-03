@@ -40,7 +40,6 @@ export async function PATCH(request, { params }) {
       appointmentDestinations,
       triageDestinations,
       documentIds,
-      ragMode,
       embeddings,
     } = body;
 
@@ -55,11 +54,10 @@ export async function PATCH(request, { params }) {
     const finalTriage =
       triageDestinations || baseConfig.triageRoutes || baseConfig.triageDestinations || [];
 
-    // Vector RAG: caller may flip mode or swap embeddings on edit. Fall
-    // back to existing values when not supplied so we don't accidentally
-    // wipe a perfectly good vector cartridge on a partial PATCH.
-    const finalRagMode =
-      ragMode || baseConfig._modular?.ragMode || existing.ragMode || 'keyword';
+    // ragMode is derived from which protocols are enabled, never accepted
+    // from clients. Knowledge bots ship embeddings (vector); everything else
+    // (notably triage routers) ships the keyword RAG cartridge.
+    const finalRagMode = finalEnabledProtocols.knowledge ? 'vector' : 'keyword';
     const finalEmbeddings =
       embeddings !== undefined
         ? embeddings
@@ -74,7 +72,7 @@ export async function PATCH(request, { params }) {
 
     if (finalRagMode === 'vector' && !finalEmbeddings?.storageKey) {
       return NextResponse.json(
-        { error: 'ragMode=vector requires embeddings.storageKey' },
+        { error: 'Knowledge protocol requires embeddings.storageKey' },
         { status: 400 }
       );
     }

@@ -66,7 +66,7 @@ async function getLLMConfigFromSession(session, userId) {
 }
 
 /**
- * Static prompt suggestions per intent (fallback when ragSummary not available)
+ * Static prompt suggestions per intent (fallback when domainDigest not available)
  */
 const STATIC_PROMPT_SUGGESTIONS = {
   support_bot: [
@@ -116,8 +116,8 @@ function getStaticPromptsForIntent(intent) {
 }
 
 /**
- * Generate contextual firstMessage and objective from RAG summary using LLM
- * @param {string} ragSummary - Document summary
+ * Generate contextual firstMessage and objective from a domain digest using LLM
+ * @param {string} domainDigest - Per-document LLM-composed digest of the corpus
  * @param {string} userMessage - Original user message describing what they want
  * @param {string} intent - Bot intent type
  * @param {string} organizationName - Organization name if available
@@ -125,7 +125,7 @@ function getStaticPromptsForIntent(intent) {
  * @param {string} userId - User ID for API key lookup
  * @returns {Promise<{ firstMessage: string, objective: string } | null>}
  */
-async function generateContextualIdentity(ragSummary, userMessage, intent, organizationName, session, userId) {
+async function generateContextualIdentity(domainDigest, userMessage, intent, organizationName, session, userId) {
   // Get LLM config from session (supports Anthropic, Bedrock, etc.)
   let llmConfig;
   try {
@@ -146,7 +146,7 @@ USER'S REQUEST:
 ${userMessage.substring(0, 500)}
 
 DOCUMENT SUMMARY (knowledge the bot will have):
-${ragSummary.substring(0, 1500)}
+${domainDigest.substring(0, 1500)}
 
 BOT TYPE: ${intentLabel}
 ORGANIZATION: ${organizationName || 'Not specified'}
@@ -415,16 +415,55 @@ async function processDocumentsVector(documents, documentIds, session, userId) {
 
   await uploadFile(storageKey, Buffer.from(JSON.stringify(payload), 'utf8'));
 
-  // Mirror the keyword path so downstream tools (compose_identity, etc.)
-  // still get a `knowledge` config entry and a ragSummary surrogate.
-  const ragSummary = chunks
-    .slice(0, 12)
-    .map((c) => c.text)
-    .join('\n')
-    .slice(0, 4000);
+  // Compose a domain digest for build-time tools (compose_identity,
+  // infer_appointment_types, generate_suggested_prompts). Per-document LLM
+  // summary, then concatenate. Not consumed at runtime — the bundled
+  // embedding model handles retrieval — only used by the builder pipeline.
+  // Falls back to a chunk-slice surrogate if every summary call fails so
+  // the build can still progress.
+  const { generateSummary } = await import('@/lib/llm-providers.js');
+  const llmConfig = await getLLMConfigFromSession(session, userId);
+  const { provider, apiKey, model } = llmConfig;
+
+  const summaryPrompt = `Analyze this document and provide a comprehensive summary that:
+
+1. Identifies key terms, concepts, and topics covered
+2. Highlights the main themes and subject areas
+3. Lists important entities, processes, or procedures mentioned
+4. Notes any technical specifications, data, or metrics
+
+IMPORTANT: Generate the summary in the SAME LANGUAGE as the original document.
+
+Synthesize the information into max 3 paragraphs, 200 words.
+
+Keep the summary high-level, factual, and cohesive.`;
+
+  const individualSummaries = [];
+  for (const doc of parsed) {
+    try {
+      const docSummary = await generateSummary(provider, doc.text, apiKey, summaryPrompt, model);
+      individualSummaries.push({ name: doc.originalName, summary: docSummary });
+    } catch (err) {
+      console.error(`[Builder] Failed to summarize ${doc.originalName}:`, err.message);
+      individualSummaries.push({ name: doc.originalName, summary: `[Error: ${err.message}]` });
+    }
+  }
+
+  const combinedSummary = individualSummaries
+    .filter((s) => !s.summary.startsWith('[Error'))
+    .map((s) => `## ${s.name}\n\n${s.summary}`)
+    .join('\n\n---\n\n');
+
+  const domainDigest =
+    combinedSummary ||
+    chunks
+      .slice(0, 12)
+      .map((c) => c.text)
+      .join('\n')
+      .slice(0, 4000);
 
   await BuilderSessionRepository.updateGeneratedConfig(session.id, userId, 'knowledge', {
-    ragSummary,
+    domainDigest,
     documentIds,
     documentsProcessed: parsed.length,
     totalDocuments: documents.length,
@@ -458,36 +497,11 @@ async function processDocumentsVector(documents, documentIds, session, userId) {
  */
 const builderToolHandlers = {
   /**
-   * Lock the RAG strategy for this session. Cascades into process_documents
-   * (vector branch chunks + embeds; keyword branch keeps the summary-only
-   * path) and into the deployment row at save time.
-   */
-  async set_rag_mode(input, context) {
-    const { mode } = input;
-    const { session, userId } = context;
-
-    if (mode !== 'keyword' && mode !== 'vector') {
-      throw new Error(`Invalid rag mode: ${mode}`);
-    }
-
-    await BuilderSessionRepository.updateGeneratedConfig(
-      session.id,
-      userId,
-      'ragMode',
-      mode
-    );
-
-    return {
-      ragMode: mode,
-      message:
-        mode === 'vector'
-          ? 'RAG mode set to vector — documents will be chunked and embedded locally.'
-          : 'RAG mode set to keyword — documents will be summarized for keyword RAG.',
-    };
-  },
-
-  /**
-   * Process documents and generate RAG summary
+   * Parse uploaded documents, embed them locally via the bundled
+   * multilingual-e5-small ONNX model, and stash the embedding blob on the
+   * session so save_modular_bot can copy it onto the deployment row. Also
+   * generates a build-time `domainDigest` on the session that's consumed by
+   * compose_identity and other downstream tools.
    */
   async process_documents(input, context) {
     const { documentIds } = input;
@@ -497,98 +511,20 @@ const builderToolHandlers = {
       throw new Error('No document IDs provided');
     }
 
-    // Get documents from database
     const documents = await DocumentRepository.findByIds(documentIds);
     if (documents.length === 0) {
       throw new Error('No documents found with the provided IDs');
     }
 
-    const ragMode = session.generatedConfigs?.ragMode || 'keyword';
-    console.log(`[Builder] Processing ${documents.length} documents (rag mode: ${ragMode})`);
-
-    if (ragMode === 'vector') {
-      return processDocumentsVector(documents, documentIds, session, userId);
-    }
-
-    // Import required modules
-    const { downloadToBuffer } = await import('@/lib/storage/index.js');
-    const { parseDocument } = await import('@/lib/document-parser.js');
-    const { generateSummary } = await import('@/lib/llm-providers.js');
-
-    // Get LLM config from session (supports Anthropic, Bedrock, etc.)
-    const llmConfig = await getLLMConfigFromSession(session, userId);
-    const { provider, apiKey, model } = llmConfig;
-
-    // RAG summary prompt
-    const ragSummaryPrompt = `Analyze this document and provide a comprehensive summary that:
-
-1. Identifies key terms, concepts, and topics covered
-2. Highlights the main themes and subject areas
-3. Lists important entities, processes, or procedures mentioned
-4. Notes any technical specifications, data, or metrics
-
-IMPORTANT: Generate the summary in the SAME LANGUAGE as the original document.
-
-Synthesize the information into max 3 paragraphs, 200 words. This document will be used as
-query expansion for a RAG process, so optimize the structure for reconstructing information.
-
-Keep the summary high-level, factual, and cohesive.`;
-
-    const individualSummaries = [];
-    let totalPages = 0;
-
-    for (const doc of documents) {
-      try {
-        console.log(`[Builder] Processing: ${doc.originalName}`);
-        const buffer = await downloadToBuffer(doc.storagePath);
-        const content = await parseDocument(buffer, doc.originalName);
-
-        // Rough page count estimation
-        const estimatedPages = Math.ceil(content.length / 3000);
-        totalPages += estimatedPages;
-
-        const docSummary = await generateSummary(provider, content, apiKey, ragSummaryPrompt, model);
-        individualSummaries.push({ name: doc.originalName, summary: docSummary });
-      } catch (err) {
-        console.error(`[Builder] Failed to process ${doc.originalName}:`, err.message);
-        individualSummaries.push({ name: doc.originalName, summary: `[Error: ${err.message}]` });
-      }
-    }
-
-    // Combine summaries
-    const combinedSummary = individualSummaries
-      .filter((s) => !s.summary.startsWith('[Error'))
-      .map((s) => `## ${s.name}\n\n${s.summary}`)
-      .join('\n\n---\n\n');
-
-    if (!combinedSummary) {
-      throw new Error('Failed to generate summaries for any documents');
-    }
-
-    const successCount = individualSummaries.filter((s) => !s.summary.startsWith('[Error')).length;
-
-    // Store in session's generated configs
-    await BuilderSessionRepository.updateGeneratedConfig(session.id, userId, 'knowledge', {
-      ragSummary: combinedSummary,
-      documentIds,
-      documentsProcessed: successCount,
-      totalDocuments: documents.length,
-    });
-
-    return {
-      ragSummary: combinedSummary,
-      documentsProcessed: successCount,
-      totalDocuments: documents.length,
-      pageCount: totalPages,
-      message: `Parsed ${documents.length} documents (${totalPages} pages), generated RAG summary`,
-    };
+    console.log(`[Builder] Processing ${documents.length} documents (vector mode)`);
+    return processDocumentsVector(documents, documentIds, session, userId);
   },
 
   /**
    * Infer user intent from message and context
    */
   async infer_intent(input, context) {
-    const { userMessage, ragSummary } = input;
+    const { userMessage, domainDigest } = input;
     const { session, userId } = context;
 
     // Intent classification based on keywords and context
@@ -604,7 +540,7 @@ Keep the summary high-level, factual, and cohesive.`;
     ];
 
     const messageLower = userMessage.toLowerCase();
-    const summaryLower = (ragSummary || '').toLowerCase();
+    const summaryLower = (domainDigest || '').toLowerCase();
     const combined = `${messageLower} ${summaryLower}`;
 
     let bestMatch = { intent: 'support_bot', confidence: 0.7, reason: 'Default intent for general assistance' };
@@ -650,7 +586,7 @@ Keep the summary high-level, factual, and cohesive.`;
    * Recommend protocols based on inferred intent
    */
   async recommend_protocols(input, context) {
-    const { intent, ragSummary, userMessage } = input;
+    const { intent, domainDigest, userMessage } = input;
     const { session, userId } = context;
 
     const recommendations = {
@@ -677,11 +613,11 @@ Keep the summary high-level, factual, and cohesive.`;
     };
 
     // Knowledge protocol
-    if (ragSummary || session.generatedConfigs?.knowledge?.ragSummary) {
+    if (domainDigest || session.generatedConfigs?.knowledge?.domainDigest) {
       recommendations.knowledge.enabled = true;
       recommendations.knowledge.reason = 'Documents uploaded - knowledge base enabled';
       recommendations.knowledge.presetConfig = {
-        ragSummary: ragSummary || session.generatedConfigs?.knowledge?.ragSummary,
+        domainDigest: domainDigest || session.generatedConfigs?.knowledge?.domainDigest,
         documentIds: session.generatedConfigs?.knowledge?.documentIds || [],
       };
     }
@@ -851,8 +787,11 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
    * Generate appointment configuration
    */
   async generate_appointment_config(input, context) {
-    const { ragSummary, businessType, calendarProviders = [] } = input;
+    let { domainDigest, businessType, calendarProviders = [] } = input;
     const { session, userId } = context;
+    // Same pattern as compose_identity / recommend_protocols: schema field is
+    // documentation, session is the source of truth.
+    domainDigest = domainDigest || session.generatedConfigs?.knowledge?.domainDigest;
 
     // Generate basic appointment config structure
     const config = {
@@ -862,12 +801,12 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
       maxAdvanceBooking: 30, // days
     };
 
-    // If ragSummary contains service info, try to extract appointment types
-    if (ragSummary) {
+    // If domainDigest contains service info, try to extract appointment types
+    if (domainDigest) {
       // Basic extraction - could be enhanced with LLM
       const serviceKeywords = ['consultation', 'meeting', 'session', 'appointment', 'call'];
       for (const keyword of serviceKeywords) {
-        if (ragSummary.toLowerCase().includes(keyword)) {
+        if (domainDigest.toLowerCase().includes(keyword)) {
           config.destinations.push({
             id: `${keyword}-${Date.now()}`,
             provider: calendarProviders[0] || 'cal.com',
@@ -949,7 +888,7 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
    * Compose bot identity from context
    */
   async compose_identity(input, context) {
-    const { intent, ragSummary, organizationName, enabledProtocols, userMessage } = input;
+    const { intent, domainDigest, organizationName, enabledProtocols, userMessage } = input;
     const { session, userId } = context;
 
     // Check for prepopulated settings from infer_intent
@@ -1006,31 +945,34 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
       triage_router: `Hi! I can help connect you with the right team. What can I help you with today?`,
     };
 
-    // Generate contextual identity (firstMessage + objective) if ragSummary available
+    // Generate contextual identity (firstMessage + objective) if domainDigest available
     // Note: suggestedPrompts are now set separately via set_suggested_prompts tool
     // to ensure proper localization in the same language as documents
     let contextualFirstMessage = null;
     let contextualObjective = null;
 
-    // For triage routers, build effective ragSummary from route descriptions (botSummaries)
-    let effectiveRagSummary = ragSummary;
-    if (intent === 'triage_router' && (!ragSummary || ragSummary.trim().length === 0)) {
+    // For triage routers, build an effective digest from route descriptions (botSummaries).
+    // Fall back to the session-stored digest (written by process_documents) when
+    // the LLM doesn't pass it — the schema field is documentation, the session
+    // is the source of truth.
+    let effectiveDigest = domainDigest || session.generatedConfigs?.knowledge?.domainDigest;
+    if (intent === 'triage_router' && (!domainDigest || domainDigest.trim().length === 0)) {
       const triageRoutes = session.generatedConfigs?.triage?.routes;
       if (triageRoutes && triageRoutes.length > 0) {
-        // Build summary from route descriptions (which are target bots' botSummary)
-        effectiveRagSummary = triageRoutes
+        // Build digest from route descriptions (which are target bots' botSummary)
+        effectiveDigest = triageRoutes
           .map((route) => `${route.name}: ${route.description}`)
           .join('\n');
-        console.log('[Builder] Using triage routes as effective ragSummary for identity');
+        console.log('[Builder] Using triage routes as effective domain digest for identity');
       }
     }
 
-    if (effectiveRagSummary && effectiveRagSummary.trim().length > 0) {
+    if (effectiveDigest && effectiveDigest.trim().length > 0) {
       // Try to generate contextual identity (firstMessage + objective) using LLM
       const effectiveUserMessage = userMessage || session.userMessage || '';
       try {
         const contextualIdentity = await generateContextualIdentity(
-          effectiveRagSummary,
+          effectiveDigest,
           effectiveUserMessage,
           intent,
           effectiveOrgName,
@@ -1158,10 +1100,10 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
 
     // Knowledge context
     if (enabledProtocols.knowledge) {
-      const ragSummary = protocolData?.knowledge?.ragSummary || generatedConfigs?.knowledge?.ragSummary;
-      if (ragSummary) {
-        // Extract first 500 chars of rag summary for context
-        contextParts.push(`Knowledge Base Topics: ${ragSummary.substring(0, 500)}`);
+      const domainDigest = protocolData?.knowledge?.domainDigest || generatedConfigs?.knowledge?.domainDigest;
+      if (domainDigest) {
+        // Extract first 500 chars of the digest for context
+        contextParts.push(`Knowledge Base Topics: ${domainDigest.substring(0, 500)}`);
       }
       const docCount = protocolData?.knowledge?.documents?.length || generatedConfigs?.knowledge?.documentsProcessed || 0;
       if (docCount > 0) {

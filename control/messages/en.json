@@ -239,13 +239,13 @@
     },
     "protocols": {
       "selectCapabilities": "Select Bot Capabilities",
-      "selectCapabilitiesDescription": "Enable the protocols your bot needs. You can combine multiple capabilities for powerful combinations.",
+      "selectCapabilitiesDescription": "Enable the protocols your bot needs. Combine multiple capabilities.",
       "knowledgeBase": "Knowledge Base",
       "knowledgeBaseDescription": "Answer questions using uploaded documents and RAG (Retrieval-Augmented Generation)",
       "formCollection": "Form Collection",
-      "formCollectionDescription": "Progressively collect user information through conversational GhostForm",
+      "formCollectionDescription": "Conversational forms to collect information without AI seeing user data",
       "appointmentBooking": "Appointment Booking",
-      "appointmentBookingDescription": "Route users to calendar providers like Calendly or cal.com",
+      "appointmentBookingDescription": "Route users to calendar providers like Calendly or Google calendar",
       "triageRouting": "Triage Routing",
       "triageRoutingDescription": "Route users to specialized bots or human support based on their needs",
       "exampleFaq": "FAQ chatbots",
@@ -702,7 +702,6 @@
       "urlPlaceholder": "https://example.com/support",
       "paradigm": "Paradigm",
       "protocols": "Protocols",
-      "ragSummary": "RAG Summary",
       "set": "Set",
       "notGenerated": "Not generated",
       "calendars": "Calendars",
@@ -713,7 +712,6 @@
     "tabs": {
       "desktop": "Desktop",
       "documents": "Documents",
-      "ragSummary": "RAG Summary",
       "fieldsDisplay": "Fields Display",
       "flow": "Flow",
       "jsonView": "JSON View"
@@ -1112,6 +1110,72 @@
       "description": "Copy this script to embed the chatbot on your website:"
     },
     "confirmDelete": "Are you sure you want to delete \"{name}\"? This will destroy the deployment and cannot be undone."
+  },
+  "cloudDeploy": {
+    "title": "Deploy to Cloud",
+    "backToDashboard": "← Back to dashboard",
+    "loading": "Loading…",
+    "botLabel": "Bot:",
+    "protocolsLabel": "protocols: {protocols}",
+    "statusPills": {
+      "pending": "Pending",
+      "deploying": "Deploying",
+      "running": "Running",
+      "paused": "Paused",
+      "failed": "Failed",
+      "destroyed": "Destroyed"
+    },
+    "artifact": {
+      "title": "Latest artifact",
+      "status": "Status",
+      "configHash": "Config hash",
+      "lastBuiltHash": "Last built hash",
+      "artifactPath": "Artifact path",
+      "notBuiltYet": "— (not built yet)",
+      "staleWarning": "Config edited since last build. Cloud deploy will rebuild automatically, or you can rebuild now.",
+      "missingWarning": "No artifact yet. Cloud deploy will build it automatically, or you can build now to preview.",
+      "buildZip": "Build ZIP",
+      "rebuildZip": "Rebuild ZIP",
+      "downloadZip": "Download .zip"
+    },
+    "provider": {
+      "title": "Provider",
+      "fly": {
+        "name": "Fly.io",
+        "description": "Single-region machine + persistent volume"
+      }
+    },
+    "fly": {
+      "title": "Fly.io options",
+      "region": "Region",
+      "regionHint": "3-letter Fly region code (iad, sjc, lhr, nrt, etc.)",
+      "volumeSize": "Volume size (GB)",
+      "volumeHint": "Persistent storage for SQLite (1GB is plenty for most bots)",
+      "cpuCount": "CPU count",
+      "cpuHint": "shared CPUs",
+      "memory": "Memory (MB)",
+      "memoryHint": "1024 MB recommended",
+      "tokenNote": "Uses your <mono>FLY_API_TOKEN</mono> from the control plane env. Your account, your bill.",
+      "deploy": "Deploy",
+      "redeploy": "Redeploy",
+      "deploying": "Deploying…"
+    },
+    "status": {
+      "title": "Status",
+      "provider": "Provider",
+      "appName": "App name",
+      "url": "URL",
+      "region": "Region",
+      "lastDeployed": "Last deployed",
+      "errorPrefix": "error: {error}",
+      "destroy": "Destroy"
+    },
+    "errors": {
+      "deployFailed": "Deploy failed ({status})",
+      "destroyFailed": "Destroy failed ({status})",
+      "buildFailed": "Build failed ({status})"
+    },
+    "confirmDestroy": "Destroy the cloud app, machine, and volume? Conversation data on the volume will be permanently deleted."
   },
   "analytics": {
     "title": "Analytics",
@@ -1667,7 +1731,6 @@
       "toolsExecuted": "{count} tool executed",
       "toolsExecutedPlural": "{count} tools executed",
       "uploadDocument": "Upload Document",
-      "generateRagSummary": "Generate RAG Summary",
       "generateForm": "Generate Form",
       "deployBot": "Deploy Bot",
       "listDeployments": "List Deployments",

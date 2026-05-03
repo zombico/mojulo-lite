@@ -65,12 +65,12 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
 
     const deploymentConfig = buildDeploymentConfig(transformedFormData, flowType, { enabledProtocols });
 
-    // Vector RAG: forward the wizard-side mode + embeddings descriptor so the
-    // /api/deployments handler can stamp the deployment row's rag_mode and
-    // embedding_* columns. Only meaningful when knowledge protocol is on.
-    const ragMode = enabledProtocols.knowledge ? (formData.ragMode || 'keyword') : 'keyword';
-    const embeddings =
-      enabledProtocols.knowledge && ragMode === 'vector' ? formData.embeddings || null : null;
+    // Knowledge bots ship embeddings (vector); everything else ships the
+    // keyword RAG cartridge (notably triage, which scans generated route
+    // descriptions). The receiving REST endpoint also derives this server-
+    // side; we send it for consistency / older middleware.
+    const embeddings = enabledProtocols.knowledge ? formData.embeddings || null : null;
+    const ragMode = enabledProtocols.knowledge ? 'vector' : 'keyword';
 
     return {
       botName: formData.botName,
@@ -201,10 +201,6 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-400">{tModular('paradigm')}</dt>
-              <dd className="font-medium text-indigo-400">{tWizard('badges.modular')}</dd>
-            </div>
-            <div className="flex justify-between">
               <dt className="text-gray-400">{tModular('protocols')}</dt>
               <dd className="font-medium text-gray-100">{getProtocolSummary()}</dd>
             </div>
@@ -218,15 +214,11 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
             )}
             {enabledProtocols.knowledge && (
               <div className="flex justify-between">
-                <dt className="text-gray-400">RAG mode</dt>
+                <dt className="text-gray-400">Embeddings</dt>
                 <dd className="font-medium text-gray-100">
-                  {formData.ragMode === 'vector' ? (
-                    <span className="text-teal-300">
-                      Vector ({formData.embeddings?.chunkCount || 0} chunks)
-                    </span>
-                  ) : (
-                    'Keyword'
-                  )}
+                  <span className="text-teal-300">
+                    {formData.embeddings?.chunkCount || 0} chunks
+                  </span>
                 </dd>
               </div>
             )}

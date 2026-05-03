@@ -9,13 +9,6 @@ export default function KnowledgePreview({ activeTab = 'documents', onTabSwitch,
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState('');
 
-  // RAG summary generation state
-  const [generatingRagSummary, setGeneratingRagSummary] = useState(false);
-  const [ragSummaryError, setRagSummaryError] = useState('');
-  const [ragSummaryStatus, setRagSummaryStatus] = useState('');
-  const [showRagModal, setShowRagModal] = useState(false);
-  const [modalRagText, setModalRagText] = useState('');
-
   // Vector embeddings generation state
   const [generatingEmbeddings, setGeneratingEmbeddings] = useState(false);
   const [embeddingsError, setEmbeddingsError] = useState('');
@@ -41,10 +34,6 @@ export default function KnowledgePreview({ activeTab = 'documents', onTabSwitch,
     if (mimeType.includes('text')) return 'text-gray-400';
     return 'text-blue-400';
   };
-
-  // Right-side affordances are locked to the active RAG mode.
-  const ragMode = formData.ragMode || 'keyword';
-  const isVectorMode = ragMode === 'vector';
 
   // Separate documents into uploaded (personal) vs linked (bot space shared)
   const isSharedDocument = (doc) => doc.isLinked || doc.bot_space_id;
@@ -146,90 +135,6 @@ export default function KnowledgePreview({ activeTab = 'documents', onTabSwitch,
         setEmbeddingsStatus('');
         setEmbeddingsError('');
       }, 4000);
-    }
-  };
-
-  const handleRagSummaryChange = (e) => {
-    updateFormData({ ragSummary: e.target.value });
-    clearError('ragSummary');
-  };
-
-  const handleOpenRagModal = () => {
-    setModalRagText(formData.ragSummary || '');
-    setShowRagModal(true);
-  };
-
-  const handleSaveRagModal = () => {
-    updateFormData({ ragSummary: modalRagText });
-    clearError('ragSummary');
-    setShowRagModal(false);
-  };
-
-  const handleCancelRagModal = () => {
-    setShowRagModal(false);
-    setModalRagText('');
-  };
-
-  // Lite: keyword RAG. This asks the LLM to compose a ragSummary from the
-  // uploaded documents. The summary ships in the bot zip as
-  // config/ragSummary.txt and the container's keyword RAG scores against it
-  // at runtime.
-  const handleGenerateRagSummary = async () => {
-    if (!formData.documents || formData.documents.length === 0) {
-      setRagSummaryError('Please upload at least one document first');
-      return;
-    }
-
-    if (!formData.provider || !formData.apiKey || !formData.model) {
-      setRagSummaryError('Set your LLM provider + API key in the first step before generating the RAG summary.');
-      return;
-    }
-
-    try {
-      setGeneratingRagSummary(true);
-      setRagSummaryError('');
-      setRagSummaryStatus('Composing RAG summary…');
-
-      const documents = formData.documents.map((doc) => ({
-        storagePath: doc.storagePath || doc.storage_path,
-        originalName: doc.originalName || doc.file_name,
-      }));
-
-      const response = await fetch('/api/generate-rag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documents,
-          provider: formData.provider,
-          apiKey: formData.apiKey,
-          model: formData.model,
-          customPrompt: formData.customRagPrompt || undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate RAG summary');
-      }
-
-      const data = await response.json();
-      updateFormData({ ragSummary: data.summary || '' });
-      clearError('ragSummary');
-
-      setRagSummaryStatus(`Complete! ${data.documentsProcessed || documents.length} document(s) summarized.`);
-
-      if (onTabSwitch) {
-        setTimeout(() => onTabSwitch('ragSummary'), 500);
-      }
-    } catch (error) {
-      console.error('Error generating RAG summary:', error);
-      setRagSummaryError(error.message);
-    } finally {
-      setGeneratingRagSummary(false);
-      setTimeout(() => {
-        setRagSummaryStatus('');
-        setRagSummaryError('');
-      }, 3000);
     }
   };
 
@@ -390,59 +295,6 @@ export default function KnowledgePreview({ activeTab = 'documents', onTabSwitch,
           )}
         </div>}
 
-        {/* RAG Summary Generation — keyword mode only; vector mode uses the
-            Embeddings tab's generate UI instead. */}
-        {!isVectorMode && formData.documents && formData.documents.length > 0 && (
-          <div className="p-4 bg-purple-900/30 border border-purple-800 rounded-lg space-y-3">
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              <span className="text-sm font-medium text-purple-300">AI-Powered RAG Summary</span>
-            </div>
-            <p className="text-xs text-purple-400">
-              Generate a retrieval guide that maps user language to your document terminology, improving accuracy for ambiguous or fuzzy queries.
-            </p>
-
-            {ragSummaryError && (
-              <div className="bg-red-900/30 border border-red-800 text-red-400 px-3 py-2 rounded text-xs">
-                {ragSummaryError}
-              </div>
-            )}
-
-            {ragSummaryStatus && !ragSummaryError && (
-              <div className="bg-purple-900/50 border border-purple-700 text-purple-300 px-3 py-2 rounded text-xs">
-                {ragSummaryStatus}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleGenerateRagSummary}
-              disabled={generatingRagSummary}
-              className={`w-full py-2 px-4 rounded-md font-medium transition text-sm ${
-                generatingRagSummary
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-purple-600 text-white hover:bg-purple-500'
-              }`}
-            >
-              {generatingRagSummary ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {ragSummaryStatus || 'Generating...'}
-                </span>
-              ) : formData.ragSummary ? (
-                'Regenerate RAG Summary'
-              ) : (
-                'Generate RAG Summary'
-              )}
-            </button>
-          </div>
-        )}
-
         <div className="p-4 bg-blue-900/30 border border-blue-800 rounded-lg">
           <div className="flex items-start gap-2">
             <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -451,101 +303,6 @@ export default function KnowledgePreview({ activeTab = 'documents', onTabSwitch,
             <div className="flex-1">
               <p className="text-xs text-blue-400">
                 These documents will be processed and used to provide context for your bot's responses through RAG (Retrieval-Augmented Generation).
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeTab === 'ragSummary') {
-    return (
-      <div className="space-y-4">
-        {/* RAG Modal */}
-        {showRagModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-[95vw] h-[95vh] flex flex-col">
-              <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-100">Edit RAG Summary</h3>
-                <button
-                  onClick={handleCancelRagModal}
-                  className="text-gray-500 hover:text-gray-300 transition"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="flex-1 p-6 overflow-auto">
-                <textarea
-                  value={modalRagText}
-                  onChange={(e) => setModalRagText(e.target.value)}
-                  placeholder="This chatbot has access to:&#10;- Company policies&#10;- Product documentation&#10;- FAQs&#10;&#10;It can help with:&#10;- Answering questions about...&#10;- Providing guidance on..."
-                  className="w-full h-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none font-sans"
-                  autoFocus
-                />
-              </div>
-
-              <div className="p-4 border-t border-gray-700 flex items-center justify-end gap-3">
-                <button
-                  onClick={handleCancelRagModal}
-                  className="px-4 py-2 text-gray-300 font-medium hover:text-gray-100 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveRagModal}
-                  className="px-6 py-2 bg-teal-600 text-white font-medium rounded-md hover:bg-teal-500 transition"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-gray-800 rounded-lg border border-gray-700">
-          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-100">RAG Summary</h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Describe what information your bot has access to and how it can help users
-              </p>
-            </div>
-            <button
-              onClick={handleOpenRagModal}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-teal-400 hover:text-teal-300 hover:bg-teal-900/30 rounded-md transition"
-              title="Open in larger view"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
-              Expand
-            </button>
-          </div>
-
-          <div className="p-4">
-            <textarea
-              value={formData.ragSummary || ''}
-              onChange={handleRagSummaryChange}
-              rows={16}
-              placeholder="This chatbot has access to:&#10;- Company policies&#10;- Product documentation&#10;- FAQs&#10;&#10;It can help with:&#10;- Answering questions about...&#10;- Providing guidance on..."
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-gray-100 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none font-sans"
-            />
-          </div>
-        </div>
-
-        <div className="p-4 bg-purple-900/30 border border-purple-800 rounded-lg">
-          <div className="flex items-start gap-2">
-            <svg className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            <div className="flex-1">
-              <h4 className="text-xs font-semibold text-purple-300 mb-1">About RAG Summary</h4>
-              <p className="text-xs text-purple-400">
-                The RAG summary helps guide the LLM on how to use the knowledge base effectively. You can manually edit this field or use the AI generation button in the Documents tab.
               </p>
             </div>
           </div>

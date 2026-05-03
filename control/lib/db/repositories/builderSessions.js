@@ -200,15 +200,25 @@ export const BuilderSessionRepository = {
   },
 
   async confirmProtocols(sessionId, _userId, confirmedProtocols) {
-    // Claude passes back the shape from recommend_protocols:
+    // The UI's deploy button passes the recommend_protocols shape:
     //   { knowledge: { enabled: true, ... }, forms: { enabled: false, ... }, ... }
-    // Normalize to flat booleans so the validation loop treats disabled
-    // protocols as falsy instead of truthy objects.
+    // The chat-builder LLM, when it calls save_modular_bot directly, often
+    // passes flat booleans:
+    //   { knowledge: true, forms: false, ... }
+    // Accept either — anything truthy at either level enables the protocol.
+    // Without this, the LLM-direct path silently disables knowledge and the
+    // artifact ships without embeddings.json.
+    const flag = (v) => {
+      if (v === null || v === undefined) return false;
+      if (typeof v === 'object') return !!v.enabled;
+      return !!v;
+    };
+    const cp = confirmedProtocols || {};
     const enabledProtocols = {
-      knowledge: confirmedProtocols?.knowledge?.enabled || false,
-      formGathering: confirmedProtocols?.forms?.enabled || false,
-      appointments: confirmedProtocols?.appointments?.enabled || false,
-      triage: confirmedProtocols?.triage?.enabled || false,
+      knowledge: flag(cp.knowledge),
+      formGathering: flag(cp.formGathering ?? cp.forms),
+      appointments: flag(cp.appointments),
+      triage: flag(cp.triage),
     };
     setJsonField(sessionId, 'enabled_protocols', enabledProtocols);
     return fetchSession(sessionId);
@@ -249,7 +259,7 @@ export const BuilderSessionRepository = {
     if (g.knowledge) {
       protocolData.knowledge = {
         ...(protocolData.knowledge || {}),
-        ragSummary: g.knowledge.ragSummary,
+        domainDigest: g.knowledge.domainDigest,
         documents: (g.knowledge.documentIds || []).map((id) => ({ id })),
       };
     }

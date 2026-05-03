@@ -19,15 +19,13 @@ export const PROTOCOL_VALIDATORS = {
       return { valid: true };
     }
 
-    // Lite uses keyword RAG in the container, so ragSummary (LLM-composed by
-    // process_documents) is the source of truth. Raw documents alone are
-    // enough to satisfy the step — generate-rag will produce the summary
-    // before deploy.
+    // All builds are vector-only — process_documents embeds locally and
+    // stashes the embedding blob on the session. Documents are the only
+    // valid source; a hand-typed summary alone can no longer satisfy the
+    // step because there's nothing to embed.
     const hasDocuments = data.documents && data.documents.length > 0;
-    const hasRagSummary = data._hasRagSummary || !!data.ragSummary;
-
-    if (!hasDocuments && !hasRagSummary) {
-      return { valid: false, error: 'At least one document or a RAG summary is required' };
+    if (!hasDocuments) {
+      return { valid: false, error: 'At least one document is required' };
     }
 
     return { valid: true };

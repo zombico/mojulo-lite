@@ -20,23 +20,20 @@ const STEP_TO_PROTOCOL = {
  */
 const PROTOCOL_VALIDATORS = {
   knowledge: (data, formData) => {
-    // Lite runs keyword RAG in the container — ragSummary is the artifact the
-    // bot actually reads. Accept documents (summary will be generated before
-    // deploy) or a pre-built ragSummary.
+    // All builds are vector-only — process_documents embeds the corpus
+    // locally and ships embeddings.json in the artifact. Documents are the
+    // only valid source, and embedding must succeed before save.
     if (formData.skipRag) {
       return { valid: true };
     }
     const hasDocs = data.documents && data.documents.length > 0;
-    const hasSummary = !!data.ragSummary;
-    if (!hasDocs && !hasSummary) {
-      return { valid: false, error: 'At least one document or a RAG summary is required' };
+    if (!hasDocs) {
+      return { valid: false, error: 'At least one document is required' };
     }
-    // Vector mode demands successful embedding generation — the artifact
-    // ships embeddings.json or it doesn't run RAG at all.
-    if (data.ragMode === 'vector' && !data.embeddings?.storageKey) {
+    if (!data.embeddings?.storageKey) {
       return {
         valid: false,
-        error: 'Vector mode requires generating embeddings — open the Embeddings tab to run it.',
+        error: 'Generate embeddings before saving — open the Embeddings tab to run it.',
       };
     }
     return { valid: true };
@@ -174,11 +171,6 @@ const createInitialState = () => ({
     knowledge: {
       skipRag: false,
       documents: [],
-      ragSummary: '',
-      customRagPrompt: '',
-      // Vector RAG: 'keyword' (default — local search via ragSummary + docs)
-      // or 'vector' (bundled multilingual-e5-small ONNX model; bot embeds queries in-process).
-      ragMode: 'keyword',
       embeddings: null, // { storageKey, wizardToken, model, chunkCount, generatedAt, sourceDocuments }
     },
     formGathering: {
@@ -289,7 +281,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
       // Map updates to appropriate state sections
       const coreFields = ['provider', 'model', 'apiKey', 'botName', 'objective', 'botSummary'];
       const identityFields = ['firstMessage', 'chatDisplayName', 'placeholder', 'suggestedPrompts'];
-      const knowledgeFields = ['skipRag', 'documents', 'ragSummary', 'customRagPrompt', 'ragMode', 'embeddings'];
+      const knowledgeFields = ['skipRag', 'documents', 'embeddings'];
       const formFields = ['formLocale', 'formStructureInput', 'generatedFormJson', 'formCompletionWebhook', 'afterSubmitChatMessage', 'formSendHome', 'enableFormCollection', 'termsAndConditions'];
       for (const [key, value] of Object.entries(updates)) {
         if (coreFields.includes(key)) {
@@ -413,13 +405,12 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
           { skipRag: state.protocolData.knowledge.skipRag }
         );
         if (!knowledgeValidation.valid) {
-          // ragMode=vector errors are surfaced under the embeddings field so
-          // the form can scroll to the right control.
-          const targetField =
-            state.protocolData.knowledge.ragMode === 'vector' &&
-            !state.protocolData.knowledge.embeddings?.storageKey
-              ? 'embeddings'
-              : 'documents';
+          // Embedding errors surface under the embeddings field so the form
+          // can scroll to the right control; missing-docs errors go on the
+          // documents field.
+          const targetField = state.protocolData.knowledge.embeddings?.storageKey
+            ? 'documents'
+            : (state.protocolData.knowledge.documents?.length ? 'embeddings' : 'documents');
           newErrors[targetField] = knowledgeValidation.error;
         }
         break;

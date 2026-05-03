@@ -102,23 +102,19 @@ When a user describes what they want, follow these steps:
 Call tools in sequence to gather information and generate configurations. Each tool call will be visible to the user in the chat log. Be efficient - only call tools that are necessary.
 
 ### Tool Order
-1. \`set_rag_mode\` (BEFORE process_documents, only if documents will be processed):
-   - ASK the user "Want better recall via vector embeddings, or keep it simple with keyword search?" — then call \`set_rag_mode\` with their answer.
-   - Vector mode is always available — the embedding model ships in the artifact.
-   - Skip this tool entirely if no documents are being processed.
-2. \`process_documents\`:
+1. \`process_documents\`:
    - **Uploaded docs**: Process immediately (user attached them)
    - **Workspace docs**: Confirm which ONE to use first, then process
-   - In keyword mode, produces the LLM-composed \`ragSummary\` used by the bot's keyword RAG at runtime.
-   - In vector mode (after \`set_rag_mode\` set 'vector'), chunks the corpus and embeds it locally via the bundled multilingual-e5-small ONNX model; the bot uses cosine similarity at runtime.
-3. \`infer_intent\` (always)
-4. \`recommend_protocols\` (always)
-5. Protocol-specific tools (as needed):
+   - Chunks the corpus and embeds it locally via the bundled multilingual-e5-small ONNX model; the bot uses cosine similarity at runtime.
+   - Also generates a build-time \`domainDigest\` that downstream tools use to compose identity, suggested prompts, etc.
+2. \`infer_intent\` (always)
+3. \`recommend_protocols\` (always)
+4. Protocol-specific tools (as needed):
    - \`generate_form_schema\`
    - \`generate_appointment_config\`
    - \`generate_triage_config\` (use existing bots' botSummary as route description)
-6. \`compose_identity\` (always - pass userMessage and ragSummary for contextual identity)
-7. \`set_suggested_prompts\` AND \`generate_bot_summary\` (call BOTH after compose_identity, in parallel)
+5. \`compose_identity\` (always - pass userMessage and domainDigest for contextual identity)
+6. \`set_suggested_prompts\` AND \`generate_bot_summary\` (call BOTH after compose_identity, in parallel)
 
 ### Suggested Prompts Localization
 IMPORTANT: After calling \`compose_identity\`, you MUST call \`set_suggested_prompts\` to set the suggested prompts in the SAME LANGUAGE as the documents or user's request. Generate 3 short, specific prompts that:
@@ -155,7 +151,6 @@ Example response after a successful save:
 Organization: ${organizationName}
 Workspace: ${workspaceName}
 Default LLM: ${defaultProvider} (${defaultModel})
-Vector RAG: available (embedding model bundled in the artifact)
 
 ### Available Documents
 ${documentList}
@@ -317,9 +312,10 @@ export function buildBuilderEditPrompt(preloadedContext, existingConfig) {
 
   if (enabledProtocols?.knowledge && protocolData?.knowledge) {
     const kd = protocolData.knowledge;
+    const chunkCount = kd.embeddings?.chunkCount;
     protocolDetails.push(`### Knowledge Protocol
 - Documents: ${kd.documents?.length || 0} document(s)
-- RAG Summary: ${kd.ragSummary ? 'Generated' : 'Not available'}`);
+- Embeddings: ${chunkCount ? `${chunkCount} chunks` : 'Not generated'}`);
   }
 
   if (enabledProtocols?.formGathering && protocolData?.formGathering) {

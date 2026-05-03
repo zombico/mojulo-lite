@@ -10,6 +10,15 @@ export const DEPLOYMENT_STATUS = {
   BUILD_FAILED: 'build_failed',
 };
 
+export const CLOUD_STATUS = {
+  PENDING: 'pending',
+  DEPLOYING: 'deploying',
+  RUNNING: 'running',
+  PAUSED: 'paused',
+  FAILED: 'failed',
+  DESTROYED: 'destroyed',
+};
+
 function rowToDeployment(row) {
   if (!row) return null;
   return {
@@ -31,6 +40,18 @@ function rowToDeployment(row) {
     embeddingModel: row.embedding_model || null,
     embeddingChunkCount:
       row.embedding_chunk_count != null ? row.embedding_chunk_count : null,
+    cloudProvider: row.cloud_provider || null,
+    cloudAppName: row.cloud_app_name || null,
+    cloudStatus: row.cloud_status || null,
+    cloudUrl: row.cloud_url || null,
+    cloudProgress: row.cloud_progress ? JSON.parse(row.cloud_progress) : [],
+    cloudOptions: row.cloud_options ? JSON.parse(row.cloud_options) : null,
+    cloudError: row.cloud_error || null,
+    cloudLastDeployedAt: row.cloud_last_deployed_at
+      ? new Date(row.cloud_last_deployed_at)
+      : null,
+    cloudMachineId: row.cloud_machine_id || null,
+    cloudVolumeId: row.cloud_volume_id || null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -265,6 +286,100 @@ export const DeploymentRepository = {
     db.prepare(
       `UPDATE deployments SET rag_mode = ?, updated_at = ? WHERE id = ?`
     ).run(mode, Date.now(), id);
+    return this.findById(id);
+  },
+
+  /**
+   * Stamp a cloud deploy as kicked off. Resets progress to a fresh empty
+   * array and clears any prior error.
+   */
+  async startCloudDeploy(id, { provider, appName, options }) {
+    const db = getDb();
+    db.prepare(
+      `UPDATE deployments
+       SET cloud_provider = ?, cloud_app_name = ?, cloud_status = ?,
+           cloud_options = ?, cloud_progress = ?, cloud_error = NULL,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(
+      provider,
+      appName,
+      CLOUD_STATUS.DEPLOYING,
+      JSON.stringify(options || {}),
+      JSON.stringify([]),
+      Date.now(),
+      id
+    );
+    return this.findById(id);
+  },
+
+  /**
+   * Append a progress event to cloud_progress. Read-modify-write — fine for
+   * the single-user mode this runs in.
+   */
+  async appendCloudProgress(id, { step, message }) {
+    const existing = await this.findById(id);
+    if (!existing) return null;
+    const next = [
+      ...(existing.cloudProgress || []),
+      { step, message, timestamp: new Date().toISOString() },
+    ];
+    const db = getDb();
+    db.prepare(
+      `UPDATE deployments SET cloud_progress = ?, updated_at = ? WHERE id = ?`
+    ).run(JSON.stringify(next), Date.now(), id);
+    return this.findById(id);
+  },
+
+  async finishCloudDeploy(id, { url, machineId, volumeId }) {
+    const db = getDb();
+    const now = Date.now();
+    db.prepare(
+      `UPDATE deployments
+       SET cloud_status = ?, cloud_url = ?, cloud_machine_id = ?,
+           cloud_volume_id = ?, cloud_last_deployed_at = ?, cloud_error = NULL,
+           updated_at = ?
+       WHERE id = ?`
+    ).run(
+      CLOUD_STATUS.RUNNING,
+      url || null,
+      machineId || null,
+      volumeId || null,
+      now,
+      now,
+      id
+    );
+    return this.findById(id);
+  },
+
+  async failCloudDeploy(id, errorMessage) {
+    const db = getDb();
+    db.prepare(
+      `UPDATE deployments
+       SET cloud_status = ?, cloud_error = ?, updated_at = ?
+       WHERE id = ?`
+    ).run(CLOUD_STATUS.FAILED, errorMessage || 'Cloud deploy failed', Date.now(), id);
+    return this.findById(id);
+  },
+
+  async setCloudStatus(id, status) {
+    const db = getDb();
+    db.prepare(
+      `UPDATE deployments SET cloud_status = ?, updated_at = ? WHERE id = ?`
+    ).run(status, Date.now(), id);
+    return this.findById(id);
+  },
+
+  async clearCloudDeploy(id) {
+    const db = getDb();
+    db.prepare(
+      `UPDATE deployments
+       SET cloud_provider = NULL, cloud_app_name = NULL, cloud_status = ?,
+           cloud_url = NULL, cloud_progress = NULL, cloud_options = NULL,
+           cloud_error = NULL, cloud_last_deployed_at = NULL,
+           cloud_machine_id = NULL, cloud_volume_id = NULL, updated_at = ?
+       WHERE id = ?`
+    ).run(CLOUD_STATUS.DESTROYED, Date.now(), id);
     return this.findById(id);
   },
 };
