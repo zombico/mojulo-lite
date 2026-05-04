@@ -35,7 +35,7 @@ function rowToDeployment(row) {
     error: row.error,
     url: row.url || null,
     lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : null,
-    ragMode: row.rag_mode || 'keyword',
+    ragMode: row.rag_mode || 'vector',
     embeddingStorageKey: row.embedding_storage_key || null,
     embeddingModel: row.embedding_model || null,
     embeddingChunkCount:

@@ -55,15 +55,20 @@ export async function saveBuilderConfig(sessionId, userId, options = {}) {
   const documentIds = session.protocolData.knowledge?.documents?.map((d) => d.id) || [];
   const enabledProtocols = session.enabledProtocols;
 
-  // Knowledge bots ship embeddings (vector); everything else (notably triage
-  // routers, which scan generated route-description files at runtime) ships
-  // the keyword RAG cartridge. The wizard UI never offers a mode choice —
-  // the choice is implied by which protocols are enabled.
-  const ragMode = enabledProtocols.knowledge ? 'vector' : 'keyword';
+  // All bots run vector retrieval. Knowledge protocol embeds documents;
+  // triage protocol embeds route descriptions; both end up in the same
+  // single cosine index. A bot with neither protocol simply has no
+  // embeddings — RAG is silently disabled at runtime in that case.
+  const ragMode = 'vector';
   const embeddings = session.generatedConfigs?.embeddings || null;
   if (enabledProtocols.knowledge && !embeddings?.storageKey) {
     throw new Error(
       'Knowledge protocol is enabled but no embeddings were produced. Run process_documents first.'
+    );
+  }
+  if (enabledProtocols.triage && !embeddings?.storageKey) {
+    throw new Error(
+      'Triage protocol is enabled but no embeddings were produced. Run generate_triage_config first.'
     );
   }
 
@@ -115,10 +120,8 @@ export async function saveBuilderConfig(sessionId, userId, options = {}) {
     });
   }
 
-  // Stamp rag mode + embedding pointers onto the row. ragMode is 'vector'
-  // for knowledge bots and 'keyword' for everything else (notably triage
-  // routers, whose runtime SimpleRAG scans generated route-description
-  // files emitted by docker.js).
+  // Stamp embedding pointers onto the row. ragMode is always 'vector' now;
+  // setRagMode is kept as a no-op write so legacy rows keep their schema.
   await DeploymentRepository.setRagMode(deployment.id, ragMode);
   if (embeddings?.storageKey) {
     await DeploymentRepository.setEmbeddings(deployment.id, {
@@ -172,9 +175,7 @@ function buildDeploymentConfig(session, instructions, apiKey) {
   const model = coreConfig.model || 'claude-sonnet-4-20250514';
 
   const configSection = {
-    documentsPath: './documents',
     instructions: './config/instructions.txt',
-    ragSummary: './config/ragSummary.txt',
     name: coreConfig.botName,
     chatDisplayName: identityConfig.chatDisplayName || 'Bot',
     placeholder: 'Type your message...',
@@ -217,10 +218,6 @@ function buildDeploymentConfig(session, instructions, apiKey) {
     config: configSection,
     llm: buildLLMConfig(provider, apiKey, model, {}),
     objective: identityConfig.objective,
-    // Top-level `ragSummary` is the artifact contract — docker.js writes it
-    // to config/ragSummary.txt for the runtime container. The internal
-    // session field is `domainDigest`; this is the boundary translation.
-    ragSummary: protocolData.knowledge?.domainDigest || identityConfig.objective || '',
     botSummary: generatedConfigs?.botSummary || '',
     formStructure: enabledProtocols.formGathering
       ? protocolData.formGathering?.generatedFormJson

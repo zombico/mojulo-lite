@@ -154,7 +154,7 @@ export function getEnabledProtocols(data) {
   const protocols = [];
 
   // Knowledge base (RAG) - has embeddings or documents
-  if (config?.ragSummary || config?.embeddingsDocumentId || config?.documentIds?.length > 0) {
+  if (config?.embeddingsDocumentId || config?.documentIds?.length > 0) {
     protocols.push('knowledge');
   }
 

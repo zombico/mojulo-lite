@@ -73,10 +73,11 @@ export async function PATCH(request, { params }) {
     const finalTriage =
       triageDestinations || baseConfig.triageRoutes || baseConfig.triageDestinations || [];
 
-    // ragMode is derived from which protocols are enabled, never accepted
-    // from clients. Knowledge bots ship embeddings (vector); everything else
-    // (notably triage routers) ships the keyword RAG cartridge.
-    const finalRagMode = finalEnabledProtocols.knowledge ? 'vector' : 'keyword';
+    // All bots run vector retrieval. Knowledge or triage protocols require
+    // embeddings; bots with neither have no embeddings and RAG is disabled.
+    const finalRagMode = 'vector';
+    const wantsEmbeddings =
+      finalEnabledProtocols.knowledge || finalEnabledProtocols.triage;
     const finalEmbeddings =
       embeddings !== undefined
         ? embeddings
@@ -89,9 +90,9 @@ export async function PATCH(request, { params }) {
               }
             : null);
 
-    if (finalRagMode === 'vector' && !finalEmbeddings?.storageKey) {
+    if (wantsEmbeddings && !finalEmbeddings?.storageKey) {
       return NextResponse.json(
-        { error: 'Knowledge protocol requires embeddings.storageKey' },
+        { error: 'Knowledge or triage protocol requires embeddings.storageKey' },
         { status: 400 }
       );
     }
@@ -116,7 +117,7 @@ export async function PATCH(request, { params }) {
         paradigm: 'modular',
         enabledProtocols: finalEnabledProtocols,
         ragMode: finalRagMode,
-        embeddings: finalRagMode === 'vector' ? finalEmbeddings : null,
+        embeddings: finalEmbeddings || null,
       },
       _composedInstructions: instructions,
     };
@@ -129,10 +130,8 @@ export async function PATCH(request, { params }) {
         : existing.botName,
     });
 
-    // Stamp the discrete columns whether ragMode flipped or not — the build
-    // pipeline reads from these, not from the config blob.
     await DeploymentRepository.setRagMode(updated.id, finalRagMode);
-    if (finalRagMode === 'vector' && finalEmbeddings?.storageKey) {
+    if (finalEmbeddings?.storageKey) {
       await DeploymentRepository.setEmbeddings(updated.id, {
         storageKey: finalEmbeddings.storageKey,
         model: finalEmbeddings.model,

@@ -129,6 +129,9 @@ export class FlyDeployer {
     onProgress({ step: 'app', message: `Ensuring Fly app ${appName} exists` });
     await this._ensureApp(appName);
 
+    onProgress({ step: 'ips', message: `Ensuring public IPs for ${appName}` });
+    await this._ensureIps(appName);
+
     onProgress({ step: 'volume', message: `Ensuring data volume in ${region}` });
     const volumeId = await this._ensureVolume(appName, region, volumeGb);
 
@@ -174,6 +177,66 @@ export class FlyDeployer {
         return;
       }
       throw err;
+    }
+  }
+
+  /**
+   * Allocate shared_v4 + v6 IPs if missing. Without this, the *.fly.dev
+   * hostname has no DNS records and external requests can never reach the
+   * app — the machine starts fine, health checks pass on Fly's internal
+   * network, but autostart-on-request never fires because nothing routes in.
+   *
+   * The Machines REST API can list IPs, but allocation has historically
+   * required GraphQL (see CLOUD_DEPLOY_GUIDE.md "GraphQL IP allocation").
+   * Same Bearer token works for both endpoints.
+   */
+  async _ensureIps(appName) {
+    let existing = [];
+    try {
+      existing = (await this._request(`/apps/${appName}/ips`)) || [];
+    } catch (err) {
+      if (err.status !== 404) throw err;
+    }
+    const hasV4 = existing.some((ip) =>
+      ['shared_v4', 'v4'].includes(ip.type)
+    );
+    const hasV6 = existing.some((ip) => ip.type === 'v6');
+
+    if (!hasV4) await this._allocateIp(appName, 'shared_v4');
+    if (!hasV6) await this._allocateIp(appName, 'v6');
+  }
+
+  async _allocateIp(appName, type) {
+    const query = `
+      mutation($input: AllocateIPAddressInput!) {
+        allocateIpAddress(input: $input) {
+          ipAddress { address type }
+        }
+      }
+    `;
+    const res = await fetch('https://api.fly.io/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables: { input: { appId: appName, type } },
+      }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(
+        `Fly GraphQL ${res.status} allocateIpAddress(${type}): ${text}`
+      );
+    }
+    const data = JSON.parse(text);
+    if (data.errors && data.errors.length) {
+      const msg = data.errors[0].message || '';
+      // Race: another deploy raced us and already allocated this type.
+      if (/already/i.test(msg)) return;
+      throw new Error(`Fly GraphQL allocateIpAddress(${type}): ${msg}`);
     }
   }
 

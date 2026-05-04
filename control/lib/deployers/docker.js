@@ -3,8 +3,6 @@ import fsp from 'fs/promises';
 import path from 'path';
 import archiver from 'archiver';
 import { composeInstructions } from '../composer/composer.js';
-import { DocumentRepository } from '../db/repositories/documents.js';
-import { detectCorpusLocale } from '../rag-locale.js';
 import { downloadToBuffer } from '../storage/index.js';
 
 const LITE_TEMPLATE_PATH =
@@ -104,7 +102,7 @@ services:
 `;
 }
 
-function buildEnvExample(llmConfig /* ragMode unused — vector mode embeds locally */) {
+function buildEnvExample(llmConfig) {
   const provider = llmConfig.provider || 'anthropic';
   return [
     '# Mojulo-Lite bot runtime env.',
@@ -130,24 +128,23 @@ function buildEnvExample(llmConfig /* ragMode unused — vector mode embeds loca
   ].join('\n');
 }
 
-function buildReadme(botName, enabledProtocols = {}, ragMode = 'keyword') {
+function buildReadme(botName, enabledProtocols = {}, hasEmbeddings = false) {
   const protocols = Object.entries(enabledProtocols)
     .filter(([, v]) => v)
     .map(([k]) => `- ${k}`)
     .join('\n') || '- (base only)';
 
-  const vectorSection = ragMode === 'vector' ? `
+  const vectorSection = hasEmbeddings ? `
 ## Vector RAG (this bot)
 
-This bot was built in **vector mode**. The corpus embeddings ship in
-\`config/embeddings.json\`; the embedding model (multilingual-e5-small,
-ONNX) ships in \`models/\`. User queries are embedded in-process, then
-cosine similarity runs locally against the baked corpus.
+The corpus embeddings ship in \`config/embeddings.json\`; the embedding
+model (multilingual-e5-small, ONNX) ships in \`models/\`. User queries
+are embedded in-process, then cosine similarity runs locally against
+the baked corpus.
 
 - No factory dependency at runtime — the bot is fully self-contained.
 - If the model files in \`models/\` are missing or corrupt, queries fail
-  loudly. There is no fallback to keyword search (the artifact has no
-  \`documents/*\` on disk in vector mode).
+  loudly.
 
 ` : '';
 
@@ -213,8 +210,7 @@ ${quickStart}
   - \`instructions.txt\` — composed protocol cartridges.
   - \`config.json\` — bot identity + LLM provider + model.
   - \`formFormat.json\` — ghost-form schema (if forms enabled).
-  - \`ragSummary.txt\` — keyword-RAG summary of your documents.
-- \`documents/\` — parsed text used for keyword RAG.
+  - \`embeddings.json\` — pre-baked vector index (if knowledge or triage enabled).
 
 ## Enabled protocols
 
@@ -253,10 +249,12 @@ export class DockerDeployer {
    * @param {string} params.botName - Slug-friendly bot name
    * @param {Object} params.config - Deployment config
    * @param {string} params.apiKey - Generated admin API key for bot
-   * @param {string[]} [params.documentIds] - Documents to include in artifact
    * @param {Array} [params.appointmentDestinations]
    * @param {Array} [params.triageDestinations]
    * @param {Object} [params.enabledProtocols]
+   * @param {string} [params.embeddingStorageKey]
+   * @param {string} [params.embeddingModel]
+   * @param {number} [params.embeddingChunkCount]
    */
   async deploy(params) {
     const {
@@ -264,11 +262,9 @@ export class DockerDeployer {
       botName,
       config,
       apiKey,
-      documentIds = [],
       appointmentDestinations = [],
       triageDestinations = [],
       enabledProtocols = {},
-      ragMode = 'keyword',
       embeddingStorageKey = null,
       embeddingModel = null,
       embeddingChunkCount = null,
@@ -292,12 +288,10 @@ export class DockerDeployer {
     const excludes = OFFLINE_BUILD ? TEMPLATE_EXCLUDES : PREBUILT_EXCLUDES;
     await copyTemplateFiles(LITE_TEMPLATE_PATH, stagingDir, excludes);
 
-    // 2. Create config, documents dirs
+    // 2. Create config, data dirs
     const configDir = path.join(stagingDir, 'config');
-    const documentsDir = path.join(stagingDir, 'documents');
     const dataDir = path.join(stagingDir, 'data');
     await ensureDir(configDir);
-    await ensureDir(documentsDir);
     await ensureDir(dataDir);
 
     // 3. Compose instructions.txt from enabled protocols
@@ -312,39 +306,15 @@ export class DockerDeployer {
       (await composeInstructions({ objective, enabledProtocols, protocolData }));
     await fsp.writeFile(path.join(configDir, 'instructions.txt'), instructions, 'utf8');
 
-    // 4. Load source documents up front — needed for locale detection before
-    //    config.json is written, then re-used when emitting documents/ on disk.
-    const sourceDocs =
-      documentIds.length > 0
-        ? (await DocumentRepository.findByIds(documentIds)).filter((d) => d.parsedText)
-        : [];
-
-    // 5. Detect RAG locale from the corpus so the container's keyword RAG
-    //    can pick the right Intl.Segmenter locale. Explicit user-supplied
-    //    `config.config.rag.locale` always wins; otherwise auto-detect from
-    //    the source text. ragSummary contributes signal too in case the
-    //    summary is the only material in a docs-less deployment.
-    const detectionInputs = [
-      ...sourceDocs.map((d) => d.parsedText || ''),
-      config.ragSummary || '',
-    ].filter(Boolean);
-    const explicitLocale = config.config?.rag?.locale;
-    const ragLocale = explicitLocale || detectCorpusLocale(detectionInputs);
-
-    // 6. Write config.json — container reads bot identity + LLM provider here
-    const isVectorMode = ragMode === 'vector';
+    // 4. Write config.json — container reads bot identity + LLM provider here
+    const hasEmbeddings = !!embeddingStorageKey;
     const configJson = {
       config: {
         ...config.config,
-        // Force paths relative to /app/ inside the container
-        documentsPath: './documents',
         instructions: './config/instructions.txt',
-        ragSummary: './config/ragSummary.txt',
         rag: {
           ...(config.config?.rag || {}),
-          locale: ragLocale,
-          mode: ragMode,
-          ...(isVectorMode
+          ...(hasEmbeddings
             ? {
                 embeddingsPath: './config/embeddings.json',
                 embeddingModel,
@@ -357,7 +327,7 @@ export class DockerDeployer {
     };
     await writeJson(path.join(configDir, 'config.json'), configJson);
 
-    // 7. Write per-protocol config files
+    // 5. Write per-protocol config files
     if (config.formStructure) {
       await writeJson(path.join(configDir, 'formFormat.json'), config.formStructure);
     }
@@ -367,62 +337,22 @@ export class DockerDeployer {
       });
     }
     if (triageDestinations.length > 0) {
-      // Captured at build time — never re-resolved at runtime.
+      // Captured at build time — never re-resolved at runtime. The JSON is
+      // the authoritative deploymentId list the LLM picks from; route
+      // description text lives in embeddings.json for retrieval reinforcement.
       await writeJson(path.join(configDir, 'triageRoutes.json'), triageDestinations);
     }
 
-    // 8. Write ragSummary.txt — already-implemented container-level keyword RAG reads this
-    const ragSummary =
-      config.ragSummary || config.botSummary || objective || '';
-    await fsp.writeFile(path.join(configDir, 'ragSummary.txt'), ragSummary, 'utf8');
-
-    // 9. Write original document text into documents/ so the container's
-    //    keyword RAG has source material to scan. SKIP for vector mode —
-    //    the artifact ships embeddings only, no fallback corpus on disk.
-    if (!isVectorMode) {
-      for (const doc of sourceDocs) {
-        const safeName = doc.originalName.replace(/[\\/]/g, '_');
-        const docFile = path.join(
-          documentsDir,
-          `${safeName.replace(/\.[^.]+$/, '')}.txt`
-        );
-        await fsp.writeFile(docFile, doc.parsedText, 'utf8');
-      }
-    }
-
-    // 9c. Vector mode: copy the pre-baked embeddings blob into the artifact.
-    //     Build is pure copy — no Cohere call here. Re-build = re-copy.
-    if (isVectorMode) {
-      if (!embeddingStorageKey) {
-        throw new Error(
-          `Vector RAG mode set but no embedding_storage_key on deployment ${deploymentId}`
-        );
-      }
+    // 6. Vector RAG: copy the pre-baked embeddings blob into the artifact.
+    //    Build is pure copy — no embed call here. Re-build = re-copy. Bots
+    //    with neither knowledge nor triage have no embeddings; runtime tolerates
+    //    the missing file and silently disables RAG.
+    if (hasEmbeddings) {
       const embeddingsBuffer = await downloadToBuffer(embeddingStorageKey);
       await fsp.writeFile(path.join(configDir, 'embeddings.json'), embeddingsBuffer);
     }
 
-    // 9b. Triage RAG corpus: one file per route, named `{deploymentId}_{slug}.txt`
-    //     so SimpleRAG (in isTriageRoute mode) can parse the deploymentId from the
-    //     filename and prepend it to indexed chunks. The route description (= source
-    //     bot's botSummary, captured at pick time) is the retrieval body.
-    //     Cartridge contract: never re-resolved at runtime.
-    for (const route of triageDestinations) {
-      const slug = (route.name || route.deploymentId || 'route')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-      const docFile = path.join(documentsDir, `${route.deploymentId}_${slug}.txt`);
-      const body = [
-        `# ${route.name}`,
-        `URL: ${route.url}`,
-        '',
-        route.description,
-      ].join('\n');
-      await fsp.writeFile(docFile, body, 'utf8');
-    }
-
-    // 8. Write docker-compose.yml + .env.example + README.md
+    // 7. Write docker-compose.yml + .env.example + README.md
     await fsp.writeFile(
       path.join(stagingDir, 'docker-compose.yml'),
       buildDockerCompose(botName),
@@ -430,12 +360,12 @@ export class DockerDeployer {
     );
     await fsp.writeFile(
       path.join(stagingDir, '.env.example'),
-      buildEnvExample(config.llm || {}, ragMode),
+      buildEnvExample(config.llm || {}),
       'utf8'
     );
     await fsp.writeFile(
       path.join(stagingDir, 'README.md'),
-      buildReadme(botName, enabledProtocols, ragMode),
+      buildReadme(botName, enabledProtocols, hasEmbeddings),
       'utf8'
     );
 

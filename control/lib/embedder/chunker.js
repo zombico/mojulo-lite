@@ -68,3 +68,26 @@ export function chunkDocuments(docs, opts = {}) {
   }
   return out;
 }
+
+// Triage route descriptions go into the same cosine index as document chunks.
+// At retrieval time, vector-rag.js reads metadata.source to format the snippet
+// so the LLM sees the deploymentId inline alongside the description text.
+// Route descriptions are already concise — we don't sub-chunk; one chunk per
+// route preserves the description as a single retrieval unit.
+export function chunkTriageRoutes(routes) {
+  const out = [];
+  for (const route of routes || []) {
+    const text = (route.description || '').replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    out.push({
+      text,
+      metadata: {
+        source: 'triage-route',
+        deploymentId: route.deploymentId,
+        originalName: route.name,
+        chunkIndex: 0,
+      },
+    });
+  }
+  return out;
+}

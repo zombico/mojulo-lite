@@ -16,7 +16,6 @@
     "archiver": "^7.0.1",
     "better-sqlite3": "^12.4.1",
     "dotenv": "^17.2.3",
-    "franc-min": "^6.2.0",
     "next": "^16.0.7",
     "next-intl": "^4.8.3",
     "officeparser": "^5.2.2",

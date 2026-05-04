@@ -19,8 +19,6 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-rate-limit": "^8.2.1",
-    "franc-min": "^6.2.0",
-    "officeparser": "^5.2.2",
     "prom-client": "^15.1.3"
   }
 }

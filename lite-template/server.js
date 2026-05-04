@@ -12,7 +12,6 @@ const { generateWidgetScript } = require('./helper/widget-generator');
 const { validateApiKey } = require('./middleware/auth');
 const { extractSearchTerms } = require('./helper/analytics');
 const { initFormSubmission, isFormSubmissionEnabled, sendFormHome } = require('./helper/form-submission');
-const SimpleRAG = require('./helper/rag');
 const client = require('prom-client');
 require('dotenv').config();
 
@@ -225,13 +224,7 @@ app.use(express.static(path.join(__dirname, './client')));
 
 let llmClient = null;
 let cachedInstructions = null;
-let cachedRagSummary = null;
 let ragInstance = null;
-const expansionCache = new Map();
-// Per-conversation locked locale (Scenario 2 — set on first turn that clears
-// the franc-min confidence floor). In-memory only; on container restart the
-// next turn re-detects, almost certainly to the same locale. See plan.md.
-const sessionLocales = new Map();
 
 // Initialize database
 // Use absolute /data path in Docker (mounted volume); relative ./data for local dev
@@ -332,13 +325,9 @@ app.post('/chat', chatLimiter, async (req, res) => {
         const { result, ragSources, expandedQuery } = await sharedAssemblePrompt({
             userPrompt: prompt,
             instructions: cachedInstructions,
-            ragSummary: cachedRagSummary,
             ragInstance,
             llmClient,
             conversationHistory,
-            expansionCache,
-            sessionLocales,
-            conversationId,
         });
         llmRequestsTotal.inc({ status: 'success' });
         console.log('STREAM - LLM Response:', result.response);
@@ -1398,66 +1387,35 @@ app.listen(PORT, async () => {
     llmClient = createLLMClient(llmConfig);
     console.log(`LLM Provider: ${llmConfig.llm.provider}`);
 
-    // 5. Cache instruction + RAG summary files at startup
+    // 5. Cache instructions
     const instructionsPath = path.join(__dirname, config.config.instructions);
     cachedInstructions = fs.readFileSync(instructionsPath, "utf-8");
     console.log(`Cached instructions`);
 
-    if (config.config.ragSummary) {
-        const ragSummaryPath = path.join(__dirname, config.config.ragSummary);
-        if (fs.existsSync(ragSummaryPath)) {
-            cachedRagSummary = fs.readFileSync(ragSummaryPath, "utf-8");
-            console.log(`Cached RAG summary (${cachedRagSummary.length} chars)`);
-        } else {
-            console.log(`No RAG summary found at ${ragSummaryPath}`);
-        }
-    }
-
-    // 6. Initialize RAG. Vector mode loads pre-baked embeddings and embeds
-    //    queries in-process via the bundled multilingual-e5-small ONNX
-    //    model. Keyword mode scans the bundled documents/ directory locally.
-    //    Mode is locked at build time.
-    const ragMode = config.config.rag?.mode || 'keyword';
-
-    if (ragMode === 'vector') {
+    // 6. Initialize Vector RAG. Loads pre-baked embeddings and embeds queries
+    //    in-process via the bundled multilingual-e5-small ONNX model. Bots
+    //    with neither knowledge nor triage protocols ship no embeddings and
+    //    run with RAG disabled — the LLM still has the protocol cartridges,
+    //    just no retrieval-augmented context.
+    const embeddingsRel = config.config.rag?.embeddingsPath || './config/embeddings.json';
+    const embeddingsPath = path.join(__dirname, embeddingsRel);
+    if (fs.existsSync(embeddingsPath)) {
         const VectorRAG = require('./helper/vector-rag');
         const { warmup } = require('./helper/embedder-local');
-        const embeddingsPath = path.join(
-            __dirname,
-            config.config.rag?.embeddingsPath || './config/embeddings.json'
-        );
-        if (!fs.existsSync(embeddingsPath)) {
-            console.error(
-                `Vector RAG mode but embeddings file missing at ${embeddingsPath}. RAG disabled.`
+        ragInstance = new VectorRAG(embeddingsPath);
+        try {
+            await ragInstance.initialize();
+            // Warm up the ONNX model so the first user query doesn't pay the
+            // ~2s cold-start cost. Failures are non-fatal — queries will
+            // retry the load on demand.
+            warmup().catch((err) =>
+                console.error('Embedding model warmup failed:', err.message)
             );
-        } else {
-            ragInstance = new VectorRAG(embeddingsPath);
-            try {
-                await ragInstance.initialize();
-                // Warm up the ONNX model so the first user query doesn't
-                // pay the ~2s cold-start cost. Failures are non-fatal —
-                // queries will retry the load on demand.
-                warmup().catch((err) =>
-                    console.error('Embedding model warmup failed:', err.message)
-                );
-            } catch (error) {
-                console.error('Vector RAG initialization failed:', error.message);
-            }
+        } catch (error) {
+            console.error('Vector RAG initialization failed:', error.message);
         }
     } else {
-        const documentsPath = path.join(__dirname, config.config.documentsPath || './documents');
-        if (fs.existsSync(documentsPath)) {
-            const isTriageRoute = config.config.isTriage === true;
-            const ragLocale = config.config.rag?.locale || 'en';
-            ragInstance = new SimpleRAG(documentsPath, isTriageRoute, ragLocale);
-            try {
-                await ragInstance.initialize();
-            } catch (error) {
-                console.error('RAG initialization failed:', error.message);
-            }
-        } else {
-            console.log(`No documents directory at ${documentsPath}, RAG disabled`);
-        }
+        console.log(`No embeddings at ${embeddingsPath}, RAG disabled`);
     }
 
     console.log(`Server running on http://localhost:${PORT}`);

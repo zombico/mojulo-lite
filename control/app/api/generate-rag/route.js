@@ -11,7 +11,6 @@ import { downloadToBuffer } from '@/lib/storage';
 import { parseDocument } from '@/lib/document-parser';
 import { generateSummary } from '@/lib/llm-providers';
 import { checkRateLimit, RateLimitPresets } from '@/lib/rate-limiter';
-import { detectLocale, NON_LATIN_LOCALES } from '@/lib/rag-locale';
 
 /**
  * Download and parse document content
@@ -107,7 +106,7 @@ export async function POST(request) {
     // Step 1: Parse all documents and generate individual summaries
     const individualSummaries = {};
     const errors = [];
-    const baseSummaryPrompt = `Analyze this document and provide a comprehensive summary that:
+    const summaryPrompt = `Analyze this document and provide a comprehensive summary that:
 
 1. Identifies key terms, concepts, and topics covered
 2. Highlights the main themes and subject areas
@@ -116,28 +115,9 @@ export async function POST(request) {
 
 IMPORTANT: Generate the summary in the SAME LANGUAGE as the original document. If the document is in French, write the summary in French. If in German, write in German. Match the source language exactly.
 
-Synthesize the information into max 3 paragraphs 200 words. This document will be used as
-query expansion for a RAG (Retrieval-Augmented Generation) process, so optimize the structure
-so that you can effectively reconstruct information from vague user queries.
+Synthesize the information into max 3 paragraphs 200 words.
 
 Keep the summary high-level, factual, and cohesive.`;
-
-    // Term-expansion bridge for languages where keyword retrieval is intrinsically
-    // weaker (no word boundaries, dense synonyms, morphological variation).
-    // Extends the summary into a per-document synonym/alias list — closes the
-    // gap embeddings would normally close for these scripts.
-    const nonLatinAddendum = `
-
-Additionally, because this document uses a script without whitespace word boundaries (Japanese, Chinese, Korean, or Thai):
-- List key domain terms alongside their common synonyms and variants
-  (e.g., 車 / 自動車 / 汽車; カスタマー / 顧客 / お客様)
-- For proper nouns, include both native script and romanization
-  (e.g., 東京 (Tokyo), 김치 (kimchi))
-- For Korean, include bare noun stems alongside common inflected forms
-- Note any domain-specific vocabulary or katakana loanwords the user might
-  search for in either language
-These additions help downstream keyword retrieval surface chunks even when
-the user's query phrasing differs from the document's exact wording.`;
 
     for (const doc of documents) {
       try {
@@ -151,14 +131,7 @@ the user's query phrasing differs from the document's exact wording.`;
 
         const text = await downloadAndParseDocument(storagePath, fileName);
 
-        // Detect script per-document — a corpus may mix English + Japanese, and
-        // each doc's summary should match its own language.
-        const docLocale = detectLocale(text);
-        const summaryPrompt = NON_LATIN_LOCALES.has(docLocale)
-          ? baseSummaryPrompt + nonLatinAddendum
-          : baseSummaryPrompt;
-
-        console.log(`Generating summary for: ${fileName} (locale: ${docLocale})`);
+        console.log(`Generating summary for: ${fileName}`);
         const docSummary = await generateSummary(provider, text, apiKey, summaryPrompt, model);
 
         individualSummaries[fileName] = docSummary;

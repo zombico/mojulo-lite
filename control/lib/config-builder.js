@@ -6,28 +6,6 @@
 import { LLM_PROVIDERS, buildBedrockModelId, stripBedrockModelPrefix } from './llm-providers.js';
 
 /**
- * Build triage routes content for vectorization (modular flow - uses description)
- * @param {Array} triageRoutes - Array of triage route objects
- * @returns {string} Formatted triage content for RAG
- */
-export function buildTriageRoutesContent(triageRoutes) {
-  return triageRoutes
-    .map(dest => `## ${dest.name}\nDeployment ID: ${dest.deploymentId}\nURL: ${dest.url}\n\n${dest.description}`)
-    .join('\n\n---\n\n');
-}
-
-/**
- * Build appointment destinations content for RAG summary
- * @param {Array} appointmentDestinations - Array of appointment destination objects
- * @returns {string} Formatted appointment content
- */
-export function buildAppointmentContent(appointmentDestinations) {
-  return appointmentDestinations
-    .map(apt => `## ${apt.provider}\nID: ${apt.id}\nPopup URL: ${apt.popupUrl}\n\n${apt.description}`)
-    .join('\n\n---\n\n');
-}
-
-/**
  * Extract terms and conditions text from formStructure's consentToTC field
  * @param {Object} formStructure - The form structure object with sections
  * @returns {string} The T&C text or empty string
@@ -167,7 +145,6 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
  * @param {string} formData.botName - Bot name
  * @param {string} formData.objective - Bot objective (MANDATORY)
  * @param {string} formData.firstMessage - Welcome message
- * @param {string} formData.ragSummary - RAG summary (optional, used for triage/appointments auto-generation)
  * @param {string} formData.provider - LLM provider (openai|anthropic|gemini|cohere)
  * @param {string} formData.apiKey - API key for selected provider
  * @param {string} formData.model - Model name
@@ -182,14 +159,10 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
 export function buildDeploymentConfig(formData, flowType = 'conversational', options = {}) {
   const { enabledProtocols } = options;
 
-  // For modular protocols, ragSummary may be built from other sources
   const isModularTriage = flowType === 'modular' && enabledProtocols?.triage;
   const isAppointments = flowType === 'modular' && enabledProtocols?.appointments;
   const isSkipRag = !!formData.skipRag;
 
-  // Validate required fields. Lite runs keyword RAG in the container, so
-  // ragSummary is required whenever the knowledge protocol is enabled —
-  // enforced below.
   const required = ['botName', 'objective', 'provider', 'apiKey', 'model'];
   const missing = required.filter(field => !formData[field]);
 
@@ -198,9 +171,7 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
   }
 
   const configSection = {
-    documentsPath: './documents',
     instructions: './config/instructions.txt',
-    ragSummary: './config/ragSummary.txt',
     name: formData.botName,
     chatDisplayName: formData.uiSettings?.chatDisplayName || 'Bot',
     placeholder: formData.uiSettings?.placeholder || 'Type your message...',
@@ -251,15 +222,6 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
     configSection.triageRoutes = './config/triageRoutes.json';
   }
 
-  // Build ragSummary: for appointments protocol, generate from destinations;
-  // for skipRag, derive from objective; otherwise use provided
-  let ragSummary = formData.ragSummary;
-  if (isSkipRag) {
-    ragSummary = formData.objective;
-  } else if (isAppointments && formData.appointmentDestinations?.length > 0) {
-    ragSummary = buildAppointmentContent(formData.appointmentDestinations);
-  }
-
   return {
     // Config section (UI settings)
     config: configSection,
@@ -275,7 +237,6 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
     // Extra fields for deployer (not part of config.json)
     objective: formData.objective,
     botSummary: formData.botSummary || undefined,
-    ragSummary,
     skipRag: isSkipRag || undefined,
     formStructure: injectConsentToTCField(
       formData.formStructure?.generatedJson,
@@ -343,8 +304,6 @@ export function parseDeploymentConfig(config) {
     formSendHome: config.formSendHome || false,
     termsAndConditions: extractTermsFromFormStructure(config.formStructure),
 
-    // RAG Summary
-    ragSummary: config.ragSummary,
     skipRag: config.skipRag || false,
 
     // UI Settings
@@ -427,11 +386,6 @@ export function parseModularDeploymentConfig(config) {
       knowledge: {
         skipRag: config.skipRag || false,
         documents: [], // Documents need to be fetched separately by ID
-        ragSummary: config.ragSummary || '',
-        customRagPrompt: '',
-        // Vector RAG: read mirror fields persisted alongside the deployment
-        // row (see /api/deployments POST/PATCH). Keyword is the safe default.
-        ragMode: config._modular?.ragMode || config.ragMode || 'keyword',
         embeddings: config._modular?.embeddings || config.embeddings || null,
       },
       formGathering: {

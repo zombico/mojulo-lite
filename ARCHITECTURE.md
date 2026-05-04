@@ -226,7 +226,113 @@ bot-{name}/
 
 ---
 
-## 5. Key Files
+## 5. Connect Bot: Browsing Live Conversations from the Control Plane
+
+The artifact persists conversations in its own SQLite (`data/conversation.db`) and exposes them via API-key-protected endpoints. **Connect Bot** lets the operator paste the running bot's URL into the control plane so the dashboard can proxy through to those endpoints — without ever exporting the database.
+
+### How the trust works
+
+- At build time, [DockerDeployer](control/lib/deployers/docker.js) writes the deployment row's `api_key` into the artifact's `.env` as `MOJULO_API_KEY`.
+- The same `api_key` lives on the deployment row in the control plane DB.
+- "Connect" is just **pasting the bot's URL onto the row** — both sides already share the key, so the proxy can authenticate by attaching `x-mojulo-api-key: <row.apiKey>` to every forwarded request.
+
+### Connect / probe / disconnect
+
+```
+ Operator                Control Plane                       Bot
+   │                          │                                │
+   │  Paste URL in modal      │                                │
+   │  (dashboard ConnectModal)│                                │
+   ├─────────────────────────▶│                                │
+   │                          │ POST /api/deployments/:id/     │
+   │                          │      connection { url }        │
+   │                          │                                │
+   │                          │ normalizeBotUrl(url)           │
+   │                          │ probeBotConnection(url, apiKey)│
+   │                          │                                │
+   │                          │  GET /api/conversations        │
+   │                          │  x-mojulo-api-key: <apiKey>    │
+   │                          ├───────────────────────────────▶│
+   │                          │                                │ validateApiKey
+   │                          │◀───────────────────────────────┤ 200 OK (or 401)
+   │                          │                                │
+   │                          │ on 200 → DeploymentRepository  │
+   │                          │   .setUrl(id, url)             │
+   │                          │ (writes deployments.url +      │
+   │                          │  last_seen_at)                 │
+   │                          │                                │
+   │  Status pill turns green │                                │
+   │  ("Connected — last seen │                                │
+   │   ...")                  │                                │
+```
+
+A `DELETE /api/deployments/:id/connection` clears `url` + `last_seen_at` (the row, the `api_key`, and the bot itself are untouched — disconnect is purely a control-plane forget).
+
+### Browsing conversations (proxied reads)
+
+Once connected, the dashboard's [conversations page](control/app/dashboard/deployments/[id]/conversations/page.jsx) calls control-plane routes that all forward to the bot through [bot-proxy.js](control/lib/deployers/bot-proxy.js):
+
+| Control-plane route | Forwards to bot |
+|---|---|
+| `GET /api/deployments/:id/conversations` (+ `conversationId` / `startDate` / `endDate` / paging) | `GET /api/conversations` |
+| `GET /api/deployments/:id/conversations/:conversationId` | `GET /api/conversations/:conversationId` |
+| `GET /api/deployments/:id/conversations/export` (60s timeout for large dumps) | `GET /api/conversations/export` |
+| `GET /api/deployments/:id/submissions` | `GET /api/forms` |
+| `GET /api/deployments/:id/submissions/export` | `GET /api/forms/export` |
+| `GET /api/deployments/:id/storage` | bot storage stats |
+
+```
+ Browser              Control Plane                Bot (artifact)
+   │                       │                          │
+   │ GET .../conversations │                          │
+   ├──────────────────────▶│                          │
+   │                       │ DeploymentRepository     │
+   │                       │   .findById(id)          │
+   │                       │ if !deployment.url       │
+   │                       │   → 409 "not connected"  │
+   │                       │                          │
+   │                       │ fetchFromBot(            │
+   │                       │   deployment,            │
+   │                       │   '/api/conversations?…',│
+   │                       │   30s timeout)           │
+   │                       ├─────────────────────────▶│
+   │                       │   x-mojulo-api-key       │ middleware/auth.js
+   │                       │                          │ → SQLite query
+   │                       │◀─────────────────────────┤ { conversations,
+   │                       │                          │   pagination }
+   │                       │ touchLastSeen(id)        │
+   │                       │   (refreshes green pill) │
+   │◀──────────────────────┤ { …, botName }           │
+```
+
+If the bot is unreachable mid-session, proxy routes return `502` with the underlying reason (`timeout`, `network`, `bad_status`); the page surfaces an "unreachable" banner. A fresh `last_seen_at` (within ~5 min) keeps the deployment-row dot green; older = grey "(stale)".
+
+### Why this design
+
+- **No conversation data crosses into the control plane DB.** The control plane stores only `url` + `last_seen_at` per row; conversation rows live solely in the artifact's SQLite. Disconnecting or moving the bot doesn't migrate or duplicate user data.
+- **The shared `api_key` removes a UX step.** The operator never copy-pastes a key — pasting the URL is enough because both sides already agree on the key from build time.
+- **Works for any reachable URL.** `localhost:3001`, a LAN host, an ngrok tunnel, a cloud VM — the probe just needs an HTTP(S) endpoint that answers `/api/conversations` with the right key.
+
+Key files:
+
+| File | Role |
+|------|------|
+| [control/app/api/deployments/[id]/connection/route.js](control/app/api/deployments/[id]/connection/route.js) | `POST` (probe + save URL), `DELETE` (forget URL) |
+| [control/lib/deployers/bot-proxy.js](control/lib/deployers/bot-proxy.js) | `normalizeBotUrl`, `probeBotConnection`, `fetchFromBot` |
+| [control/app/api/deployments/[id]/conversations/route.js](control/app/api/deployments/[id]/conversations/route.js) | List/search proxy |
+| [control/app/api/deployments/[id]/conversations/[conversationId]/route.js](control/app/api/deployments/[id]/conversations/[conversationId]/route.js) | Single-conversation proxy |
+| [control/app/api/deployments/[id]/conversations/export/route.js](control/app/api/deployments/[id]/conversations/export/route.js) | Bulk export passthrough (streams body) |
+| [control/app/dashboard/page.jsx](control/app/dashboard/page.jsx) | `ConnectModal` UI + connection-state pill |
+| [control/app/dashboard/deployments/[id]/conversations/page.jsx](control/app/dashboard/deployments/[id]/conversations/page.jsx) | Proxied conversations browser |
+| [control/lib/db/repositories/deployments.js](control/lib/db/repositories/deployments.js) | `setUrl`, `clearUrl`, `touchLastSeen` |
+| [lite-template/server.js:817](lite-template/server.js#L817) | Bot-side `GET /api/conversations` |
+| [lite-template/server.js:579](lite-template/server.js#L579) | Bot-side `GET /api/conversations/:conversationId` |
+| [lite-template/server.js:512](lite-template/server.js#L512) | Bot-side `GET /api/conversations/export` |
+| [lite-template/middleware/auth.js](lite-template/middleware/auth.js) | `MOJULO_API_KEY` guard the proxy passes through |
+
+---
+
+## 6. Key Files
 
 | File | Role |
 |------|------|

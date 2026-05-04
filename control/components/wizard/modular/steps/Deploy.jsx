@@ -44,7 +44,60 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
     return () => setTheatreContent(null);
   }, [setTheatreContent]);
 
-  function buildPayload() {
+  // Ensure embeddings cover whatever retrieval-bearing protocols are enabled.
+  // - Knowledge: KnowledgePreview.jsx already calls /api/vectorize-rag with
+  //   docs, so formData.embeddings is populated when we get here.
+  // - Triage: routes are added in TriageConfig.jsx without embedding. We
+  //   embed them here at deploy time so the artifact has a coherent index.
+  // - Knowledge + triage: both contribute chunks to a single blob, keyed by
+  //   the same wizardToken so re-runs replace cleanly.
+  async function ensureEmbeddings() {
+    const wantsVector = enabledProtocols.knowledge || enabledProtocols.triage;
+    if (!wantsVector) return null;
+
+    const docs = enabledProtocols.knowledge
+      ? (formData.documents || []).map((doc) => ({
+          id: doc.id,
+          storagePath: doc.storagePath || doc.storage_path,
+          originalName: doc.originalName || doc.file_name,
+        }))
+      : [];
+    const routes = enabledProtocols.triage
+      ? (formData.triageRoutes || []).map((r) => ({
+          deploymentId: r.deploymentId,
+          name: r.name,
+          description: r.description,
+        }))
+      : [];
+
+    if (docs.length === 0 && routes.length === 0) return null;
+
+    // If knowledge-only and KnowledgePreview already produced embeddings, reuse.
+    if (
+      enabledProtocols.knowledge &&
+      !enabledProtocols.triage &&
+      formData.embeddings?.storageKey
+    ) {
+      return formData.embeddings;
+    }
+
+    const res = await fetch('/api/vectorize-rag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        documents: docs,
+        routes,
+        wizardToken: formData.embeddings?.wizardToken,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to generate embeddings');
+    }
+    return await res.json();
+  }
+
+  function buildPayload(embeddings) {
     const transformedFormData = {
       ...formData,
       formStructure: formData.generatedFormJson && formData.generatedFormJson.trim()
@@ -65,13 +118,6 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
 
     const deploymentConfig = buildDeploymentConfig(transformedFormData, flowType, { enabledProtocols });
 
-    // Knowledge bots ship embeddings (vector); everything else ships the
-    // keyword RAG cartridge (notably triage, which scans generated route
-    // descriptions). The receiving REST endpoint also derives this server-
-    // side; we send it for consistency / older middleware.
-    const embeddings = enabledProtocols.knowledge ? formData.embeddings || null : null;
-    const ragMode = enabledProtocols.knowledge ? 'vector' : 'keyword';
-
     return {
       botName: formData.botName,
       config: deploymentConfig,
@@ -82,8 +128,7 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
       appointmentDestinations: enabledProtocols.appointments ? formData.appointmentDestinations : undefined,
       triageDestinations: enabledProtocols.triage ? formData.triageRoutes : undefined,
       botSpaceId: !isEditMode ? botSpaceId : undefined,
-      ragMode,
-      embeddings,
+      embeddings: embeddings || null,
     };
   }
 
@@ -108,7 +153,8 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
       setError('');
       setBuiltArtifact(null);
 
-      const payload = buildPayload();
+      const embeddings = await ensureEmbeddings();
+      const payload = buildPayload(embeddings);
 
       const url = isEditMode && deploymentId
         ? `/api/deployments/${deploymentId}`

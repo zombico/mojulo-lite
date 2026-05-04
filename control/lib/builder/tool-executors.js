@@ -334,6 +334,77 @@ function extractPrepopulatedSettings(userMessage) {
 }
 
 /**
+ * Embed a batch of {text, metadata} chunks locally and persist into the
+ * session's embeddings blob. If the blob already exists (e.g. knowledge docs
+ * were embedded earlier in the same session), append; otherwise create.
+ *
+ * The single-blob shape lets one cosine search return the most relevant chunk
+ * regardless of whether it came from a document or a triage route — the LLM
+ * uses metadata.source at the formatting layer to decide what to do with it.
+ */
+async function embedAndPersistChunks(chunks, session) {
+  const { downloadToBuffer, uploadFile, deleteFile } = await import('@/lib/storage/index.js');
+  const { generateEmbeddings, LOCAL_EMBEDDING_MODEL } = await import('@/lib/embedder/local.js');
+
+  if (!chunks || chunks.length === 0) {
+    throw new Error('embedAndPersistChunks: chunks must be a non-empty array');
+  }
+
+  const storageKey = `embeddings/${session.id}.json`;
+
+  let existingChunks = [];
+  try {
+    const existing = await downloadToBuffer(storageKey);
+    if (existing) {
+      const parsed = JSON.parse(existing.toString('utf8'));
+      if (Array.isArray(parsed.chunks)) existingChunks = parsed.chunks;
+    }
+  } catch {
+    // First write or unreadable prior blob — start fresh.
+  }
+
+  let embeddings;
+  try {
+    embeddings = await generateEmbeddings(
+      chunks.map((c) => c.text),
+      { inputType: 'search_document' }
+    );
+  } catch (err) {
+    if (existingChunks.length === 0) {
+      await deleteFile(storageKey).catch(() => {});
+    }
+    throw new Error(`Local embedding failed: ${err.message}`);
+  }
+
+  if (embeddings.length !== chunks.length) {
+    if (existingChunks.length === 0) {
+      await deleteFile(storageKey).catch(() => {});
+    }
+    throw new Error(
+      `Embedder returned ${embeddings.length} vectors for ${chunks.length} chunks`
+    );
+  }
+
+  const newChunks = chunks.map((c, i) => ({
+    text: c.text,
+    embedding: embeddings[i],
+    metadata: c.metadata,
+  }));
+
+  const merged = [...existingChunks, ...newChunks];
+  const payload = {
+    model: LOCAL_EMBEDDING_MODEL,
+    chunkCount: merged.length,
+    createdAt: new Date().toISOString(),
+    chunks: merged,
+  };
+
+  await uploadFile(storageKey, Buffer.from(JSON.stringify(payload), 'utf8'));
+
+  return { storageKey, chunkCount: merged.length, model: LOCAL_EMBEDDING_MODEL };
+}
+
+/**
  * Vector branch of process_documents: parse → chunk → embed locally via
  * @huggingface/transformers (multilingual-e5-small) → persist a single JSON
  * blob to the factory's filesystem storage. The resulting storageKey is
@@ -345,10 +416,10 @@ function extractPrepopulatedSettings(userMessage) {
  * partial state.
  */
 async function processDocumentsVector(documents, documentIds, session, userId) {
-  const { downloadToBuffer, uploadFile, deleteFile } = await import('@/lib/storage/index.js');
+  const { downloadToBuffer } = await import('@/lib/storage/index.js');
   const { parseDocument } = await import('@/lib/document-parser.js');
   const { chunkDocuments } = await import('@/lib/embedder/chunker.js');
-  const { generateEmbeddings, LOCAL_EMBEDDING_MODEL } = await import('@/lib/embedder/local.js');
+  const { LOCAL_EMBEDDING_MODEL } = await import('@/lib/embedder/local.js');
 
   // Parse all documents.
   const parsed = [];
@@ -377,43 +448,7 @@ async function processDocumentsVector(documents, documentIds, session, userId) {
     `[Builder] Vector embedding ${chunks.length} chunks across ${parsed.length} docs locally (${LOCAL_EMBEDDING_MODEL})`
   );
 
-  // Storage key keyed by session — at save_modular_bot time, the same key is
-  // copied onto the deployment row. Re-running process_documents within the
-  // same session overwrites the blob, which is the intended UX for
-  // re-uploads / mode flips.
-  const storageKey = `embeddings/${session.id}.json`;
-
-  let embeddings;
-  try {
-    embeddings = await generateEmbeddings(
-      chunks.map((c) => c.text),
-      { inputType: 'search_document' }
-    );
-  } catch (err) {
-    // Best-effort cleanup of any prior blob from a previous run.
-    await deleteFile(storageKey).catch(() => {});
-    throw new Error(`Local embedding failed: ${err.message}`);
-  }
-
-  if (embeddings.length !== chunks.length) {
-    await deleteFile(storageKey).catch(() => {});
-    throw new Error(
-      `Embedder returned ${embeddings.length} vectors for ${chunks.length} chunks`
-    );
-  }
-
-  const payload = {
-    model: LOCAL_EMBEDDING_MODEL,
-    chunkCount: chunks.length,
-    createdAt: new Date().toISOString(),
-    chunks: chunks.map((c, i) => ({
-      text: c.text,
-      embedding: embeddings[i],
-      metadata: c.metadata,
-    })),
-  };
-
-  await uploadFile(storageKey, Buffer.from(JSON.stringify(payload), 'utf8'));
+  const { storageKey, chunkCount } = await embedAndPersistChunks(chunks, session);
 
   // Compose a domain digest for build-time tools (compose_identity,
   // infer_appointment_types, generate_suggested_prompts). Per-document LLM
@@ -477,7 +512,7 @@ Keep the summary high-level, factual, and cohesive.`;
     {
       storageKey,
       model: LOCAL_EMBEDDING_MODEL,
-      chunkCount: chunks.length,
+      chunkCount,
     }
   );
 
@@ -485,10 +520,10 @@ Keep the summary high-level, factual, and cohesive.`;
     ragMode: 'vector',
     documentsProcessed: parsed.length,
     totalDocuments: documents.length,
-    chunkCount: chunks.length,
+    chunkCount,
     embeddingModel: LOCAL_EMBEDDING_MODEL,
     storageKey,
-    message: `Embedded ${chunks.length} chunks from ${parsed.length} documents using ${LOCAL_EMBEDDING_MODEL}.`,
+    message: `Embedded ${chunks.length} chunks from ${parsed.length} documents using ${LOCAL_EMBEDDING_MODEL} (total ${chunkCount} chunks in store).`,
   };
 }
 
@@ -876,6 +911,29 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
       routes: processedRoutes,
       routeCount: processedRoutes.length,
     });
+
+    // Embed each route's description into the same cosine index that knowledge
+    // chunks use. The retrieval signal here is intent-match: when a user
+    // describes what they want, the LLM gets the matching route description
+    // pulled into context, reinforcing the JSON-list lookup it would do
+    // anyway. The deploymentId itself is authoritative on the JSON list — the
+    // embedding is contextual reinforcement, not the source of routing IDs.
+    const { chunkTriageRoutes } = await import('@/lib/embedder/chunker.js');
+    const { LOCAL_EMBEDDING_MODEL } = await import('@/lib/embedder/local.js');
+    const routeChunks = chunkTriageRoutes(processedRoutes);
+    if (routeChunks.length > 0) {
+      const { storageKey, chunkCount } = await embedAndPersistChunks(routeChunks, session);
+      await BuilderSessionRepository.updateGeneratedConfig(
+        session.id,
+        userId,
+        'embeddings',
+        {
+          storageKey,
+          model: LOCAL_EMBEDDING_MODEL,
+          chunkCount,
+        }
+      );
+    }
 
     return {
       routes: processedRoutes,

@@ -89,10 +89,8 @@ export function buildPreviewConfig(formData, enabledProtocols) {
         ? { triage: formData.triageRoutes || [] }
         : {}),
     },
-    ragSummary: formData.ragSummary || '',
     llm,
     documentIds: (formData.documents || []).map((d) => d.id),
-    ragMode: formData.ragMode || 'keyword',
     embeddingsStorageKey: formData.embeddings?.storageKey || null,
   };
 

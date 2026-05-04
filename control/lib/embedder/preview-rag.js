@@ -4,9 +4,7 @@
  *
  * The deployed bot loads embeddings.json from disk; the preview hydrates
  * the same payload from a downloadToBuffer() call. Same retrieval semantics,
- * same query-side prefix, same cosine math. This is what closes the gap
- * where the wizard's "test the bot" button used SimpleRAG (keyword)
- * regardless of ragMode.
+ * same query-side prefix, same cosine math.
  */
 
 import { generateEmbeddings } from './local.js';
@@ -47,7 +45,7 @@ export default class VectorRAGPreview {
     this.mode = 'vector';
   }
 
-  // No-op for parity with SimpleRAG/VectorRAG initialize().
+  // No-op for parity with VectorRAG.initialize() (lite-template runtime).
   async initialize() {
     return;
   }
@@ -70,11 +68,19 @@ export default class VectorRAGPreview {
       content: hit.text,
       score: hit.score,
       chunkIndex: hit.metadata?.chunkIndex ?? null,
+      source: hit.metadata?.source || 'document',
+      deploymentId: hit.metadata?.deploymentId || null,
     }));
 
     return top
       .map((hit, i) => {
         const prefix = top.length > 1 ? `[${i + 1}] ` : '';
+        const isRoute = hit.metadata?.source === 'triage-route';
+        if (isRoute) {
+          const id = hit.metadata?.deploymentId || 'unknown';
+          const name = hit.metadata?.originalName || id;
+          return `${prefix}[Triage route — deploymentId: ${id} | name: ${name}]:\n${hit.text}`;
+        }
         const filename = hit.metadata?.originalName || 'document';
         return `${prefix}[From ${filename}]:\n${hit.text}`;
       })
