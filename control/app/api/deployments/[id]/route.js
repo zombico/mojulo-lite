@@ -10,6 +10,25 @@ export async function GET(_request, { params }) {
   const deployment = await DeploymentRepository.findById(id);
   if (!deployment) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  // Builder-created bots store embeddings only on discrete columns; lift them
+  // into _modular.embeddings so the wizard's edit-mode hydration finds them.
+  if (
+    !deployment.config?._modular?.embeddings &&
+    deployment.embeddingStorageKey
+  ) {
+    deployment.config = {
+      ...deployment.config,
+      _modular: {
+        ...(deployment.config?._modular || {}),
+        embeddings: {
+          storageKey: deployment.embeddingStorageKey,
+          model: deployment.embeddingModel,
+          chunkCount: deployment.embeddingChunkCount,
+        },
+      },
+    };
+  }
+
   const docs = await DocumentRepository.findByIds(deployment.documentIds || []);
   const documents = docs.map((d) => ({
     id: d.id,

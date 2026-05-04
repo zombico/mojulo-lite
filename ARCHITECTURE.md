@@ -245,18 +245,3 @@ bot-{name}/
 | [lite-template/middleware/auth.js](lite-template/middleware/auth.js) | `MOJULO_API_KEY` guard |
 | [lite-template/Dockerfile](lite-template/Dockerfile) | Debian slim Node 20 image (Alpine's musl is incompatible with onnxruntime-node's prebuilt glibc binaries) |
 
----
-
-## 6. Contrast with Main Mojulo
-
-| Aspect | Mojulo Lite | Mojulo (dragbot-control) |
-|--------|-------------|--------------------------|
-| Delivery | ZIP download, user runs anywhere | K8s deploy managed by control plane |
-| Config source | Baked into artifact at build | Fetched from control plane at runtime |
-| Database | SQLite in mounted volume | SQLite (container) + PostgreSQL (aggregated) |
-| RAG | Keyword (locale-aware: whitespace for Latin, char bigrams for ja/zh/ko/th) **or** vector (multilingual-e5-small q8 ONNX, in-process via `@huggingface/transformers`, no Infinity dependency) | Keyword + vector (BGE-M3 via Infinity sidecar) |
-| LLM providers | Anthropic, OpenAI, Gemini, Cohere, Bedrock, Ollama | Same set minus Ollama |
-| Scaling | Single instance per ZIP, user-managed | Fleet-managed, per-bot subdomains |
-| Sync/analytics | Self-contained, no phone-home | Daily sync back to PostgreSQL |
-
-**Design intent:** Mojulo Lite trades fleet management for portability — a single-file artifact anyone can run without signing up for a platform.

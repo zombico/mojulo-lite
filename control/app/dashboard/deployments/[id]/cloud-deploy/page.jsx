@@ -59,10 +59,11 @@ export default function CloudDeployPage() {
     },
   ];
 
-  const { data: deployment } = useSWR(
+  const { data } = useSWR(
     deploymentId ? `/api/deployments/${deploymentId}` : null,
     fetcher
   );
+  const deployment = data?.deployment;
 
   const cloudUrl = deploymentId
     ? `/api/deployments/${deploymentId}/cloud-deploy`
