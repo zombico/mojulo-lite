@@ -7,14 +7,6 @@ import EmbedScript from '@/components/shared/EmbedScript';
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
-const STATUS_PILLS = {
-  saved: { label: 'Saved', className: 'bg-blue-900/40 text-blue-300 border-blue-800' },
-  building: { label: 'Building', className: 'bg-yellow-900/40 text-yellow-300 border-yellow-800' },
-  ready: { label: 'Ready', className: 'bg-green-900/40 text-green-300 border-green-800' },
-  stale: { label: 'Stale', className: 'bg-orange-900/40 text-orange-300 border-orange-800' },
-  build_failed: { label: 'Build failed', className: 'bg-red-900/40 text-red-300 border-red-800' },
-};
-
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
 
 function isFresh(lastSeenAt) {
@@ -22,21 +14,62 @@ function isFresh(lastSeenAt) {
   return Date.now() - new Date(lastSeenAt).getTime() < STALE_THRESHOLD_MS;
 }
 
-function ConnectionDot({ url, lastSeenAt }) {
-  if (!url) return null;
-  const fresh = isFresh(lastSeenAt);
-  const seenAt = lastSeenAt ? new Date(lastSeenAt).getTime() : 0;
-  const title = fresh
-    ? `Connected — last seen ${new Date(seenAt).toLocaleTimeString()}`
-    : seenAt
-      ? `Connected (stale) — last seen ${new Date(seenAt).toLocaleString()}`
-      : 'Connected';
+const TONE_DOT = {
+  muted: 'bg-gray-500',
+  teal: 'bg-[color:var(--brand-teal)]',
+  green: 'bg-green-400',
+  amber: 'bg-amber-400',
+  red: 'bg-red-400',
+};
+
+const TONE_TEXT = {
+  muted: 'text-[color:var(--text-muted)]',
+  teal: 'text-[color:var(--text-secondary)]',
+  green: 'text-[color:var(--text-secondary)]',
+  amber: 'text-amber-300',
+  red: 'text-red-300',
+};
+
+function getStatus(deployment) {
+  const fresh = isFresh(deployment.lastSeenAt);
+  const hasUrl = !!deployment.url;
+  switch (deployment.status) {
+    case 'building':
+      return { tone: 'amber', label: 'Building', pulse: true };
+    case 'build_failed':
+      return { tone: 'red', label: 'Build failed' };
+    case 'stale':
+      return { tone: 'amber', label: 'Needs rebuild' };
+    case 'ready':
+      if (hasUrl && fresh) return { tone: 'green', label: 'Running' };
+      if (hasUrl) return { tone: 'amber', label: 'Running · stale' };
+      return { tone: 'teal', label: 'Ready' };
+    case 'saved':
+    default:
+      return { tone: 'muted', label: 'Draft' };
+  }
+}
+
+function StatusIndicator({ deployment, size = 'sm' }) {
+  const s = getStatus(deployment);
+  const dotSize = size === 'lg' ? 'h-2.5 w-2.5' : 'h-2 w-2';
+  const textSize = size === 'lg' ? 'text-sm' : 'text-xs';
   return (
-    <span
-      title={title}
-      className={`inline-block h-2 w-2 rounded-full ${fresh ? 'bg-green-400' : 'bg-gray-500'}`}
-    />
+    <span className={`inline-flex items-center gap-2 ${textSize} ${TONE_TEXT[s.tone]}`}>
+      <span
+        className={`inline-block ${dotSize} rounded-full ${TONE_DOT[s.tone]} ${s.pulse ? 'animate-pulse' : ''}`}
+        aria-hidden
+      />
+      {s.label}
+    </span>
   );
+}
+
+function getBuildLabel(deployment, busy) {
+  if (busy || deployment.status === 'building') return 'Building…';
+  if (deployment.status === 'build_failed') return 'Retry build';
+  if (deployment.status === 'stale') return 'Rebuild';
+  return 'Build';
 }
 
 function ConnectModal({ deployment, onClose, onConnected }) {
@@ -96,12 +129,10 @@ function ConnectModal({ deployment, onClose, onConnected }) {
               placeholder="http://localhost:3001"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="mt-1 w-full rounded-md border border-[color:var(--border-color)] bg-[color:var(--surface-secondary)] px-3 py-2 text-sm font-mono"
+              className="mt-1 w-full rounded-md border border-[color:var(--border-color)] bg-[color:var(--surface-elevated)]/40 px-3 py-2 text-sm font-mono"
             />
           </label>
-          {error && (
-            <p className="text-xs text-red-400 break-words">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 break-words">{error}</p>}
           <div className="flex items-center justify-between gap-2 pt-2">
             <div>
               {deployment.url && (
@@ -109,7 +140,7 @@ function ConnectModal({ deployment, onClose, onConnected }) {
                   type="button"
                   onClick={disconnect}
                   disabled={submitting}
-                  className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                  className="text-xs text-[color:var(--text-muted)] hover:text-red-400 transition disabled:opacity-50"
                 >
                   Disconnect
                 </button>
@@ -126,7 +157,7 @@ function ConnectModal({ deployment, onClose, onConnected }) {
               <button
                 type="submit"
                 disabled={submitting || !url.trim()}
-                className="rounded-lg px-3 py-1.5 text-sm bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-sm bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold hover:bg-[color:var(--brand-teal-hover)] transition disabled:opacity-50"
               >
                 {submitting ? 'Testing…' : 'Test & save'}
               </button>
@@ -138,64 +169,73 @@ function ConnectModal({ deployment, onClose, onConnected }) {
   );
 }
 
-function StatusPill({ status }) {
-  const pill = STATUS_PILLS[status] || {
-    label: status,
-    className: 'bg-gray-800 text-gray-300 border-gray-700',
-  };
-  return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium border ${pill.className}`}>
-      {pill.label}
-    </span>
-  );
-}
-
 function ListItem({ deployment, selected, onSelect }) {
+  const s = getStatus(deployment);
   return (
     <li>
       <button
         type="button"
         onClick={() => onSelect(deployment.id)}
-        className={`w-full text-left rounded-lg border p-3 transition ${
+        className={`group relative w-full text-left rounded-md py-2.5 pl-4 pr-3 transition ${
           selected
-            ? 'border-[color:var(--brand-teal)] bg-[color:var(--surface-secondary)]'
-            : 'border-[color:var(--border-color)] bg-[color:var(--surface-primary)] hover:border-[color:var(--text-muted)]'
+            ? 'bg-[color:var(--surface-elevated)]/40'
+            : 'hover:bg-[color:var(--surface-elevated)]/25'
         }`}
       >
-        <div className="flex items-center gap-2">
-          <ConnectionDot url={deployment.url} lastSeenAt={deployment.lastSeenAt} />
-          <span className="flex-1 truncate text-sm font-medium">{deployment.botName}</span>
-          <StatusPill status={deployment.status} />
+        <span
+          className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition ${
+            selected ? 'bg-[color:var(--brand-teal)]' : 'bg-transparent'
+          }`}
+          aria-hidden
+        />
+        <div className="flex items-center gap-3 min-w-0">
+          <span
+            className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${TONE_DOT[s.tone]} ${s.pulse ? 'animate-pulse' : ''}`}
+            aria-hidden
+          />
+          <span className="flex-1 truncate text-sm">{deployment.botName}</span>
+          <span className={`text-[11px] flex-shrink-0 ${TONE_TEXT[s.tone]}`}>{s.label}</span>
         </div>
       </button>
     </li>
   );
 }
 
-function ActionGroup({ label, children }) {
-  const visible = (Array.isArray(children) ? children : [children]).filter(Boolean);
-  if (visible.length === 0) return null;
+function GhostAction({ children, onClick, href, external = false, title, disabled = false }) {
+  const cls =
+    'rounded-lg px-3 py-1.5 text-xs text-[color:var(--text-secondary)] border border-[color:var(--border-color)] hover:border-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[color:var(--border-color)] disabled:hover:text-[color:var(--text-secondary)]';
+  if (href && !disabled) {
+    if (external) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className={cls} title={title}>
+          {children}
+        </a>
+      );
+    }
+    return (
+      <Link href={href} className={cls} title={title}>
+        {children}
+      </Link>
+    );
+  }
   return (
-    <section className="space-y-2">
-      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)]">
-        {label}
-      </h3>
-      <div className="flex flex-wrap items-center gap-2">{visible}</div>
-    </section>
+    <button type="button" onClick={onClick} className={cls} title={title} disabled={disabled}>
+      {children}
+    </button>
   );
 }
 
 function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack }) {
   const [showEmbed, setShowEmbed] = useState(false);
 
-  const isBuilding = busy || deployment.status === 'building';
-  const isStale = deployment.status === 'stale';
-  const isReady = deployment.status === 'ready';
-  const showBuildButton = ['saved', 'build_failed'].includes(deployment.status) || isStale;
-  const buildLabel = isBuilding ? 'Building…' : isStale ? 'Rebuild' : 'Build';
-  const hasArtifact = isReady && deployment.artifactPath;
-  const hasUrl = !!deployment.url;
   const fresh = isFresh(deployment.lastSeenAt);
+  const hasUrl = !!deployment.url;
+  const hasArtifact = deployment.status === 'ready' && deployment.artifactPath;
+  const isReady = deployment.status === 'ready';
+  const isBuilding = busy || deployment.status === 'building';
+  const showBuildSlot =
+    ['saved', 'build_failed', 'stale', 'building'].includes(deployment.status) || busy;
+  const buildLabel = getBuildLabel(deployment, busy);
 
   const enabledProtocolList = deployment.enabledProtocols
     ? Object.entries(deployment.enabledProtocols)
@@ -205,166 +245,102 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
 
   return (
     <div className="rounded-xl border border-[color:var(--border-color)] bg-[color:var(--surface-primary)] p-6 space-y-6">
-      <header className="space-y-2">
-        <div className="flex items-center gap-2 min-w-0">
+      <header className="space-y-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onBack}
-            className="md:hidden rounded-md border border-[color:var(--border-color)] px-2 py-1 text-xs"
+            className="md:hidden rounded-md px-2 py-1 text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition"
             title="Back to list"
           >
             ←
           </button>
           <h2 className="text-xl font-semibold truncate">{deployment.botName}</h2>
-          <StatusPill status={deployment.status} />
-          <ConnectionDot url={deployment.url} lastSeenAt={deployment.lastSeenAt} />
         </div>
+        <StatusIndicator deployment={deployment} size="lg" />
         <p className="text-xs text-[color:var(--text-muted)]">
           {deployment.flowType}
-          {enabledProtocolList.length > 0 && (
-            <> · protocols: {enabledProtocolList.join(', ')}</>
+          {enabledProtocolList.length > 0 && <> · {enabledProtocolList.join(', ')}</>}
+          {hasUrl && (
+            <>
+              {' '}
+              · running at <span className="font-mono">{deployment.url}</span>
+            </>
           )}
         </p>
-        {hasUrl && (
-          <p className="text-xs text-[color:var(--text-muted)] break-all">
-            running at <span className="font-mono">{deployment.url}</span>
-          </p>
-        )}
         {deployment.error && (
-          <p className="text-xs text-red-400 break-words">error: {deployment.error}</p>
+          <p className="text-xs text-red-400 break-words">{deployment.error}</p>
         )}
-        {isStale && (
-          <p className="text-xs text-orange-400">
+        {deployment.status === 'stale' && (
+          <p className="text-xs text-amber-300/90">
             Config edited since last build — rebuild to get the latest ZIP.
           </p>
         )}
       </header>
 
-      <div className="space-y-5">
-        <ActionGroup label="Build">
-          {showBuildButton && (
-            <button
-              key="build"
-              onClick={() => onBuild(deployment.id)}
-              disabled={isBuilding}
-              className="rounded-lg px-3 py-1.5 text-sm bg-blue-600 text-white font-semibold disabled:opacity-50"
-            >
-              {buildLabel}
-            </button>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex flex-wrap gap-2">
+            <GhostAction href={`/bot-factory/modular?from=${deployment.id}`}>Wizard</GhostAction>
+            <GhostAction href={`/chat-builder?from=${deployment.id}`}>Chat</GhostAction>
+          </div>
+          {(isReady || hasUrl) && (
+            <span
+              className="h-5 w-px bg-[color:var(--border-color)] self-center"
+              aria-hidden
+            />
           )}
-          {hasArtifact && (
-            <a
-              key="download"
-              href={`/api/deployments/${deployment.id}/download`}
-              className="rounded-lg px-3 py-1.5 text-sm bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold"
-            >
-              Download .zip
-            </a>
-          )}
-        </ActionGroup>
+          <div className="flex flex-wrap gap-2">
+            {isReady && !hasUrl && (
+              <GhostAction onClick={() => onConnect(deployment)}>Connect</GhostAction>
+            )}
+            {hasUrl && !fresh && (
+              <GhostAction onClick={() => onConnect(deployment)}>Reconnect</GhostAction>
+            )}
+            {hasUrl && fresh && (
+              <GhostAction href={`/dashboard/deployments/${deployment.id}/conversations`}>
+                Conversations
+              </GhostAction>
+            )}
+          </div>
+        </div>
 
-        <ActionGroup label="Cloud">
-          <Link
-            key="cloud-deploy"
-            href={`/dashboard/deployments/${deployment.id}/cloud-deploy`}
-            className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
-          >
-            Deploy to Cloud
-          </Link>
-        </ActionGroup>
-
-        <ActionGroup label="Connect">
-          {isReady && !hasUrl && (
-            <button
-              key="connect"
-              onClick={() => onConnect(deployment)}
-              className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
-            >
-              Connect…
-            </button>
-          )}
-          {hasUrl && !fresh && (
-            <button
-              key="reconnect"
-              onClick={() => onConnect(deployment)}
-              className="rounded-lg px-3 py-1.5 text-sm border border-orange-500/50 text-orange-300"
-            >
-              Reconnect
-            </button>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <div className="flex flex-wrap gap-2">
+            {showBuildSlot && (
+              <GhostAction
+                onClick={() => onBuild(deployment.id)}
+                disabled={isBuilding}
+              >
+                {buildLabel}
+              </GhostAction>
+            )}
+            {!showBuildSlot && hasArtifact && (
+              <GhostAction href={`/api/deployments/${deployment.id}/download`}>
+                Download Zip
+              </GhostAction>
+            )}
+            <GhostAction href={`/dashboard/deployments/${deployment.id}/cloud-deploy`}>
+              Deploy to Cloud
+            </GhostAction>
+          </div>
+          {hasUrl && (
+            <span
+              className="h-5 w-px bg-[color:var(--border-color)] self-center"
+              aria-hidden
+            />
           )}
           {hasUrl && (
-            <a
-              key="live"
-              href={deployment.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
-            >
-              Live ↗
-            </a>
+            <div className="flex flex-wrap gap-2">
+              <GhostAction href={deployment.url} external>
+                Live ↗
+              </GhostAction>
+              <GhostAction onClick={() => setShowEmbed((v) => !v)}>
+                {showEmbed ? 'Hide Embed' : 'Embed Script'}
+              </GhostAction>
+            </div>
           )}
-          {hasUrl && (
-            <button
-              key="settings"
-              onClick={() => onConnect(deployment)}
-              className="rounded-lg px-2 py-1.5 text-xs border border-[color:var(--border-color)] text-[color:var(--text-muted)]"
-              title="Change URL or disconnect"
-            >
-              ⚙
-            </button>
-          )}
-        </ActionGroup>
-
-        <ActionGroup label="Data">
-          {hasUrl && (
-            <Link
-              key="conversations"
-              href={`/dashboard/deployments/${deployment.id}/conversations`}
-              className="rounded-lg px-3 py-1.5 text-sm bg-teal-700 text-white font-semibold"
-            >
-              Go to conversations
-            </Link>
-          )}
-        </ActionGroup>
-
-        <ActionGroup label="Edit">
-          <Link
-            key="modify"
-            href={`/bot-factory/modular?from=${deployment.id}`}
-            className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
-          >
-            Modify
-          </Link>
-          <Link
-            key="edit-in-chat"
-            href={`/chat-builder?from=${deployment.id}`}
-            className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
-          >
-            Edit in chat
-          </Link>
-        </ActionGroup>
-
-        <ActionGroup label="Embed">
-          {hasUrl && (
-            <button
-              key="embed-toggle"
-              onClick={() => setShowEmbed((v) => !v)}
-              className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
-            >
-              {showEmbed ? 'Hide embed script' : 'Get embed script'}
-            </button>
-          )}
-        </ActionGroup>
-
-        <ActionGroup label="Danger">
-          <button
-            key="delete"
-            onClick={() => onDelete(deployment.id)}
-            className="rounded-lg px-3 py-1.5 text-sm border border-red-500/50 text-red-400"
-          >
-            Delete
-          </button>
-        </ActionGroup>
+        </div>
       </div>
 
       {showEmbed && hasUrl && (
@@ -372,6 +348,16 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
           <EmbedScript url={deployment.url} />
         </div>
       )}
+
+      <div className="pt-4 border-t border-[color:var(--border-color)]/60">
+        <button
+          type="button"
+          onClick={() => onDelete(deployment.id)}
+          className="text-xs text-[color:var(--text-muted)] hover:text-red-400 transition"
+        >
+          Delete bot
+        </button>
+      </div>
     </div>
   );
 }
@@ -427,13 +413,13 @@ export default function DashboardPage() {
           <div className="flex gap-2 flex-shrink-0">
             <Link
               href="/chat-builder"
-              className="rounded-lg px-4 py-2 bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold"
+              className="rounded-lg px-4 py-2 bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold hover:bg-[color:var(--brand-teal-hover)] transition"
             >
               New bot (chat)
             </Link>
             <Link
               href="/bot-factory/modular"
-              className="rounded-lg px-4 py-2 border border-[color:var(--border-color)]"
+              className="rounded-lg px-4 py-2 border border-[color:var(--border-color)] hover:border-[color:var(--text-muted)] transition"
             >
               New bot (wizard)
             </Link>
@@ -455,9 +441,9 @@ export default function DashboardPage() {
                 placeholder="Search bots…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-md border border-[color:var(--border-color)] bg-[color:var(--surface-secondary)] px-3 py-2 text-sm"
+                className="w-full rounded-md border border-[color:var(--border-color)] bg-[color:var(--surface-elevated)]/40 px-3 py-2 text-sm"
               />
-              <ul className="space-y-2 overflow-y-auto pr-1 max-h-[calc(100vh-220px)]">
+              <ul className="space-y-0.5 overflow-y-auto pr-1 max-h-[calc(100vh-220px)]">
                 {filtered.length === 0 ? (
                   <li className="text-xs text-[color:var(--text-muted)] px-1 py-2">
                     No bots match &ldquo;{search}&rdquo;.
@@ -488,6 +474,11 @@ export default function DashboardPage() {
                 />
               ) : (
                 <div className="rounded-xl border border-dashed border-[color:var(--border-color)] bg-[color:var(--surface-primary)] p-12 text-center">
+                  <img
+                    src="/cards-icon.svg"
+                    alt=""
+                    className="mx-auto mb-4 h-16 w-16"
+                  />
                   <p className="text-sm text-[color:var(--text-muted)]">
                     Select a bot to see its lifecycle actions.
                   </p>
