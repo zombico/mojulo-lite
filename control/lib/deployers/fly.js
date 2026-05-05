@@ -44,12 +44,10 @@ export class FlyDeployer {
     // local docker-compose path and is often set to a laptop tag like
     // `mojulo/bot:latest`). Cloud always wants a public registry pin —
     // override via MOJULO_CLOUD_IMAGE if you need a different tag.
-    // Pin matches the tag actually published on GHCR. Bump after Phase 6 of
-    // GHCR_container_plan.md (cut bot-v0.1.0 → CI publishes :0.1.0 + :latest).
+    
     this.image =
       image ||
-      process.env.MOJULO_CLOUD_IMAGE ||
-      'ghcr.io/zombico/mojulo-bot:0.0.1-test';
+      process.env.MOJULO_CLOUD_IMAGE;
     if (!/[:/]/.test(this.image) || !this.image.includes('/')) {
       throw new Error(
         `Cloud image "${this.image}" has no registry prefix; Fly will route it through Docker Hub. ` +

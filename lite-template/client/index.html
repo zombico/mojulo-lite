@@ -110,6 +110,14 @@
         let botContext;
         let conversationId = null;
         let formStructure = null;
+        // Local tip-of-chain after the most recent /chat response. Forwarded to
+        // a downstream bot via the triage handoff URL so the receiver's first
+        // turn descends from this hash (cross-bot chain seeding).
+        let currentChainHash = null;
+        // Handoff seed adopted from the URL on page load. Sent as `handoffHash`
+        // on the next /chat call, then cleared — only the first turn of a fresh
+        // conversation can consume it.
+        let pendingHandoffHash = null;
 
         const messagesDiv = document.getElementById('messages');
         const chatContainer = document.querySelector('.chat-container');
@@ -1399,8 +1407,12 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ prompt, turn, conversationId })
+                    body: JSON.stringify({ prompt, turn, conversationId, handoffHash: pendingHandoffHash })
                 });
+                // Whether the server adopted the seed or ignored it, this is
+                // a one-shot — clear so subsequent turns don't re-send a stale
+                // hash from a prior page load.
+                pendingHandoffHash = null;
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
@@ -1415,6 +1427,9 @@
                 }
 
                 conversationId = data.conversationId;
+                if (typeof data.chainHash === 'string') {
+                    currentChainHash = data.chainHash;
+                }
 
                 // Log response
                 await addLog('response', data.response, conversationId);
@@ -1507,7 +1522,7 @@
                         }
                         console.log('Final triageLink:', triageLink);
                         if (triageLink) {
-                            const triageCard = createTriageCard(triageLink, data.response.starterPrompt, directedBotName);
+                            const triageCard = createTriageCard(triageLink, data.response.starterPrompt, directedBotName, data.response.deploymentId);
                             messagesDiv.lastChild.querySelector('.message-content').appendChild(triageCard);
                         } else {
                             console.log('Triage card NOT created - triageLink is falsy');
@@ -1721,7 +1736,7 @@
 
         // Create a triage card element (with link and starterPrompt)
         // Clicking navigates to link with ?prompt=starterPrompt&source=configName to auto-start conversation
-        function createTriageCard(link, starterPrompt, directedBotName) {
+        function createTriageCard(link, starterPrompt, directedBotName, deploymentId) {
             const container = document.createElement('div');
             container.className = 'triage-prompts-container';
 
@@ -1737,12 +1752,40 @@
             if (conversationId) {
                 url.searchParams.set('conversationId', conversationId);
             }
+            // Forward sender's tip-of-chain so the receiver's first turn
+            // descends from it. Forgeable on its own — the trust upgrade comes
+            // in v2 (signed handoff token + aggregator verification).
+            if (currentChainHash) {
+                url.searchParams.set('chainHash', currentChainHash);
+            }
             card.href = url.toString();
 
             card.setAttribute('role', 'link');
 
-            // Show routing overlay on click
+            const targetUrl = url.toString();
+
+            // Show routing overlay on click + record handoff as a chained event
+            // on this (sender) bot. sendBeacon is fire-and-forget across
+            // navigation — best-effort delivery is acceptable; worst case is
+            // one missing audit row, the user is still routed correctly.
             card.addEventListener('click', () => {
+                if (conversationId && deploymentId && navigator.sendBeacon) {
+                    try {
+                        const payload = JSON.stringify({
+                            conversationId,
+                            deploymentId,
+                            starterPrompt,
+                            targetUrl
+                        });
+                        navigator.sendBeacon(
+                            `${API_URL}/handoff`,
+                            new Blob([payload], { type: 'application/json' })
+                        );
+                    } catch (e) {
+                        console.warn('Handoff beacon failed:', e);
+                    }
+                }
+
                 const overlay = document.createElement('div');
                 overlay.className = 'routing-overlay';
 
@@ -1851,6 +1894,19 @@
                         console.log('Adopted handoff conversationId:', conversationId);
                     } else {
                         console.warn('Ignoring malformed handoff conversationId:', handoffConversationId);
+                    }
+                }
+
+                // Adopt sender's tip-of-chain as the handoff seed. Server
+                // re-validates and only consumes it on the first turn of a
+                // conversation that has no prior local turns.
+                const handoffChainHash = getUrlParameter('chainHash');
+                if (handoffChainHash) {
+                    if (/^[0-9a-f]{64}$/.test(handoffChainHash)) {
+                        pendingHandoffHash = handoffChainHash;
+                        console.log('Adopted handoff chainHash:', pendingHandoffHash);
+                    } else {
+                        console.warn('Ignoring malformed handoff chainHash:', handoffChainHash);
                     }
                 }
 

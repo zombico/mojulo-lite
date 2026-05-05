@@ -284,10 +284,35 @@ db.exec(`
     }
 }
 
+// Federated hashing columns (v1.5 + v1.6).
+//   handoff_hash: sender's tip-of-chain at handoff time, stored on the FIRST
+//   turn of a receiver's conversation only. Verify uses it as the seed instead
+//   of '0' so cross-bot continuity replays deterministically.
+//   event_type: NULL for chat turns, 'handoff' for outbound triage click events
+//   recorded on the sender. Chain math is uniform across both kinds.
+{
+    const cols = db.prepare('PRAGMA table_info(turns)').all();
+    if (!cols.some((c) => c.name === 'handoff_hash')) {
+        db.exec('ALTER TABLE turns ADD COLUMN handoff_hash TEXT');
+    }
+    if (!cols.some((c) => c.name === 'event_type')) {
+        db.exec('ALTER TABLE turns ADD COLUMN event_type TEXT');
+    }
+}
+
 // Prepare insert statements for reuse
 const insertTurn = db.prepare(`
-    INSERT INTO turns (conversation_id, turn, user_prompt, full_prompt, llm_response, machine_state, rag_context, content_hash, chain_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO turns (conversation_id, turn, user_prompt, full_prompt, llm_response, machine_state, rag_context, content_hash, chain_hash, handoff_hash)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+// Handoff events store empty strings for user_prompt/llm_response because the
+// existing schema declares user_prompt NOT NULL and SQLite can't drop the
+// constraint without a full table rebuild. The hash is computed against the
+// same values that get stored, so verify stays deterministic.
+const insertHandoffEvent = db.prepare(`
+    INSERT INTO turns (conversation_id, turn, user_prompt, full_prompt, llm_response, machine_state, rag_context, content_hash, chain_hash, event_type)
+    VALUES (?, ?, '', NULL, '', ?, NULL, ?, ?, 'handoff')
 `);
 
 const insertFormSubmission = db.prepare(`
@@ -312,16 +337,46 @@ function isValidConversationId(id) {
     return typeof id === 'string' && UUID_V4_REGEX.test(id);
 }
 
+// Handoff chain hash: 64 lowercase hex chars (SHA-256 hex digest output).
+// Validated on both client and server; server-side check is authoritative.
+const HANDOFF_HASH_REGEX = /^[0-9a-f]{64}$/;
+function isValidHandoffHash(h) {
+    return typeof h === 'string' && HANDOFF_HASH_REGEX.test(h);
+}
+
+// Highest turn number on a conversation, regardless of event_type. Handoff
+// events extend past chat turns, so /handoff uses this to stay monotonic.
+function getLastTurnNumber(conversationId) {
+    const row = db.prepare(
+        'SELECT MAX(turn) AS turn FROM turns WHERE conversation_id = ?'
+    ).get(conversationId);
+    return row?.turn ?? null;
+}
+
+// Aggressive limiter for /handoff. Beacon traffic is fire-and-forget and
+// abuse-attractive (forged conversation IDs would just write empty rows we
+// can't verify against any sender), so cap tighter than chat.
+const handoffLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    message: 'Too many handoff events, please try again later'
+});
+
 // Chat endpoint
 app.post('/chat', chatLimiter, async (req, res) => {
     try {
-        let { prompt, turn, conversationId, includeHistory = true } = req.body;
+        let { prompt, turn, conversationId, handoffHash, includeHistory = true } = req.body;
 
         // Accept incoming conversationId only if it is a well-formed UUID v4
         // (e.g. correlation ID passed from a triage handoff). Otherwise mint a new one.
         if (!conversationId || !isValidConversationId(conversationId)) {
             conversationId = crypto.randomUUID();
         }
+
+        // Validated handoff seed: only honored on the first turn of a fresh
+        // conversation (where the local chain is empty). Stale handoff hashes
+        // arriving on an already-extended chain are ignored.
+        const validHandoffHash = isValidHandoffHash(handoffHash) ? handoffHash : null;
 
         // Load conversation history if this is a continuing conversation
         let conversationHistory = null;
@@ -390,7 +445,12 @@ app.post('/chat', chatLimiter, async (req, res) => {
             result.response,
             JSON.stringify(satiJson)
         );
-        const previousChainHash = getLastChainHash(conversationId);
+        // First-turn fallback: if local chain is empty AND a valid handoff hash
+        // was provided, descend from the sender's tip. Subsequent turns ignore
+        // any stale handoffHash on the request.
+        const localTip = getLastChainHash(conversationId);
+        const previousChainHash = localTip || validHandoffHash || null;
+        const persistedHandoffHash = localTip ? null : validHandoffHash;
         const chainHash = createChainHash(contentHash, previousChainHash);
 
         insertTurn.run(
@@ -402,13 +462,16 @@ app.post('/chat', chatLimiter, async (req, res) => {
             JSON.stringify(satiJson),
             ragSources ? JSON.stringify(ragSources) : null,
             contentHash,
-            chainHash
+            chainHash,
+            persistedHandoffHash
         );
 
         const hashMsg = `Chain: ${chainHash}`;
 
-        // Send response
-        res.json({ response: satiJson, conversationId, trace, hashMsg, sources: ragSources });
+        // Send response. `chainHash` is exposed explicitly so the client can
+        // forward it to a downstream bot via triage handoff URL — the legacy
+        // hashMsg string is kept for the existing log UI.
+        res.json({ response: satiJson, conversationId, trace, hashMsg, chainHash, sources: ragSources });
 
     } catch (e) {
         llmRequestsTotal.inc({ status: 'error' });
@@ -416,6 +479,53 @@ app.post('/chat', chatLimiter, async (req, res) => {
         res.status(500).json({ error: e.message || 'Internal server error' });
     }
 })
+
+// Handoff event endpoint: triage card click on the sender. Records the routing
+// transition as a chained event row so the sender's tamper-evident chain
+// captures *that* the user routed away. Fired via navigator.sendBeacon — the
+// response body is not consumed by the client (delivery is best-effort across
+// page unload), but we return JSON for manual replay/debugging.
+app.post('/handoff', handoffLimiter, (req, res) => {
+    try {
+        const { conversationId, deploymentId, starterPrompt, targetUrl } = req.body || {};
+        if (!isValidConversationId(conversationId)) {
+            return res.status(400).json({ error: 'Invalid conversationId' });
+        }
+        // Reject handoffs on conversations that don't exist locally — those
+        // would be empty chains rooted at a forged event, which is just noise.
+        const lastTurnNumber = getLastTurnNumber(conversationId);
+        if (lastTurnNumber == null) {
+            return res.status(404).json({ error: 'Unknown conversation' });
+        }
+
+        const turn = lastTurnNumber + 1;
+        const machineState = JSON.stringify({
+            eventType: 'handoff',
+            deploymentId: typeof deploymentId === 'string' ? deploymentId : null,
+            starterPrompt: typeof starterPrompt === 'string' ? starterPrompt : null,
+            targetUrl: typeof targetUrl === 'string' ? targetUrl : null,
+            timestamp: Date.now()
+        });
+        // Hash with the same sentinel values the row stores ('' for prompts).
+        // Verify recomputes against stored values, so they must match here.
+        const contentHash = hashTurnContent(turn, '', '', machineState);
+        const previousChainHash = getLastChainHash(conversationId);
+        const chainHash = createChainHash(contentHash, previousChainHash);
+
+        insertHandoffEvent.run(
+            conversationId,
+            turn,
+            machineState,
+            contentHash,
+            chainHash
+        );
+
+        res.json({ chainHash, turn });
+    } catch (e) {
+        console.error('Handoff error:', e.message, e.stack);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 // Hash the content of this turn
 function hashTurnContent(turn, userPrompt, llmResponse, machineState) {
@@ -444,10 +554,10 @@ function getLastChainHash(conversationId) {
 
 // Shared verification logic
 function verifyConversation(conversationId = null) {
-    const query = conversationId 
-        ? 'SELECT id, turn, conversation_id, user_prompt, llm_response, machine_state, content_hash, chain_hash FROM turns WHERE conversation_id = ? ORDER BY turn ASC'
-        : 'SELECT id, turn, conversation_id, user_prompt, llm_response, machine_state, content_hash, chain_hash FROM turns ORDER BY conversation_id, turn ASC';
-    
+    const query = conversationId
+        ? 'SELECT id, turn, conversation_id, user_prompt, llm_response, machine_state, content_hash, chain_hash, handoff_hash, event_type FROM turns WHERE conversation_id = ? ORDER BY turn ASC'
+        : 'SELECT id, turn, conversation_id, user_prompt, llm_response, machine_state, content_hash, chain_hash, handoff_hash, event_type FROM turns ORDER BY conversation_id, turn ASC';
+
     const stmt = db.prepare(query);
     const turns = conversationId ? stmt.all(conversationId) : stmt.all();
 
@@ -461,8 +571,13 @@ function verifyConversation(conversationId = null) {
     let invalidCount = 0;
 
     for (const turn of turns) {
-        const prevHash = chainMap.get(turn.conversation_id) || null;
-        
+        // First turn of a conversation seeds from handoff_hash if present
+        // (cross-bot continuity), else null (native start). Subsequent turns
+        // chain off the previous row in this conversation.
+        const prevHash = chainMap.get(turn.conversation_id)
+            || turn.handoff_hash
+            || null;
+
         // Verify content hash
         const expectedContentHash = hashTurnContent(
             turn.turn,
@@ -537,7 +652,7 @@ app.get('/api/conversations/export', validateApiKey, (req, res) => {
 
         // Fetch full turns for each conversation
         const getTurns = db.prepare(`
-            SELECT turn, timestamp, user_prompt, llm_response, machine_state, rag_context
+            SELECT turn, timestamp, user_prompt, llm_response, machine_state, rag_context, event_type, handoff_hash
             FROM turns
             WHERE conversation_id = ?
             ORDER BY turn ASC
@@ -554,7 +669,9 @@ app.get('/api/conversations/export', validateApiKey, (req, res) => {
                 userPrompt: t.user_prompt,
                 llmResponse: t.llm_response,
                 machineState: t.machine_state,
-                ragContext: t.rag_context
+                ragContext: t.rag_context,
+                eventType: t.event_type,
+                handoffHash: t.handoff_hash
             }))
         }));
 
@@ -578,7 +695,7 @@ app.get('/api/conversations/:conversationId', validateApiKey, (req, res) => {
         
         // Get all turns for this conversation
         const turns = db.prepare(`
-            SELECT 
+            SELECT
                 id,
                 conversation_id,
                 turn,
@@ -588,9 +705,11 @@ app.get('/api/conversations/:conversationId', validateApiKey, (req, res) => {
                 machine_state,
                 rag_context,
                 content_hash,
-                chain_hash
-            FROM turns 
-            WHERE conversation_id = ? 
+                chain_hash,
+                event_type,
+                handoff_hash
+            FROM turns
+            WHERE conversation_id = ?
             ORDER BY turn ASC
         `).all(conversationId);
         
@@ -771,11 +890,13 @@ app.get('/api/conversation-metadata', validateApiKey, (req, res) => {
             ${whereConditions.length > 0 ? 'AND' : 'WHERE'} json_extract(machine_state, '$.isComplete') = 1
         `).get(...params).count;
 
-        // Count total messages (turns = user messages)
+        // Count total messages (turns = user messages). Exclude handoff event
+        // rows so the metric reflects user/LLM exchanges, not routing markers.
         const totalMessages = db.prepare(`
             SELECT COUNT(*) as count
             FROM turns
             ${whereClause}
+            ${whereConditions.length > 0 ? 'AND' : 'WHERE'} event_type IS NULL
         `).get(...params).count;
 
         // Form starts = total conversations (in a form-enabled bot, all conversations are form starts)
@@ -1165,10 +1286,12 @@ app.get('/api/storage', validateApiKey, (req, res) => {
 });
 
 function getConversationHistory(conversationId, maxTurns = null) {
-    const query = maxTurns 
-        ? 'SELECT turn, user_prompt, llm_response FROM turns WHERE conversation_id = ? ORDER BY turn ASC LIMIT ?'
-        : 'SELECT turn, user_prompt, llm_response FROM turns WHERE conversation_id = ? ORDER BY turn ASC';
-    
+    // Skip handoff event rows — they have no user_prompt/llm_response and
+    // would surface as empty exchanges in the LLM context window.
+    const query = maxTurns
+        ? 'SELECT turn, user_prompt, llm_response FROM turns WHERE conversation_id = ? AND event_type IS NULL ORDER BY turn ASC LIMIT ?'
+        : 'SELECT turn, user_prompt, llm_response FROM turns WHERE conversation_id = ? AND event_type IS NULL ORDER BY turn ASC';
+
     const stmt = db.prepare(query);
     return maxTurns ? stmt.all(conversationId, maxTurns) : stmt.all(conversationId);
 }
