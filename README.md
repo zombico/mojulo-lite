@@ -38,7 +38,7 @@ Mojulo-Lite hands you the artifact. The bot you compile is yours — its source 
 - **Protocol cartridges.** Mix and match: knowledge retrieval, ghost-form gathering (the bot collects structured data without a form UI), appointment scheduling, triage routing.
 - **Connect Bot.** Browse live conversations from the control plane without exporting a database — the bot's SQLite stays on the bot.
 - **One-click cloud deploy** to Fly.io. Persistent volume, autostart on request, autostop when idle.
-- **Tamper-evident transcripts.** Every turn is content-hashed and chain-linked; verify at `/verify/:id`.
+- **Tamper-evident transcripts.** Every turn is content-hashed and chain-linked; verify at `/verify/:id`. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/federated-routing.md](docs/federated-routing.md).
 - **Embeddable widget** + Prometheus metrics + form-submission webhooks out of the box.
 
 ## Quickstart
@@ -154,6 +154,15 @@ Per-package docs:
 
 - [control/README.md](control/README.md) — running the control plane in dev
 - [lite-template/](lite-template/) — bot runtime internals
+
+Concept docs:
+
+- [docs/bot-frontend.md](docs/bot-frontend.md) — the bot's UI: standalone client, embeddable widget, control-plane preview shim — one HTML file, three surfaces, no build step
+- [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
+- [docs/form-collection.md](docs/form-collection.md) — ghost forms: locale-aware schema generated at build time, rendered on the client, submitted via a dedicated endpoint that bypasses the LLM (PII never reaches the model)
+- [docs/conversations-api.md](docs/conversations-api.md) — Connect Bot: how the control plane proxies through to a running bot's conversations API without copying data
+- [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot tamper-evident chain that `/verify/:id` walks
+- [docs/federated-routing.md](docs/federated-routing.md) — cross-bot tamper-evident chain across triage handoffs (extends turn-hashing across bot boundaries)
 
 ---
 

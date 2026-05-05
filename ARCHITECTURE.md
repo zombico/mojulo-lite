@@ -143,6 +143,7 @@ In **offline-build mode** (`MOJULO_OFFLINE_BUILD=1`) all of the above ship insid
 │   │  Endpoints:                                                 │    │
 │   │   GET  /              → serves client/ with injected config│    │
 │   │   POST /chat          → main conversation (rate-limited)   │    │
+│   │   POST /handoff       → triage click → chained event row   │    │
 │   │   GET  /health        → healthcheck                        │    │
 │   │   GET  /verify/:id    → chain-hash integrity check         │    │
 │   │   GET  /api/convos    → protected (needs MOJULO_API_KEY)   │    │
@@ -242,6 +243,8 @@ Handles billing questions, payment plan changes, and refund requests…
 Knowledge chunks render normally (`[From {filename}]: …`). The instructions cartridge tells the LLM how to consume both forms.
 
 **Why the merge.** Removing the separate keyword path eliminated stopword tables, locale detection, and the "no hits → query expansion" fallback (`rag-locale.js`, `helper/stopwords/*`, `helper/locale-detect.js` — all deleted). The multilingual embedding model handles cross-lingual semantics directly. Net: one retrieval path for both purposes, ~1700 LOC removed.
+
+**Federated routing.** A triage handoff also carries the sender's tip-of-chain through the URL so the receiver's first turn descends from it, and records a chained `handoff` event row on the sender via `navigator.sendBeacon`. The result is end-to-end tamper-evidence across bot boundaries — each bot keeps its own SQLite, neither reads from the other, but the chain math is continuous. See [docs/federated-routing.md](docs/federated-routing.md).
 
 ---
 
