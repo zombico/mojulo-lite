@@ -17,7 +17,7 @@ const BOT_DEFAULT_PORT = process.env.BOT_DEFAULT_PORT || '3000';
 // Prebuilt bot image published by .github/workflows/publish-bot-image.yml.
 // Pin an exact version per release — never ship :latest to users.
 const BOT_IMAGE =
-  process.env.BOT_IMAGE || 'ghcr.io/zombico/mojulo-bot:0.1.0';
+  process.env.BOT_IMAGE;
 
 // Escape hatch for users who can't reach ghcr.io (air-gapped networks,
 // firewalls). Set MOJULO_OFFLINE_BUILD=1 on the control plane and the
