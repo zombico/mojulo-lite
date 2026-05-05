@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="160 115 70 70">
+  <defs>
+    <linearGradient id="cardBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d6f68" />
+      <stop offset="0.55" stop-color="#134e4a" />
+      <stop offset="1" stop-color="#0a2a28" />
+    </linearGradient>
+    <linearGradient id="cardMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7af0dc" />
+      <stop offset="0.5" stop-color="#2dd4bf" />
+      <stop offset="1" stop-color="#138a78" />
+    </linearGradient>
+    <linearGradient id="cardFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9f5e8" />
+      <stop offset="0.5" stop-color="#5eead4" />
+      <stop offset="1" stop-color="#26b8a0" />
+    </linearGradient>
+  </defs>
+  <rect x="-9.25" y="-19.55" width="11" height="40" rx="7.75" fill="url(#cardBack)" transform="translate(183.8, 150) rotate(17)" />
+  <rect x="-6.45" y="-21.55" width="11" height="40" rx="7.75" fill="url(#cardMid)" transform="translate(191, 150) rotate(340)" />
+  <rect x="-6.00" y="-21.55" width="11" height="40" rx="7.75" fill="url(#cardFront)" transform="translate(206.3, 150) rotate(340)" />
+</svg>
