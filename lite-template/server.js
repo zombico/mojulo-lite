@@ -306,13 +306,20 @@ const chatLimiter = rateLimit({
     message: 'Too many requests, please try again later'
 });
 
+// Validate UUID v4 format (matches crypto.randomUUID() output)
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isValidConversationId(id) {
+    return typeof id === 'string' && UUID_V4_REGEX.test(id);
+}
+
 // Chat endpoint
 app.post('/chat', chatLimiter, async (req, res) => {
     try {
         let { prompt, turn, conversationId, includeHistory = true } = req.body;
 
-        // Generate conversationId if new conversation
-        if (!conversationId) {
+        // Accept incoming conversationId only if it is a well-formed UUID v4
+        // (e.g. correlation ID passed from a triage handoff). Otherwise mint a new one.
+        if (!conversationId || !isValidConversationId(conversationId)) {
             conversationId = crypto.randomUUID();
         }
 

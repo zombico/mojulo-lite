@@ -1732,6 +1732,11 @@
             const url = new URL(link);
             url.searchParams.set('prompt', starterPrompt);
             url.searchParams.set('source', botContext.name);
+            // Forward conversationId as a cross-bot correlation ID so the receiver
+            // can stitch its own chain to the same logical conversation.
+            if (conversationId) {
+                url.searchParams.set('conversationId', conversationId);
+            }
             card.href = url.toString();
 
             card.setAttribute('role', 'link');
@@ -1828,11 +1833,25 @@
                 const autoPrompt = getUrlParameter('prompt');
                 const sourceBot = getUrlParameter('source');
                 const contextParam = getUrlParameter('context');
+                const handoffConversationId = getUrlParameter('conversationId');
 
                 // Store source for analytics/tracking
                 if (sourceBot) {
                     console.log('Received handoff from:', sourceBot);
                     botContext.sourceBot = sourceBot;
+                }
+
+                // Adopt incoming conversationId as a cross-bot correlation ID.
+                // Validate as UUID v4 to defend against malformed/forged URLs;
+                // server-side validation is authoritative, this is a fail-fast.
+                if (handoffConversationId) {
+                    const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+                    if (uuidV4.test(handoffConversationId)) {
+                        conversationId = handoffConversationId;
+                        console.log('Adopted handoff conversationId:', conversationId);
+                    } else {
+                        console.warn('Ignoring malformed handoff conversationId:', handoffConversationId);
+                    }
                 }
 
                 // Parse and store context (not output yet, available for future use)
