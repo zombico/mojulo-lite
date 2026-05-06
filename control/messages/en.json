@@ -1084,6 +1084,65 @@
         "disableAnimation": "Disable helper animation",
         "disableAnimationHint": "Shows Modulo as a static icon instead of an animated helper"
       }
+    },
+    "mojulo": {
+      "title": "Settings",
+      "subtitle": "Configure the API keys that power your bots and the cloud credentials used to deploy them.",
+      "noKeyGate": "The builders need an LLM provider key to run. Add one in the LLM Keys tab and head back.",
+      "tabs": {
+        "llm": "LLM Keys",
+        "provider": "Provider Keys",
+        "language": "Language Setting"
+      },
+      "form": {
+        "addKey": "Add a key",
+        "name": "Display name",
+        "provider": "Provider",
+        "apiKey": "API key",
+        "makeDefault": "Make this the default key",
+        "saving": "Saving…",
+        "save": "Save key",
+        "saveError": "Save failed"
+      },
+      "list": {
+        "title": "Stored keys",
+        "loading": "Loading…",
+        "empty": "No keys yet.",
+        "defaultBadge": "default",
+        "makeDefault": "Make default",
+        "delete": "Delete"
+      },
+      "llm": {
+        "title": "LLM Keys",
+        "description": "Powers the bot builder and gets baked into every bot you compile.",
+        "defaultName": "Default",
+        "placeholder": "sk-…",
+        "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "providers": {
+          "anthropic": "Anthropic",
+          "openai": "OpenAI",
+          "gemini": "Google Gemini",
+          "cohere": "Cohere",
+          "bedrock": "AWS Bedrock (paste JSON credentials)"
+        }
+      },
+      "provider": {
+        "title": "Provider Keys",
+        "description": "Cloud-host credentials. Used when you deploy a bot to a cloud provider from the control plane.",
+        "defaultName": "Fly.io",
+        "placeholder": "fo1_…",
+        "providers": {
+          "fly": "Fly.io"
+        }
+      },
+      "language": {
+        "title": "Language Setting",
+        "description": "Choose the language used in the control plane interface.",
+        "label": "Interface language",
+        "locales": {
+          "en": "English (EN)"
+        }
+      }
     }
   },
   "deployments": {

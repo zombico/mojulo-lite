@@ -2,26 +2,22 @@
 
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import useSWR, { mutate } from 'swr';
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
-const LLM_PROVIDERS = [
-  { id: 'anthropic', label: 'Anthropic' },
-  { id: 'openai', label: 'OpenAI' },
-  { id: 'gemini', label: 'Google Gemini' },
-  { id: 'cohere', label: 'Cohere' },
-  { id: 'bedrock', label: 'AWS Bedrock (paste JSON credentials)' },
-];
+const LLM_PROVIDER_IDS_LIST = ['anthropic', 'openai', 'gemini', 'cohere', 'bedrock'];
+const INFRA_PROVIDER_IDS_LIST = ['fly'];
 
-const INFRA_PROVIDERS = [
-  { id: 'fly', label: 'Fly.io' },
-];
+const LLM_PROVIDER_IDS = new Set(LLM_PROVIDER_IDS_LIST);
+const INFRA_PROVIDER_IDS = new Set(INFRA_PROVIDER_IDS_LIST);
 
-const LLM_PROVIDER_IDS = new Set(LLM_PROVIDERS.map((p) => p.id));
-const INFRA_PROVIDER_IDS = new Set(INFRA_PROVIDERS.map((p) => p.id));
+const TAB_IDS = ['llm', 'provider', 'language'];
+const LANGUAGE_IDS = ['en'];
 
 function KeySection({ title, description, providers, keys, isLoading, defaultName, placeholderFor }) {
+  const t = useTranslations('settings.mojulo');
   const [name, setName] = useState(defaultName);
   const [provider, setProvider] = useState(providers[0].id);
   const [apiKey, setApiKey] = useState('');
@@ -40,7 +36,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Save failed');
+      setError(data.error || t('form.saveError'));
     } else {
       setApiKey('');
       await mutate('/api/settings/api-keys');
@@ -66,11 +62,11 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
       </header>
 
       <section className="rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--surface-primary)] p-6 space-y-4">
-        <h3 className="text-lg font-semibold">Add a key</h3>
+        <h3 className="text-lg font-semibold">{t('form.addKey')}</h3>
         <form onSubmit={save} className="space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[color:var(--text-muted)]">Display name</span>
+              <span className="text-[color:var(--text-muted)]">{t('form.name')}</span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -78,7 +74,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[color:var(--text-muted)]">Provider</span>
+              <span className="text-[color:var(--text-muted)]">{t('form.provider')}</span>
               <select
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
@@ -93,7 +89,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
             </label>
           </div>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[color:var(--text-muted)]">API key</span>
+            <span className="text-[color:var(--text-muted)]">{t('form.apiKey')}</span>
             <input
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
@@ -107,7 +103,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
               checked={makeDefault}
               onChange={(e) => setMakeDefault(e.target.checked)}
             />
-            Make this the default key
+            {t('form.makeDefault')}
           </label>
           {error && <p className="text-sm text-red-400">{error}</p>}
           <button
@@ -115,16 +111,16 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
             disabled={saving || !apiKey}
             className="rounded-lg px-4 py-2 bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save key'}
+            {saving ? t('form.saving') : t('form.save')}
           </button>
         </form>
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-lg font-semibold">Stored keys</h3>
-        {isLoading && <p className="text-sm text-[color:var(--text-muted)]">Loading…</p>}
+        <h3 className="text-lg font-semibold">{t('list.title')}</h3>
+        {isLoading && <p className="text-sm text-[color:var(--text-muted)]">{t('list.loading')}</p>}
         {!isLoading && keys.length === 0 && (
-          <p className="text-sm text-[color:var(--text-muted)]">No keys yet.</p>
+          <p className="text-sm text-[color:var(--text-muted)]">{t('list.empty')}</p>
         )}
         <ul className="space-y-2">
           {keys.map((k) => (
@@ -137,7 +133,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
                   {k.name}{' '}
                   {k.isDefault && (
                     <span className="ml-2 text-xs text-[color:var(--brand-teal)]">
-                      default
+                      {t('list.defaultBadge')}
                     </span>
                   )}
                 </p>
@@ -149,14 +145,14 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
                     onClick={() => setDefault(k.id)}
                     className="text-xs px-2 py-1 rounded border border-[color:var(--border-color)]"
                   >
-                    Make default
+                    {t('list.makeDefault')}
                   </button>
                 )}
                 <button
                   onClick={() => remove(k.id)}
                   className="text-xs px-2 py-1 rounded border border-red-500/50 text-red-400"
                 >
-                  Delete
+                  {t('list.delete')}
                 </button>
               </div>
             </li>
@@ -167,62 +163,126 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
   );
 }
 
-function llmPlaceholder(provider) {
-  if (provider === 'bedrock') {
-    return '{"region":"us-east-1","accessKeyId":"…","secretAccessKey":"…"}';
-  }
-  return 'sk-…';
-}
+function LanguageSection() {
+  const t = useTranslations('settings.mojulo.language');
+  const [language, setLanguage] = useState('en');
 
-function infraPlaceholder(provider) {
-  if (provider === 'fly') return 'fo1_…';
-  return '';
+  return (
+    <div className="space-y-4">
+      <header>
+        <h2 className="text-2xl font-semibold">{t('title')}</h2>
+        <p className="text-[color:var(--text-secondary)] mt-1 text-sm">{t('description')}</p>
+      </header>
+
+      <section className="rounded-2xl border border-[color:var(--border-color)] bg-[color:var(--surface-primary)] p-6 space-y-3">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-[color:var(--text-muted)]">{t('label')}</span>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="rounded-lg bg-[color:var(--surface-elevated)] px-3 py-2 text-sm"
+          >
+            {LANGUAGE_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t(`locales.${id}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+    </div>
+  );
 }
 
 function SettingsPageInner() {
+  const t = useTranslations('settings.mojulo');
   const searchParams = useSearchParams();
   const gate = searchParams.get('gate');
   const { data, isLoading } = useSWR('/api/settings/api-keys', fetcher);
   const allKeys = data?.keys || [];
   const llmKeys = allKeys.filter((k) => LLM_PROVIDER_IDS.has(k.provider));
   const infraKeys = allKeys.filter((k) => INFRA_PROVIDER_IDS.has(k.provider));
+  const [activeTab, setActiveTab] = useState('llm');
+
+  const llmProviders = LLM_PROVIDER_IDS_LIST.map((id) => ({
+    id,
+    label: t(`llm.providers.${id}`),
+  }));
+  const infraProviders = INFRA_PROVIDER_IDS_LIST.map((id) => ({
+    id,
+    label: t(`provider.providers.${id}`),
+  }));
+
+  function llmPlaceholder(provider) {
+    if (provider === 'bedrock') return t('llm.bedrockPlaceholder');
+    return t('llm.placeholder');
+  }
+
+  function infraPlaceholder(provider) {
+    if (provider === 'fly') return t('provider.placeholder');
+    return '';
+  }
 
   return (
     <main className="min-h-screen p-8">
-      <div className="max-w-3xl mx-auto space-y-12">
+      <div className="max-w-7xl mx-auto space-y-8">
         <header>
-          <h1 className="text-3xl font-semibold">Settings</h1>
-          <p className="text-[color:var(--text-secondary)] mt-2">
-            Configure the API keys that power your bots and the cloud
-            credentials used to deploy them.
-          </p>
+          <h1 className="text-3xl font-semibold">{t('title')}</h1>
+          <p className="text-[color:var(--text-secondary)] mt-2">{t('subtitle')}</p>
           {gate === 'no-key' && llmKeys.length === 0 && (
             <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-              The builders need an LLM provider key to run. Add one below and
-              head back.
+              {t('noKeyGate')}
             </div>
           )}
         </header>
 
-        <KeySection
-          title="LLM Keys"
-          description="Powers the bot builder and gets baked into every bot you compile."
-          providers={LLM_PROVIDERS}
-          keys={llmKeys}
-          isLoading={isLoading}
-          defaultName="Default"
-          placeholderFor={llmPlaceholder}
-        />
+        <div className="grid gap-8 md:grid-cols-[220px_1fr]">
+          <nav className="space-y-1">
+            {TAB_IDS.map((id) => {
+              const isActive = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveTab(id)}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
+                    isActive
+                      ? 'bg-[color:var(--surface-primary)] border border-[color:var(--border-color)] font-semibold'
+                      : 'text-[color:var(--text-secondary)] hover:bg-[color:var(--surface-primary)]'
+                  }`}
+                >
+                  {t(`tabs.${id}`)}
+                </button>
+              );
+            })}
+          </nav>
 
-        <KeySection
-          title="Provider Keys"
-          description="Cloud-host credentials. Used when you deploy a bot to a cloud provider from the control plane."
-          providers={INFRA_PROVIDERS}
-          keys={infraKeys}
-          isLoading={isLoading}
-          defaultName="Fly.io"
-          placeholderFor={infraPlaceholder}
-        />
+          <div>
+            {activeTab === 'llm' && (
+              <KeySection
+                title={t('llm.title')}
+                description={t('llm.description')}
+                providers={llmProviders}
+                keys={llmKeys}
+                isLoading={isLoading}
+                defaultName={t('llm.defaultName')}
+                placeholderFor={llmPlaceholder}
+              />
+            )}
+            {activeTab === 'provider' && (
+              <KeySection
+                title={t('provider.title')}
+                description={t('provider.description')}
+                providers={infraProviders}
+                keys={infraKeys}
+                isLoading={isLoading}
+                defaultName={t('provider.defaultName')}
+                placeholderFor={infraPlaceholder}
+              />
+            )}
+            {activeTab === 'language' && <LanguageSection />}
+          </div>
+        </div>
       </div>
     </main>
   );
