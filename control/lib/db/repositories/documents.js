@@ -1,5 +1,6 @@
 import { getDb } from '../index.js';
 import { newId } from '../ids.js';
+import { deleteFile } from '../../storage/index.js';
 
 function rowToDocument(row) {
   if (!row) return null;
@@ -49,8 +50,19 @@ export const DocumentRepository = {
     return this.findById(id);
   },
 
+  // Cascades blob removal so the row and the file in data/storage/ go together.
+  // Storage failures are logged and swallowed — the row is the source of truth
+  // for whether the doc "exists" in the app.
   async delete(id) {
     const db = getDb();
+    const row = db.prepare('SELECT storage_path FROM documents WHERE id = ?').get(id);
+    if (row?.storage_path) {
+      try {
+        await deleteFile(row.storage_path);
+      } catch (err) {
+        console.warn(`[documents] storage delete failed for ${id} (continuing):`, err.message);
+      }
+    }
     db.prepare('DELETE FROM documents WHERE id = ?').run(id);
   },
 };

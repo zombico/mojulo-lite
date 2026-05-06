@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DocumentRepository } from '@/lib/db/repositories/documents';
-import { deleteFile } from '@/lib/storage';
+import { DeploymentRepository } from '@/lib/db/repositories/deployments';
 
 export async function DELETE(_request, { params }) {
   const { id } = await params;
@@ -13,16 +13,21 @@ export async function DELETE(_request, { params }) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  // Best-effort storage cleanup: don't fail the delete if the file is already
-  // gone. The DB row is the source of truth for whether the doc "exists" in
-  // the wizard, so dropping it should always succeed even if the underlying
-  // blob was lost.
-  if (doc.storagePath) {
-    try {
-      await deleteFile(doc.storagePath);
-    } catch (err) {
-      console.warn(`[documents/${id}] storage delete failed (continuing):`, err.message);
-    }
+  // Refuse to delete a doc that's still referenced by a bot. The library page
+  // gates this in the UI; the guard is defense-in-depth against API misuse and
+  // stale clients.
+  const deployments = await DeploymentRepository.list();
+  const attachedTo = deployments
+    .filter((d) => (d.documentIds || []).includes(id))
+    .map((d) => ({ id: d.id, botName: d.botName }));
+  if (attachedTo.length > 0) {
+    return NextResponse.json(
+      {
+        error: 'Document is attached to one or more bots',
+        deployments: attachedTo,
+      },
+      { status: 409 }
+    );
   }
 
   await DocumentRepository.delete(id);

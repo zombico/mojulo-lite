@@ -414,6 +414,12 @@ export default function DashboardPage() {
             <p className="text-[color:var(--text-secondary)] mt-2">
               Each bot is a saved configuration. Build it whenever you want a runnable ZIP.
             </p>
+            <Link
+              href="/dashboard/documents"
+              className="inline-block mt-2 text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] underline decoration-dotted underline-offset-2 transition"
+            >
+              Document library →
+            </Link>
           </div>
           <div className="flex gap-2 flex-shrink-0">
             <Link
