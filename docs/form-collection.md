@@ -70,6 +70,30 @@ The wizard step that drives this is [control/components/wizard/modular/steps/For
 
 ---
 
+## How fields get tagged — and what `pii: true` actually does
+
+Every entry in a generated form schema is one of the locale's `ARCHETYPES`, plus optional overrides. The archetypes in [base.js](../control/lib/form-schema-config/base.js) seed the `pii: true` flag on the obvious cases — `email`, `fullName`, `firstName`, `lastName`, `dateOfBirth` — and locale modules layer on region-specific PII (national IDs, postal codes where they're sensitive, etc.). When the schema-generation LLM picks an archetype for a user-described field, it inherits whichever flag the archetype carries.
+
+At runtime, the bot's `generateFormElement` reads `field.pii` once and does exactly one thing with it: writes `input.dataset.pii = 'true'` ([client/index.html:766-767](../lite-template/client/index.html#L766), [client/index.html:808-809](../lite-template/client/index.html#L808)). No other code in the bot or the control plane reads that attribute.
+
+**The flag is a label, not a mechanism.** The thing that makes ghost forms ghosts is structural, not per-field:
+
+- *All* field values — flagged or not — sit in `FormInputRegistry` in browser memory until submit.
+- *All* field values travel through `POST /api/submit-form`, never through `/chat`.
+- The LLM only ever sees the `{<form_name>_filled}` marker, regardless of which fields the form contained.
+
+So the question "is field X kept out of the LLM's view?" has the same answer for every X: **yes, by construction**. `data-pii="true"` is a hook for operator-side instrumentation — CSS rules that highlight sensitive inputs, analytics filters that drop attributes, screenshot redaction tools, audit reports that count PII fields.
+
+**Shaping it.** Because the flag is labelling, you can adjust it freely without touching runtime behavior:
+
+- Describe a custom field as PII when generating the schema ("collect a tax ID — treat it as PII") and the LLM will tag it.
+- Edit `config/formFormat.json` post-generation to add or remove `"pii": true` on any field; rebuild and redeploy.
+- Add new PII archetypes in `base.js` or a locale module if you want them picked automatically across future deployments.
+
+The form is ghosted whether you flag two fields or twenty. The flag just says which ones you want your downstream tooling to notice.
+
+---
+
 ## What gets shipped to the bot
 
 The deployer writes two things into the bot's config directory:
@@ -161,12 +185,14 @@ This is also what survives a federated handoff: see [federated-routing.md](./fed
 
 ---
 
-## What ghost forms do *not* do
+## Scope of the "ghost" guarantee
 
-- **No client-side encryption.** `data-pii="true"` is a marker, not a guarantee. The values are plaintext in the browser DOM, plaintext over HTTPS to `/api/submit-form`, and plaintext at rest in `form_submissions.form_data`. The "ghost" property is about isolating PII from the LLM and from the chat history, not about protecting it from the operator of the bot.
-- **No partial submission.** Every row is `is_complete = 1`. There is no autosave of in-progress fields server-side; if the user closes the tab before submitting, the registry is gone and nothing is persisted.
-- **No federated chain coverage.** Submissions live in their own table and are not part of the per-conversation hash chain. `/verify/:conversationId` does not attest to form-submission rows.
-- **No live schema reload.** The schema is read into the response of `GET /context` per-request, but the fingerprint is computed once at startup. A change to `formFormat.json` while the bot is running would skew submissions against a stale fingerprint until restart.
+The ghost in *ghost forms* refers to one specific property: every form value stays in the browser until submit, and only ever reaches the bot through a dedicated endpoint that bypasses the LLM. That holds for *all* fields by construction — the `pii: true` flag is a decorative label for operator-side tooling, not a per-field protection (see [How fields get tagged](#how-fields-get-tagged--and-what-pii-true-actually-does) above). Reading the rest of the trust model in those terms:
+
+- **No client-side encryption.** Values move plaintext over HTTPS to `/api/submit-form` and sit plaintext in `form_submissions.form_data` — exactly where the bot operator already controls the database. Encryption-at-rest, if you want it, is an operator concern (disk-level, SQLite extension) layered underneath.
+- **Submissions are atomic.** A row exists only when the user clicks submit (`is_complete = 1`); abandoned forms leave nothing behind. If you want autosave-style retention, a separate `formTracker` mirror table is the natural extension point.
+- **The hash chain covers conversations, not submissions.** Form rows live in their own table so the chain stays uniform — every chat turn and handoff event hashes the same way. `/verify/:conversationId` attests to the conversation; submissions are audited against their own webhook + `webhook_status` trail.
+- **Schema is loaded at startup.** Edit `formFormat.json` and restart the container — fingerprints stay consistent for the lifetime of a run, which is what makes a fingerprint meaningful in the first place.
 
 ---
 

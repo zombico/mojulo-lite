@@ -30,16 +30,33 @@ Most chatbot builders trap you in their cloud. You get a hosted widget, a recurr
 
 Mojulo-Lite hands you the artifact. The bot you compile is yours — its source is one open-source image, its config is plain JSON, its conversations live in a SQLite file you control. Move it, fork it, audit it, run it offline. The control plane is just the factory; the bot doesn't phone home.
 
+## Who builds with this
+
+A spectrum, all on the same free, self-hosted stack:
+
+- **Indie makers** shipping a side-project bot without a SaaS bill — clone, compile, point at a $5 VPS.
+- **Agencies** building a per-client bot per deployment, swapping LLM provider and locale per project.
+- **Internal IT** rolling out an air-gapped helper inside a firewalled network — offline RAG means there's no embedding API to allow-list.
+- **Regulated SMBs** — clinics, law offices, financial pre-screen — where the chained transcript is a compliance artifact, not just a feature.
+
+If you'd run any chatbot at all on `docker compose up`, this is for you. The audit-grade and offline pieces are there when you need them, quiet when you don't.
+
 ## Features
 
+**Standout**
+
+- **Tamper-evident transcripts.** Every turn is content-hashed and chain-linked; verify at `/verify/:id`. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/turn-hashing.md](docs/turn-hashing.md) and [docs/federated-routing.md](docs/federated-routing.md).
+- **Multilingual vector RAG, fully offline.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. A Thai query against a Spanish corpus retrieves the right chunks with no language detection and no embedding-API key at runtime. See [docs/vector-rag.md](docs/vector-rag.md).
+- **Ghost forms — PII never reaches the LLM.** Locale-aware structured fields render client-side and submit through a dedicated endpoint that bypasses the model. The chat history records only an opaque marker like `{contact_form_filled}`. See [docs/form-collection.md](docs/form-collection.md).
+- **Connect Bot.** Browse live conversations from the control plane without exporting a database — the bot's SQLite stays on the bot. The control plane proxies through using a key both sides already share. See [docs/conversations-api.md](docs/conversations-api.md).
+
+**The basics**
+
 - **Two builders, same output.** Conversational builder for vibes, structured wizard for precision.
-- **Six LLM providers.** Anthropic, OpenAI, Gemini, Cohere, AWS Bedrock — pick at build time, swap by editing `.env`.
-- **Multilingual vector RAG, fully offline.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. No embedding-API key required at runtime.
-- **Protocol cartridges.** Mix and match: knowledge retrieval, ghost-form gathering (the bot collects structured data without a form UI), appointment scheduling, triage routing.
-- **Connect Bot.** Browse live conversations from the control plane without exporting a database — the bot's SQLite stays on the bot.
+- **Five LLM providers.** OpenAI, Anthropic, Gemini, Cohere, AWS Bedrock — pick at build time, swap by editing `.env`.
+- **Protocol cartridges.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing.
 - **One-click cloud deploy** to Fly.io. Persistent volume, autostart on request, autostop when idle.
-- **Tamper-evident transcripts.** Every turn is content-hashed and chain-linked; verify at `/verify/:id`. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/federated-routing.md](docs/federated-routing.md).
-- **Embeddable widget** + Prometheus metrics + form-submission webhooks out of the box.
+- **Embeddable widget** + Prometheus metrics + form-submission webhooks.
 
 ## Quickstart
 
@@ -47,7 +64,7 @@ Mojulo-Lite hands you the artifact. The bot you compile is yours — its source 
 git clone https://github.com/zombico/mojulo-lite.git
 cd mojulo-lite/control
 cp .env.example .env
-npm install
+npm install         # first install fetches a 113MB ONNX model for offline RAG (~30–60s)
 npm run dev
 ```
 
@@ -157,6 +174,8 @@ Per-package docs:
 
 Concept docs:
 
+- [docs/wizard-builder.md](docs/wizard-builder.md) — the structured wizard: how steps are generated from protocol toggles, how the live-preview Theatre runs the real bot client, and how its output converges with the chat builder at `buildDeploymentConfig`
+- [docs/chat-builder.md](docs/chat-builder.md) — the conversational builder: the 10 tools Claude orchestrates, two-tier intent evaluation, the streaming tool loop with custom event overlays
 - [docs/bot-frontend.md](docs/bot-frontend.md) — the bot's UI: standalone client, embeddable widget, control-plane preview shim — one HTML file, three surfaces, no build step
 - [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
 - [docs/form-collection.md](docs/form-collection.md) — ghost forms: locale-aware schema generated at build time, rendered on the client, submitted via a dedicated endpoint that bypasses the LLM (PII never reaches the model)

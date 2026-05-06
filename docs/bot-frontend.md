@@ -243,15 +243,17 @@ The result: the wizard preview is the deployed client running against a syntheti
 
 ---
 
-## What the frontend deliberately doesn't do
+## Fork it with a text editor
 
-- **No client-side framework.** No React, Vue, Svelte, lit-html, htmx. Just DOM APIs, event listeners, and `setInterval` for streaming.
-- **No bundler / no build step.** Edit the file, refresh. The Dockerfile copies `client/` into the image as-is.
-- **No client routing.** The bot has one page. Triage handoffs are full navigations to a different bot's URL — not soft routes.
-- **No state-management library.** `FormInputRegistry` is a 200-line `Map`-backed object with change listeners. `machineState` is a plain object updated after each `/chat`.
-- **No CSS framework.** A single `style.css` with hand-written rules. The widget script's launcher styles are inline because they have to outlive the host page's stylesheet — using a class name would let host CSS override them.
+The frontend is built so any developer can pop the hood and change anything they see. Every choice below trades a piece of modern ergonomics for that property:
 
-These choices come back as constraints — accessibility (skip links, ARIA roles, keyboard handlers) is hand-written; mobile responsiveness lives in `style.css` media queries plus the widget's `updateWidgetSize` JS — but they're the price of "fork it with a text editor."
+- **Plain DOM, no client-side framework.** No React, Vue, Svelte, lit-html, htmx — just DOM APIs, event listeners, and `setInterval` for streaming. `view-source:` is the source of truth.
+- **No bundler, no build step.** Edit the file, refresh. The Dockerfile copies `client/` into the image as-is. Patching a deployed bot is `docker cp` and a restart.
+- **One page, no client router.** Triage handoffs are full navigations to a different bot's URL — which is also what makes the federated chain audit-able from URL parameters alone.
+- **Hand-rolled state.** `FormInputRegistry` is a 200-line `Map`-backed object with change listeners; `machineState` is a plain object updated after each `/chat`. Everything is inspectable in the browser console.
+- **Hand-written CSS.** A single `style.css`, no preprocessor. The widget script's launcher styles are inline so they outlive the host page's stylesheet — a class name would let host CSS override them.
+
+The trade-off is that accessibility (skip links, ARIA roles, keyboard handlers) and mobile responsiveness are also hand-written. That's a real cost, but it's what makes the client legible end-to-end to anyone who wants to fork it.
 
 ---
 

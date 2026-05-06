@@ -14,7 +14,7 @@ Both produce the same output: a `<bot>.zip` containing `docker-compose.yml`, com
 ```bash
 cd control
 cp .env.example .env
-npm install
+npm install         # first install fetches a 113MB ONNX model for offline RAG (~30–60s)
 npm run dev
 ```
 

@@ -8,7 +8,8 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "build:bot": "docker build -t mojulo/bot:latest ../lite-template"
+    "build:bot": "docker build -t mojulo/bot:latest ../lite-template",
+    "postinstall": "node scripts/fetch-embed-model.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1011.0",

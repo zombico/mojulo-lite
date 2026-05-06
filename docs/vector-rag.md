@@ -11,7 +11,7 @@ This doc describes how the index is built, how it ships, and how it gets queried
 Three properties drive the design:
 
 1. **Offline at runtime.** The bot is a portable artifact — it has to work behind a firewall, on a laptop in airplane mode, in a region with no embedding-provider access. So query embedding runs in-process from a model file baked into the Docker image, not against a remote API.
-2. **Multilingual without language detection.** `multilingual-e5-small` handles cross-lingual semantics natively, so a Thai query against a Spanish document corpus retrieves the right chunks without locale detection, stopword tables, or query-rewrite ladders. The previous keyword + locale-detect path is gone (~1700 LOC removed).
+2. **Multilingual without language detection.** `multilingual-e5-small` handles cross-lingual semantics natively, so a Thai query against a Spanish document corpus retrieves the right chunks without locale detection, stopword tables, or query-rewrite ladders.
 3. **One retrieval path for two purposes.** Triage routes ("if the user asks X, hand them to deployment Y") and knowledge documents go through the same chunker and the same cosine index. Retrieval-time formatting renders them differently so the LLM sees a routing signal vs. a document quote, but the index doesn't branch.
 
 ---

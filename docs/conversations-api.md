@@ -212,11 +212,11 @@ Route handlers decide what to do with that response — `await response.json()` 
 
 ---
 
-## What the control plane never does
+## What Connect Bot guarantees
 
-- **Never persists conversation rows.** Even ephemeral caching is absent — every proxy call re-fetches from the bot. The dashboard relies on SWR for client-side caching, but the server-side route is a one-shot forward.
-- **Never asks the operator for a key.** The shared secret is from build time; the user only sees the URL field.
-- **Never modifies the bot.** All proxied routes are `GET`. Disconnect doesn't touch the bot. Even rebuilding the artifact preserves the deployment row's `api_key` (and therefore the existing connection works against an old running bot too — the key only changes if the operator rotates the row).
+- **Stateless proxy.** Every dashboard view re-fetches from the bot — no server-side cache, no shadow copy of conversations. Your data stays on your bot; disconnecting never duplicates user data anywhere. SWR handles client-side caching for snappy UI.
+- **Single-field connect.** The shared secret is baked in at build time, so the operator only ever pastes a URL. One field, one click, one connection.
+- **Read-only by design.** All proxied routes are `GET`. Disconnect is a control-plane forget — the bot keeps running, unaware. Rebuild the artifact and the existing connection still works, because the deployment row's `api_key` survives until you explicitly rotate it.
 
 ---
 
