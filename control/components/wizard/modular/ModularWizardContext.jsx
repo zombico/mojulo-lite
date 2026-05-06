@@ -153,6 +153,7 @@ const createInitialState = () => ({
     provider: 'anthropic',
     model: LLM_PROVIDERS.anthropic.defaultModel,
     apiKey: '',
+    apiKeyId: null,
     botName: '',
     objective: '',
     botSummary: '',
@@ -279,7 +280,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
       const newState = { ...prev };
 
       // Map updates to appropriate state sections
-      const coreFields = ['provider', 'model', 'apiKey', 'botName', 'objective', 'botSummary'];
+      const coreFields = ['provider', 'model', 'apiKey', 'apiKeyId', 'botName', 'objective', 'botSummary'];
       const identityFields = ['firstMessage', 'chatDisplayName', 'placeholder', 'suggestedPrompts'];
       const knowledgeFields = ['skipRag', 'documents', 'embeddings'];
       const formFields = ['formLocale', 'formStructureInput', 'generatedFormJson', 'formCompletionWebhook', 'afterSubmitChatMessage', 'formSendHome', 'enableFormCollection', 'termsAndConditions'];
@@ -364,8 +365,12 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         }
         if (!state.core.provider) newErrors.provider = 'Provider is required';
         if (!state.core.model) newErrors.model = 'Model is required';
-        // Validate credentials based on provider
-        if (state.core.provider === 'bedrock') {
+        // Validate credentials based on provider. A saved-key reference
+        // (apiKeyId) satisfies the requirement without exposing the value to
+        // the browser — the deploy route resolves it server-side.
+        if (state.core.apiKeyId) {
+          // Saved key picked — credentials are referenced, not pasted.
+        } else if (state.core.provider === 'bedrock') {
           if (!state.core.apiKey) {
             newErrors.apiKey = 'AWS credentials are required';
           } else {

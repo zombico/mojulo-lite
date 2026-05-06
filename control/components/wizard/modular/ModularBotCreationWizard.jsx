@@ -398,7 +398,7 @@ export default function ModularBotCreationWizard() {
   const getStatusBadge = () => {
     if (isEditMode) return t('badges.modifying');
     if (isClone) return t('badges.clone');
-    return t('badges.modular');
+    return t('badges.new');
   };
 
   // Translate step section and title from config keys

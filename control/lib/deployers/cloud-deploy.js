@@ -149,21 +149,31 @@ async function resolveLlmEnv(deployment) {
 }
 
 /**
- * Build a provider deployer instance from runtime credentials. In single-
- * user mode credentials come from process.env; the call sites pass them in
- * by parameter so multi-tenancy is a wiring change later.
+ * Build a provider deployer instance, sourcing credentials from the
+ * encrypted api_keys store (Settings → Provider Keys). FLY_ORG_SLUG can
+ * still be set via env for the rare non-personal-org case; the secret
+ * token never lives in env.
  */
-function buildProviderDeployer(provider, credentials = {}) {
+async function buildProviderDeployer(provider) {
   if (provider === 'fly') {
-    const apiToken = credentials.flyApiToken || process.env.FLY_API_TOKEN;
-    if (!apiToken) {
+    const record = await ApiKeyRepository.findByProvider('fly');
+    if (!record) {
       throw new Error(
-        'Fly deploy requires FLY_API_TOKEN. Set it on the control plane (control/.env.local).'
+        'Fly deploy requires a saved Fly.io token. Add one in Settings → Provider Keys.'
+      );
+    }
+    let apiToken;
+    try {
+      apiToken = decryptApiKey(record.encryptedKey);
+    } catch (err) {
+      throw new Error(
+        'Failed to decrypt the saved Fly.io token. ' +
+          `If API_KEY_ENCRYPTION_KEY changed, re-save the key in Settings. (${err.message})`
       );
     }
     return new FlyDeployer({
       apiToken,
-      orgSlug: credentials.flyOrgSlug || process.env.FLY_ORG_SLUG || 'personal',
+      orgSlug: process.env.FLY_ORG_SLUG || 'personal',
     });
   }
   throw new Error(`Unknown cloud provider: ${provider}`);
@@ -178,14 +188,12 @@ function buildProviderDeployer(provider, credentials = {}) {
  * @param {string} args.deploymentId
  * @param {string} args.provider          'fly' (only one for now)
  * @param {Object} [args.options]         { region, guest: { cpus, memory_mb }, volumeGb }
- * @param {Object} [args.credentials]     { flyApiToken } — falls back to env in single-user mode
  * @param {string} [args.userId]          Used to derive the deterministic app name
  */
 export async function cloudDeploy({
   deploymentId,
   provider = 'fly',
   options = {},
-  credentials = {},
   userId = 'local',
 }) {
   const deployment = await DeploymentRepository.findById(deploymentId);
@@ -218,7 +226,7 @@ export async function cloudDeploy({
       MOJULO_API_KEY: refreshed.apiKey,
     };
 
-    const deployer = buildProviderDeployer(provider, credentials);
+    const deployer = await buildProviderDeployer(provider);
 
     const result = await deployer.deploy({
       appName,
@@ -256,46 +264,46 @@ export async function cloudDeploy({
   }
 }
 
-export async function cloudDestroy({ deploymentId, credentials = {} }) {
+export async function cloudDestroy({ deploymentId }) {
   const deployment = await DeploymentRepository.findById(deploymentId);
   if (!deployment) throw new Error(`Deployment ${deploymentId} not found`);
   if (!deployment.cloudProvider || !deployment.cloudAppName) {
     return { ok: true, alreadyDestroyed: true };
   }
 
-  const deployer = buildProviderDeployer(deployment.cloudProvider, credentials);
+  const deployer = await buildProviderDeployer(deployment.cloudProvider);
   await deployer.destroy(deployment.cloudAppName);
   await DeploymentRepository.clearCloudDeploy(deploymentId);
   return { ok: true };
 }
 
-export async function cloudPause({ deploymentId, credentials = {} }) {
+export async function cloudPause({ deploymentId }) {
   const deployment = await DeploymentRepository.findById(deploymentId);
   if (!deployment?.cloudAppName || !deployment.cloudProvider) {
     throw new Error('No active cloud deploy to pause');
   }
-  const deployer = buildProviderDeployer(deployment.cloudProvider, credentials);
+  const deployer = await buildProviderDeployer(deployment.cloudProvider);
   await deployer.pause(deployment.cloudAppName);
   await DeploymentRepository.setCloudStatus(deploymentId, CLOUD_STATUS.PAUSED);
   return { ok: true };
 }
 
-export async function cloudResume({ deploymentId, credentials = {} }) {
+export async function cloudResume({ deploymentId }) {
   const deployment = await DeploymentRepository.findById(deploymentId);
   if (!deployment?.cloudAppName || !deployment.cloudProvider) {
     throw new Error('No cloud deploy to resume');
   }
-  const deployer = buildProviderDeployer(deployment.cloudProvider, credentials);
+  const deployer = await buildProviderDeployer(deployment.cloudProvider);
   await deployer.resume(deployment.cloudAppName);
   await DeploymentRepository.setCloudStatus(deploymentId, CLOUD_STATUS.RUNNING);
   return { ok: true };
 }
 
-export async function cloudGetStatus({ deploymentId, credentials = {} }) {
+export async function cloudGetStatus({ deploymentId }) {
   const deployment = await DeploymentRepository.findById(deploymentId);
   if (!deployment?.cloudAppName || !deployment.cloudProvider) {
     return { status: 'not_deployed' };
   }
-  const deployer = buildProviderDeployer(deployment.cloudProvider, credentials);
+  const deployer = await buildProviderDeployer(deployment.cloudProvider);
   return deployer.getStatus(deployment.cloudAppName);
 }

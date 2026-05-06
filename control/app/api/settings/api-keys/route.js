@@ -13,8 +13,13 @@ function redact(key) {
   };
 }
 
-export async function GET() {
-  const keys = await ApiKeyRepository.findByUserId('local');
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const provider = searchParams.get('provider');
+  let keys = await ApiKeyRepository.findByUserId('local');
+  if (provider) {
+    keys = keys.filter((k) => k.provider === provider);
+  }
   return NextResponse.json({ keys: keys.map(redact) });
 }
 

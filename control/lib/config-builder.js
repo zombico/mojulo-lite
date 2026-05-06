@@ -57,10 +57,15 @@ function injectConsentToTCField(formStructure, termsAndConditions) {
 
 /**
  * Build LLM configuration section
+ *
+ * When apiKey is empty (saved-key-by-reference flow), the selected provider's
+ * credential fields are emitted blank — the server fills them in by decrypting
+ * the api_keys row before persisting the deployment. See resolve-api-key.js.
  */
 export function buildLLMConfig(provider, apiKey, model, additionalSettings = {}) {
   // Build config with all providers (empty configs for non-selected providers)
   const llmConfig = { provider };
+  const usingSavedKey = !apiKey;
 
   // Add config for each provider
   Object.keys(LLM_PROVIDERS).forEach(key => {
@@ -68,7 +73,7 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
 
     if (key === 'bedrock') {
       // Bedrock uses different config structure (credentials stored as JSON in apiKey)
-      if (key === provider) {
+      if (key === provider && !usingSavedKey) {
         // Parse credentials from apiKey JSON
         const credentials = JSON.parse(apiKey);
         // Ensure region is always set (fallback to us-east-1)
@@ -81,6 +86,16 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
           accessKeyId: credentials.accessKeyId,
           secretAccessKey: credentials.secretAccessKey,
           model: prefixedModel,
+        };
+      } else if (key === provider && usingSavedKey) {
+        // Saved-key path: emit user's model unprefixed; server will decrypt
+        // the saved credentials, set the region, and apply the geo prefix.
+        llmConfig[key] = {
+          region: 'us-east-1',
+          useIamRole: false,
+          accessKeyId: null,
+          secretAccessKey: null,
+          model,
         };
       } else {
         // Empty Bedrock config
@@ -157,13 +172,15 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
  * @returns {Object} Full deployment config
  */
 export function buildDeploymentConfig(formData, flowType = 'conversational', options = {}) {
-  const { enabledProtocols } = options;
+  const { enabledProtocols, apiKeyId } = options;
 
   const isModularTriage = flowType === 'modular' && enabledProtocols?.triage;
   const isAppointments = flowType === 'modular' && enabledProtocols?.appointments;
   const isSkipRag = !!formData.skipRag;
 
-  const required = ['botName', 'objective', 'provider', 'apiKey', 'model'];
+  const required = apiKeyId
+    ? ['botName', 'objective', 'provider', 'model']
+    : ['botName', 'objective', 'provider', 'apiKey', 'model'];
   const missing = required.filter(field => !formData[field]);
 
   if (missing.length > 0) {
