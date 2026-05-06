@@ -39,7 +39,7 @@ A spectrum, all on the same free, self-hosted stack:
 - **Internal IT** rolling out an air-gapped helper inside a firewalled network — offline RAG means there's no embedding API to allow-list.
 - **Regulated SMBs** — clinics, law offices, financial pre-screen — where the chained transcript is a compliance artifact, not just a feature.
 
-If you'd run any chatbot at all on `docker compose up`, this is for you. The audit-grade and offline pieces are there when you need them, quiet when you don't.
+Local `docker compose up` or one-click cloud deploy to Fly.io from the dashboard — same artifact, your choice of host. The audit-grade and offline pieces are there when you need them, quiet when you don't.
 
 ## Features
 
@@ -55,7 +55,8 @@ If you'd run any chatbot at all on `docker compose up`, this is for you. The aud
 - **Two builders, same output.** Conversational builder for vibes, structured wizard for precision.
 - **Five LLM providers.** OpenAI, Anthropic, Gemini, Cohere, AWS Bedrock — pick at build time, swap by editing `.env`.
 - **Protocol cartridges.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing.
-- **One-click cloud deploy** to Fly.io. Persistent volume, autostart on request, autostop when idle.
+- **One-click cloud deploy** to Fly.io — paste a token in Settings, click Deploy. Persistent volume, autostart on request, autostop when idle. No shell, no `flyctl`.
+- **Document library.** Upload once, reuse across bots. Optionally bundle the source documents back into the artifact zip for archival or client handoff.
 - **Embeddable widget** + Prometheus metrics + form-submission webhooks.
 
 ## Quickstart
@@ -70,10 +71,9 @@ npm run dev
 
 Open `http://localhost:3001` and:
 
-1. **Settings → API Keys** — paste at least one LLM provider key. This powers the builder *and* gets baked into every bot you compile.
+1. **Settings → Provider Keys** — paste at least one LLM provider key (Anthropic / OpenAI / Gemini / Cohere / Bedrock). Optionally add a Fly.io token in the same place if you want one-click cloud deploy. The same store powers the builder, gets baked into compiled bots, and authenticates cloud deploys.
 2. **Chat builder** or **Wizard** — describe the bot.
-3. **My bots** — download the zip.
-4. Unzip, paste your LLM key into `.env`, `docker compose up`. Bot is at `http://localhost:3000`.
+3. **My bots** — for each bot, either click **Deploy to cloud** to ship it to Fly.io, or download the zip and run `docker compose up` on your own host (paste the LLM key into `.env` and you're at `http://localhost:3000`).
 
 That's it. Five minutes from clone to running bot.
 
@@ -104,7 +104,7 @@ docker compose up
 
 ### One-click to Fly.io
 
-Configure a Fly API token in **Settings**, then hit **Deploy to cloud** on any bot. The control plane provisions the app, allocates a volume, injects your config, and waits for healthchecks — progress streams back live.
+Paste a Fly API token in **Settings → Provider Keys** (right alongside your LLM key — encrypted at rest, same flow). Hit **Deploy to cloud** on any bot from the dashboard. The control plane provisions the app, allocates a volume, injects your config, and waits for healthchecks while progress streams back live. No shell, no `flyctl` install, no `.env` editing on your part. Your Fly account, your bill.
 
 <!--
   IMAGE — Cloud deploy pane.

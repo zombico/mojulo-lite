@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { composeInstructions } from '@/lib/composer/composer';
 import { DeploymentRepository, DEPLOYMENT_STATUS } from '@/lib/db/repositories/deployments';
 import { generateApiKey } from '@/lib/deployment-auth';
+import { resolveSavedApiKeyIntoConfig } from '@/lib/resolve-api-key';
 
 function sanitizeBotName(name) {
   return (name || 'bot')
@@ -56,7 +57,12 @@ export async function POST(request) {
       documentIds = [],
       flowType = 'modular',
       embeddings = null,
+      apiKeyId = null,
     } = body;
+
+    if (apiKeyId) {
+      await resolveSavedApiKeyIntoConfig(config, apiKeyId);
+    }
 
     // All bots run vector retrieval. Knowledge or triage protocols require
     // embeddings (docs and route descriptions go into a single cosine index);

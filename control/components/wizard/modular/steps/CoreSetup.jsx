@@ -25,6 +25,11 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
     clearError('apiKey');
   };
 
+  const handleApiKeyIdChange = (apiKeyId) => {
+    updateFormData({ apiKeyId });
+    clearError('apiKey');
+  };
+
   const handleBotNameChange = (e) => {
     updateFormData({ botName: e.target.value });
     clearError('botName');
@@ -94,7 +99,9 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
           <APIKeySelector
             provider={formData.provider}
             apiKey={formData.apiKey}
+            apiKeyId={formData.apiKeyId}
             onApiKeyChange={handleApiKeyChange}
+            onApiKeyIdChange={handleApiKeyIdChange}
             error={errors.apiKey}
           />
         )}

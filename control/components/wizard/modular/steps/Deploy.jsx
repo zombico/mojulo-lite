@@ -116,7 +116,8 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
       },
     };
 
-    const deploymentConfig = buildDeploymentConfig(transformedFormData, flowType, { enabledProtocols });
+    const apiKeyId = formData.apiKeyId || null;
+    const deploymentConfig = buildDeploymentConfig(transformedFormData, flowType, { enabledProtocols, apiKeyId });
 
     return {
       botName: formData.botName,
@@ -129,6 +130,7 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
       triageDestinations: enabledProtocols.triage ? formData.triageRoutes : undefined,
       botSpaceId: !isEditMode ? botSpaceId : undefined,
       embeddings: embeddings || null,
+      apiKeyId,
     };
   }
 

@@ -97,7 +97,6 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
             <input
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              type="password"
               placeholder={placeholderFor(provider)}
               className="rounded-lg bg-[color:var(--surface-elevated)] px-3 py-2 text-sm font-mono"
             />

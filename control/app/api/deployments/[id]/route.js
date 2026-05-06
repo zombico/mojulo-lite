@@ -4,6 +4,11 @@ import path from 'path';
 import { composeInstructions } from '@/lib/composer/composer';
 import { DeploymentRepository } from '@/lib/db/repositories/deployments';
 import { DocumentRepository } from '@/lib/db/repositories/documents';
+import {
+  resolveSavedApiKeyIntoConfig,
+  redactApiKeysFromConfig,
+  preserveExistingCredentials,
+} from '@/lib/resolve-api-key';
 
 export async function GET(_request, { params }) {
   const { id } = await params;
@@ -38,7 +43,15 @@ export async function GET(_request, { params }) {
     createdAt: d.createdAt,
   }));
 
-  return NextResponse.json({ deployment, documents });
+  // Strip provider credentials before responding — the wizard hydrates from
+  // this and we don't want plaintext keys flowing back to the browser. The
+  // build pipeline uses DeploymentRepository directly, so it is unaffected.
+  const safeDeployment = {
+    ...deployment,
+    config: redactApiKeysFromConfig(deployment.config),
+  };
+
+  return NextResponse.json({ deployment: safeDeployment, documents });
 }
 
 /**
@@ -60,9 +73,18 @@ export async function PATCH(request, { params }) {
       triageDestinations,
       documentIds,
       embeddings,
+      apiKeyId = null,
     } = body;
 
     const baseConfig = config || existing.config || {};
+    if (apiKeyId) {
+      await resolveSavedApiKeyIntoConfig(baseConfig, apiKeyId);
+    } else {
+      // Edit mode hydrated from the redacted GET, so the wizard sends the
+      // selected provider's credential fields blank unless the user pasted a
+      // new value. Carry the existing creds forward in that case.
+      preserveExistingCredentials(baseConfig, existing.config);
+    }
     const finalEnabledProtocols =
       enabledProtocols ||
       baseConfig._modular?.enabledProtocols ||
