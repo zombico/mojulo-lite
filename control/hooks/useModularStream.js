@@ -431,6 +431,7 @@ export function useModularStream(options = {}) {
         const deploymentStatus = deployment?.status;
         const url = deployment?.url;
         const botName = deployment?.bot_name;
+        const documentCount = data.documents?.length || 0;
 
         setGeneratedConfigs((prev) => ({
           ...prev,
@@ -439,6 +440,7 @@ export function useModularStream(options = {}) {
             botName: botName || prev.deployment?.botName,
             status: deploymentStatus,
             url,
+            documentCount,
           },
         }));
 

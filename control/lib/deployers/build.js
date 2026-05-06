@@ -9,27 +9,41 @@
  */
 
 import { DeploymentRepository, DEPLOYMENT_STATUS } from '../db/repositories/deployments.js';
+import { DocumentRepository } from '../db/repositories/documents.js';
 import { deploy as runDeploy } from './index.js';
 
 /**
  * Build the artifact for a saved deployment row.
  *
+ * The lean build (`withDocs=false`) is the canonical artifact tracked on the
+ * deployment row via `artifact_path` and `last_built_hash`. The with-docs
+ * variant is built on demand and lives at a sibling zip path; it intentionally
+ * does NOT update the row, so the lean cache is never displaced.
+ *
  * @param {string} deploymentId
+ * @param {Object} [options]
+ * @param {boolean} [options.withDocs=false]
  * @returns {Promise<{ deployment: Object, artifactPath: string }>}
  */
-export async function buildArtifact(deploymentId) {
+export async function buildArtifact(deploymentId, { withDocs = false } = {}) {
   const deployment = await DeploymentRepository.findById(deploymentId);
   if (!deployment) {
     throw new Error(`Deployment ${deploymentId} not found`);
   }
 
-  await DeploymentRepository.markBuilding(deploymentId);
+  if (!withDocs) {
+    await DeploymentRepository.markBuilding(deploymentId);
+  }
 
   try {
     const config = deployment.config || {};
     const meta = config._modular || {};
     const enabledProtocols =
       meta.enabledProtocols || config.enabledProtocols || {};
+
+    const documents = withDocs && deployment.documentIds?.length
+      ? await DocumentRepository.findByIds(deployment.documentIds)
+      : [];
 
     const result = await runDeploy({
       deploymentId,
@@ -42,7 +56,13 @@ export async function buildArtifact(deploymentId) {
       embeddingStorageKey: deployment.embeddingStorageKey || null,
       embeddingModel: deployment.embeddingModel || null,
       embeddingChunkCount: deployment.embeddingChunkCount || null,
+      withDocs,
+      documents,
     });
+
+    if (withDocs) {
+      return { deployment, artifactPath: result.artifactPath };
+    }
 
     const updated = await DeploymentRepository.setBuildResult(deploymentId, {
       artifactPath: result.relativeArtifactPath || result.artifactPath,
@@ -50,7 +70,9 @@ export async function buildArtifact(deploymentId) {
 
     return { deployment: updated, artifactPath: result.artifactPath };
   } catch (err) {
-    await DeploymentRepository.setBuildFailed(deploymentId, err.message);
+    if (!withDocs) {
+      await DeploymentRepository.setBuildFailed(deploymentId, err.message);
+    }
     throw err;
   }
 }

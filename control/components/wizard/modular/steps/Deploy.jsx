@@ -372,17 +372,25 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <a
                 href={builtArtifact.downloadUrl}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-500 transition text-center"
+                className="flex-1 min-w-[120px] px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-500 transition text-center"
               >
                 {t('downloadArtifact')}
               </a>
+              {formData.documents?.length > 0 && (
+                <a
+                  href={`${builtArtifact.downloadUrl}?withDocs=1`}
+                  className="flex-1 min-w-[120px] px-4 py-2 bg-blue-700/40 border border-blue-600 text-blue-100 text-sm font-semibold rounded-md hover:bg-blue-700/60 transition text-center"
+                >
+                  {t('downloadArtifactWithDocs')}
+                </a>
+              )}
               <button
                 type="button"
                 onClick={() => router.push('/dashboard')}
-                className="flex-1 px-4 py-2 bg-gray-700 text-gray-100 text-sm font-semibold rounded-md hover:bg-gray-600 transition"
+                className="flex-1 min-w-[120px] px-4 py-2 bg-gray-700 text-gray-100 text-sm font-semibold rounded-md hover:bg-gray-600 transition"
               >
                 {t('viewDeployments')}
               </button>

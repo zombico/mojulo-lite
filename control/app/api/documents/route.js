@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { DocumentRepository } from '@/lib/db/repositories/documents';
+import { DeploymentRepository } from '@/lib/db/repositories/deployments';
 import { parseDocument } from '@/lib/document-parser';
 import { uploadFile } from '@/lib/storage';
 
@@ -17,10 +18,36 @@ function serializeDocument(d) {
   };
 }
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const includeDeployments = searchParams.get('include') === 'deployments';
+
   const docs = await DocumentRepository.findByBotSpaceId(null);
+
+  if (!includeDeployments) {
+    return NextResponse.json({
+      documents: docs.map(serializeDocument),
+    });
+  }
+
+  // Augmented response for the library page: attach a reverse-map of the bots
+  // referencing each doc, plus a `hasParsedText` flag so the page can flag
+  // parse failures without shipping multi-MB parsed_text bodies over the wire.
+  const deployments = await DeploymentRepository.list();
+  const refsByDocId = new Map();
+  for (const dep of deployments) {
+    for (const docId of dep.documentIds || []) {
+      if (!refsByDocId.has(docId)) refsByDocId.set(docId, []);
+      refsByDocId.get(docId).push({ id: dep.id, botName: dep.botName });
+    }
+  }
+
   return NextResponse.json({
-    documents: docs.map(serializeDocument),
+    documents: docs.map((d) => ({
+      ...serializeDocument(d),
+      hasParsedText: !!(d.parsedText && d.parsedText.length > 0),
+      deployments: refsByDocId.get(d.id) || [],
+    })),
   });
 }
 

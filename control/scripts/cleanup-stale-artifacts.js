@@ -20,9 +20,15 @@ const ARTIFACTS_DIR =
 const dryRun = process.argv.includes('--dry-run');
 
 function extractDeploymentId(name) {
-  // Filenames: {botName}-dep_{uuid}.zip   /   directories: {botName}-dep_{uuid}
-  const match = name.match(/(dep_[0-9a-f-]{36})(?:\.zip)?$/i);
+  // Filenames: {botName}-dep_{uuid}.zip            (lean)
+  //            {botName}-dep_{uuid}-with-docs.zip  (with-docs variant)
+  // Directories: {botName}-dep_{uuid}              (staging)
+  const match = name.match(/(dep_[0-9a-f-]{36})(?:-with-docs)?(?:\.zip)?$/i);
   return match ? match[1] : null;
+}
+
+function isWithDocsZip(name) {
+  return /-with-docs\.zip$/i.test(name);
 }
 
 async function main() {
@@ -64,6 +70,9 @@ async function main() {
     } else if (!ownerExists) {
       remove = true;
       reason = 'deployment row gone';
+    } else if (isWithDocsZip(entry.name)) {
+      // With-docs zips aren't tracked in the DB — owner-row existence is the
+      // only signal we have. Keep when the deployment is alive.
     } else if (!isReferenced) {
       remove = true;
       reason = 'orphaned (row points elsewhere)';
