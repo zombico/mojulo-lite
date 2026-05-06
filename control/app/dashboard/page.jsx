@@ -320,6 +320,11 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
                 Download Zip
               </GhostAction>
             )}
+            {!showBuildSlot && hasArtifact && deployment.documentCount > 0 && (
+              <GhostAction href={`/api/deployments/${deployment.id}/download?withDocs=1`}>
+                Download with Docs
+              </GhostAction>
+            )}
             <GhostAction href={`/dashboard/deployments/${deployment.id}/cloud-deploy`}>
               Deploy to Cloud
             </GhostAction>

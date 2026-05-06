@@ -174,6 +174,17 @@ export async function DELETE(_request, { params }) {
     } catch (err) {
       if (err.code !== 'ENOENT') console.warn('[deployments] unlink failed', err.message);
     }
+
+    // The with-docs variant lives next to the lean zip with a deterministic
+    // suffix; it isn't tracked in the row, so unlink by name.
+    const dir = path.dirname(artifactAbs);
+    const base = path.basename(artifactAbs, '.zip');
+    const docsZipAbs = path.join(dir, `${base}-with-docs.zip`);
+    try {
+      await fs.unlink(docsZipAbs);
+    } catch (err) {
+      if (err.code !== 'ENOENT') console.warn('[deployments] unlink with-docs failed', err.message);
+    }
   }
 
   await DeploymentRepository.delete(id);

@@ -57,6 +57,15 @@ async function ensureDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
 }
 
+// Strip path-traversal characters and normalize the originalName so it's safe
+// to write under documents/. Falls back to a deterministic stub when the
+// upload's name was empty or only-separators after sanitization.
+function sanitizeDocFilename(name) {
+  const base = (name || '').split(/[\\/]/).pop() || '';
+  const cleaned = base.replace(/\.\./g, '_').replace(/^\.+/, '_').trim();
+  return cleaned || 'document';
+}
+
 async function copyTemplateFiles(srcRoot, dstRoot, excludes) {
   const entries = await fsp.readdir(srcRoot, { withFileTypes: true });
   for (const entry of entries) {
@@ -255,6 +264,8 @@ export class DockerDeployer {
    * @param {string} [params.embeddingStorageKey]
    * @param {string} [params.embeddingModel]
    * @param {number} [params.embeddingChunkCount]
+   * @param {boolean} [params.withDocs=false] - Bundle source documents into documents/
+   * @param {Array<{originalName: string, storagePath: string}>} [params.documents=[]] - Required when withDocs=true
    */
   async deploy(params) {
     const {
@@ -268,6 +279,8 @@ export class DockerDeployer {
       embeddingStorageKey = null,
       embeddingModel = null,
       embeddingChunkCount = null,
+      withDocs = false,
+      documents = [],
     } = params;
 
     if (!fs.existsSync(LITE_TEMPLATE_PATH)) {
@@ -352,6 +365,30 @@ export class DockerDeployer {
       await fsp.writeFile(path.join(configDir, 'embeddings.json'), embeddingsBuffer);
     }
 
+    // 6.5 Optional: bundle source documents under documents/. The compose file
+    //     always mounts ./documents:/app/documents, so anything written here
+    //     becomes visible to the bot at runtime. Skipped by default — only
+    //     the "Download with Docs" path opts in.
+    if (withDocs && documents.length > 0) {
+      const docsDir = path.join(stagingDir, 'documents');
+      await ensureDir(docsDir);
+      const used = new Map();
+      for (const doc of documents) {
+        if (!doc?.storagePath) continue;
+        let name = sanitizeDocFilename(doc.originalName);
+        const seen = used.get(name) || 0;
+        if (seen > 0) {
+          const dot = name.lastIndexOf('.');
+          name = dot > 0
+            ? `${name.slice(0, dot)} (${seen})${name.slice(dot)}`
+            : `${name} (${seen})`;
+        }
+        used.set(sanitizeDocFilename(doc.originalName), seen + 1);
+        const buf = await downloadToBuffer(doc.storagePath);
+        await fsp.writeFile(path.join(docsDir, name), buf);
+      }
+    }
+
     // 7. Write docker-compose.yml + .env.example + README.md
     await fsp.writeFile(
       path.join(stagingDir, 'docker-compose.yml'),
@@ -379,8 +416,13 @@ export class DockerDeployer {
       'utf8'
     );
 
-    // 10. Zip it up
-    const zipPath = path.join(ARTIFACTS_DIR, `${botName}-${deploymentId}.zip`);
+    // 10. Zip it up. The with-docs variant lives at a sibling path so it
+    //     never clobbers the lean cache the deployment row tracks.
+    const zipSuffix = withDocs ? '-with-docs' : '';
+    const zipPath = path.join(
+      ARTIFACTS_DIR,
+      `${botName}-${deploymentId}${zipSuffix}.zip`
+    );
     await zipDirectory(stagingDir, zipPath);
 
     return {

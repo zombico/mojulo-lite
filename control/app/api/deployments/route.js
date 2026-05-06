@@ -34,6 +34,7 @@ export async function GET(request) {
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
       enabledProtocols: d.config?._modular?.enabledProtocols || d.config?.enabledProtocols,
+      documentCount: d.documentIds?.length || 0,
     })),
   });
 }

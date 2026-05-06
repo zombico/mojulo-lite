@@ -324,11 +324,14 @@ function StatusBadge({ status }) {
  * Deployment success card
  */
 function DeploymentSuccessCard({ deployment, botSpaceId }) {
-  const { deploymentId, botName, url, status } = deployment;
+  const { deploymentId, botName, url, status, documentCount } = deployment;
   const [copied, setCopied] = useState(false);
   const embedCode = url ? `<script src="${url}/widget.js"></script>` : null;
   const artifactReady = status === 'ready';
   const downloadUrl = deploymentId ? `/api/deployments/${deploymentId}/download` : null;
+  const downloadWithDocsUrl = deploymentId && documentCount > 0
+    ? `/api/deployments/${deploymentId}/download?withDocs=1`
+    : null;
 
   const handleCopy = async () => {
     if (!embedCode) return;
@@ -424,6 +427,15 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
           >
             <DownloadIcon className="w-3.5 h-3.5" />
             Download Artifact
+          </a>
+        )}
+        {artifactReady && downloadWithDocsUrl && (
+          <a
+            href={downloadWithDocsUrl}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-800 border border-emerald-700 text-emerald-300 rounded-lg hover:bg-gray-700 hover:border-emerald-600 transition shadow-sm"
+          >
+            <DownloadIcon className="w-3.5 h-3.5" />
+            Download with Docs
           </a>
         )}
         {url && (

@@ -831,6 +831,7 @@
       "artifactBuilt": "Artifact built",
       "artifactReadyDesc": "Your bot artifact <mono>{name}</mono> is ready to download.",
       "downloadArtifact": "Download Artifact",
+      "downloadArtifactWithDocs": "Download with Docs",
       "previewHelp": "Try your bot live in the panel on the right. When the responses feel right, save then download the configuration. Build the runnable artifact whenever you're ready."
     },
     "botSummary": {
