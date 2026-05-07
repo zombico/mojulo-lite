@@ -24,15 +24,21 @@ function safeParseFormJson(json) {
 /**
  * Build the `botContext` payload from wizard formData + enabledProtocols.
  * Returns null if the bare-minimum LLM config isn't ready yet (no provider
- * or no API key) so the preview can show a setup hint instead of booting
+ * or no credential) so the preview can show a setup hint instead of booting
  * a half-configured bot.
+ *
+ * Credential can come in two shapes:
+ *   - formData.apiKey      pasted plaintext (rides in the llm block)
+ *   - formData.apiKeyId    saved-key reference (decrypted server-side at
+ *                          /api/preview/chat — mirrors the deploy path)
  */
 export function buildPreviewConfig(formData, enabledProtocols) {
-  if (!formData?.provider || !formData?.apiKey || !formData?.model) {
+  const hasCredential = Boolean(formData?.apiKey || formData?.apiKeyId);
+  if (!formData?.provider || !hasCredential || !formData?.model) {
     return null;
   }
 
-  const llm = buildLLMConfig(formData.provider, formData.apiKey, formData.model, {
+  const llm = buildLLMConfig(formData.provider, formData.apiKey || '', formData.model, {
     maxTokens: 2048,
   });
 
@@ -90,6 +96,7 @@ export function buildPreviewConfig(formData, enabledProtocols) {
         : {}),
     },
     llm,
+    apiKeyId: formData.apiKeyId || null,
     documentIds: (formData.documents || []).map((d) => d.id),
     embeddingsStorageKey: formData.embeddings?.storageKey || null,
   };
