@@ -50,6 +50,23 @@ export async function resolveSavedApiKeyIntoConfig(config, apiKeyId) {
 }
 
 /**
+ * Whether a deployment config currently carries a usable provider credential
+ * for its selected provider. Computed against the un-redacted config so the
+ * GET endpoint can advertise "key on file" without exposing the value. The
+ * wizard reads this to gate the credential requirement in edit mode.
+ */
+export function configHasStoredApiKey(config) {
+  const provider = config?.llm?.provider;
+  if (!provider) return false;
+  const block = config.llm[provider];
+  if (!block) return false;
+  if (provider === 'bedrock') {
+    return !!(block.useIamRole || (block.accessKeyId && block.secretAccessKey));
+  }
+  return !!block.apiKey;
+}
+
+/**
  * Strip provider credentials from a deployment config before returning it
  * to the browser. The deployment row stores plaintext (it's what gets baked
  * into the artifact's .env), but edit-mode hydration shouldn't have to

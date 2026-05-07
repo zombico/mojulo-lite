@@ -345,9 +345,13 @@ export function parseDeploymentConfig(config) {
  * Used for editing modular bots
  *
  * @param {Object} config - Deployment config from database (with _modular metadata)
+ * @param {Object} [options]
+ * @param {boolean} [options.hasStoredApiKey] - From the GET endpoint; the
+ *   config has been credential-redacted, so the wizard relies on this flag
+ *   to know a key is on file and gate the credential requirement.
  * @returns {Object} State suitable for ModularWizardProvider initialData
  */
-export function parseModularDeploymentConfig(config) {
+export function parseModularDeploymentConfig(config, options = {}) {
   // Extract modular metadata (persisted by /api/deploy)
   const modularMeta = config._modular || {};
   const enabledProtocols = modularMeta.enabledProtocols || {
@@ -385,6 +389,8 @@ export function parseModularDeploymentConfig(config) {
       provider: coreProvider,
       model: coreModel,
       apiKey: coreApiKey,
+      apiKeyId: null,
+      hasStoredApiKey: !!options.hasStoredApiKey,
       botName: config.config?.name || '',
       objective: config.objective || '',
       botSummary: config.botSummary || '',

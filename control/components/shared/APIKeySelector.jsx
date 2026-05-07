@@ -7,6 +7,7 @@ export default function APIKeySelector({
   provider,
   apiKey,
   apiKeyId,
+  hasStoredApiKey = false,
   onApiKeyChange,
   onApiKeyIdChange,
   error,
@@ -15,6 +16,11 @@ export default function APIKeySelector({
   const [loadingApiKeys, setLoadingApiKeys] = useState(false);
   const selectedSavedKeyId = apiKeyId || null;
   const selectedSavedKey = savedApiKeys.find((k) => k.id === selectedSavedKeyId) || null;
+  // Edit-mode case: a credential is on file (server flag) but the user
+  // hasn't typed a new one or picked a saved one this session. We display
+  // the "existing key configured" status and let the user proceed without
+  // re-entering. Goes away the moment they paste or pick.
+  const showStoredApiKeyStatus = hasStoredApiKey && !selectedSavedKey && !apiKey;
 
   // Bedrock inference region (lives inside the pasted credential JSON — NOT a
   // deployment region). Defaults to us-east-1 if the user hasn't typed one.
@@ -145,6 +151,17 @@ export default function APIKeySelector({
             >
               Clear
             </button>
+          </div>
+        )}
+
+        {showStoredApiKeyStatus && (
+          <div className="p-3 bg-teal-900/20 border border-teal-800 rounded-md">
+            <p className="text-xs text-teal-300 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              </svg>
+              Existing AWS credentials configured — will be reused unless you enter new ones below
+            </p>
           </div>
         )}
 
@@ -308,7 +325,15 @@ export default function APIKeySelector({
           className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
             error ? 'border-red-500' : 'border-gray-600'
           }`}
-          placeholder={selectedSavedKey ? '•••••••• (using saved key)' : provider ? `Enter your API key` : 'Select a provider first'}
+          placeholder={
+            selectedSavedKey
+              ? '•••••••• (using saved key)'
+              : showStoredApiKeyStatus
+              ? '•••••••• (existing key on file — leave blank to keep)'
+              : provider
+              ? `Enter your API key`
+              : 'Select a provider first'
+          }
           disabled={!provider || !!selectedSavedKey}
         />
       </div>
@@ -330,6 +355,15 @@ export default function APIKeySelector({
           >
             Clear
           </button>
+        </div>
+      ) : showStoredApiKeyStatus ? (
+        <div className="mt-1">
+          <p className="text-xs text-teal-400 flex items-center gap-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+            </svg>
+            Existing API key configured — will be reused unless you enter a new one
+          </p>
         </div>
       ) : apiKey && !error ? (
         <div className="mt-1 flex items-center justify-between">

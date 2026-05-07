@@ -11,7 +11,10 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
   const t = useTranslations('wizard.resources');
 
   const handleProviderChange = (provider) => {
-    updateFormData({ provider });
+    // Switching providers invalidates any prior credential reference: the
+    // saved-key id was bound to the old provider, and the on-file flag was
+    // computed against it. Force a fresh credential choice.
+    updateFormData({ provider, apiKey: '', apiKeyId: null, hasStoredApiKey: false });
     clearError('provider');
   };
 
@@ -100,6 +103,7 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
             provider={formData.provider}
             apiKey={formData.apiKey}
             apiKeyId={formData.apiKeyId}
+            hasStoredApiKey={formData.hasStoredApiKey}
             onApiKeyChange={handleApiKeyChange}
             onApiKeyIdChange={handleApiKeyIdChange}
             error={errors.apiKey}

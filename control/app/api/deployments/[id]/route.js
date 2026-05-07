@@ -8,6 +8,7 @@ import {
   resolveSavedApiKeyIntoConfig,
   redactApiKeysFromConfig,
   preserveExistingCredentials,
+  configHasStoredApiKey,
 } from '@/lib/resolve-api-key';
 
 export async function GET(_request, { params }) {
@@ -46,9 +47,13 @@ export async function GET(_request, { params }) {
   // Strip provider credentials before responding — the wizard hydrates from
   // this and we don't want plaintext keys flowing back to the browser. The
   // build pipeline uses DeploymentRepository directly, so it is unaffected.
+  // hasStoredApiKey is computed pre-redaction so the wizard can show
+  // "existing key configured" in edit mode without surfacing the value.
+  const hasStoredApiKey = configHasStoredApiKey(deployment.config);
   const safeDeployment = {
     ...deployment,
     config: redactApiKeysFromConfig(deployment.config),
+    hasStoredApiKey,
   };
 
   return NextResponse.json({ deployment: safeDeployment, documents });

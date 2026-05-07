@@ -157,8 +157,15 @@ export default function ModularBotCreationWizard() {
       // Parse and hydrate the modular wizard state from stored config
       const storedConfig = deployment.config;
       if (storedConfig) {
-        // Use parseModularDeploymentConfig to reconstruct wizard state
-        const parsedState = parseModularDeploymentConfig(storedConfig);
+        // Use parseModularDeploymentConfig to reconstruct wizard state.
+        // The GET endpoint redacts credentials but flags hasStoredApiKey so
+        // the wizard can show "existing key configured" without the value.
+        // Clones don't inherit the flag — the cloned bot has no row yet so
+        // the preview can't reuse a server-side credential, and the user
+        // must supply a fresh one.
+        const parsedState = parseModularDeploymentConfig(storedConfig, {
+          hasStoredApiKey: !isClone && !!deployment.hasStoredApiKey,
+        });
 
         // Hydrate the wizard with the parsed state and existing documents
         hydrateFromConfig(parsedState, existingDocuments || []);
