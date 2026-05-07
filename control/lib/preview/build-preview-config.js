@@ -27,13 +27,22 @@ function safeParseFormJson(json) {
  * or no credential) so the preview can show a setup hint instead of booting
  * a half-configured bot.
  *
- * Credential can come in two shapes:
- *   - formData.apiKey      pasted plaintext (rides in the llm block)
- *   - formData.apiKeyId    saved-key reference (decrypted server-side at
- *                          /api/preview/chat — mirrors the deploy path)
+ * Credential can come in three shapes:
+ *   - formData.apiKey         pasted plaintext (rides in the llm block)
+ *   - formData.apiKeyId       saved-key reference (decrypted server-side at
+ *                             /api/preview/chat — mirrors the deploy path)
+ *   - formData.hasStoredApiKey + formData.editDeploymentId
+ *                             edit mode reusing the existing on-file key:
+ *                             the chat route looks it up from the deployment
+ *                             row server-side. The browser never sees the
+ *                             plaintext.
  */
 export function buildPreviewConfig(formData, enabledProtocols) {
-  const hasCredential = Boolean(formData?.apiKey || formData?.apiKeyId);
+  const hasCredential = Boolean(
+    formData?.apiKey ||
+      formData?.apiKeyId ||
+      (formData?.hasStoredApiKey && formData?.editDeploymentId),
+  );
   if (!formData?.provider || !hasCredential || !formData?.model) {
     return null;
   }
@@ -97,6 +106,7 @@ export function buildPreviewConfig(formData, enabledProtocols) {
     },
     llm,
     apiKeyId: formData.apiKeyId || null,
+    editDeploymentId: formData.editDeploymentId || null,
     documentIds: (formData.documents || []).map((d) => d.id),
     embeddingsStorageKey: formData.embeddings?.storageKey || null,
   };

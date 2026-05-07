@@ -17,7 +17,11 @@ import { pathToFileURL } from 'url';
 import { composeInstructions } from '@/lib/composer/composer';
 import { downloadToBuffer } from '@/lib/storage';
 import VectorRAGPreview from '@/lib/embedder/preview-rag';
-import { resolveSavedApiKeyIntoConfig } from '@/lib/resolve-api-key';
+import {
+  resolveSavedApiKeyIntoConfig,
+  preserveExistingCredentials,
+} from '@/lib/resolve-api-key';
+import { DeploymentRepository } from '@/lib/db/repositories/deployments';
 
 // The bot container's runtime helpers live outside this Next project. Turbopack
 // statically follows both `import` and `require()`, even when the path is
@@ -68,6 +72,7 @@ export async function POST(request) {
       objective,
       llm,
       apiKeyId = null,
+      editDeploymentId = null,
       turn = 0,
       embeddingsStorageKey = null,
     } = body;
@@ -82,10 +87,22 @@ export async function POST(request) {
     // Saved-key path: the wizard sent only an opaque apiKeyId; decrypt the
     // matching api_keys row and patch credentials into the llm block so the
     // browser never had to handle plaintext. Same helper the deploy path uses.
+    //
+    // Edit-mode reuse path: the user is editing an existing bot, hasn't
+    // pasted a new credential, and hasn't picked a saved key — but the
+    // deployment row already holds plaintext (it's what the artifact's .env
+    // gets). Look that up server-side so the preview can boot. Wizard never
+    // sees the plaintext.
     let resolvedLlm = llm;
     if (apiKeyId) {
       const wrapped = await resolveSavedApiKeyIntoConfig({ llm }, apiKeyId);
       resolvedLlm = wrapped.llm;
+    } else if (editDeploymentId) {
+      const existing = await DeploymentRepository.findById(editDeploymentId);
+      if (existing?.config) {
+        const wrapped = preserveExistingCredentials({ llm: { ...llm } }, existing.config);
+        resolvedLlm = wrapped.llm;
+      }
     }
 
     const { createLLMClient, assemblePrompt, extractJSON } = await loadLiteHelpers();

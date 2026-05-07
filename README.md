@@ -185,11 +185,22 @@ Concept docs:
 
 ---
 
-## Status & scope
+## Security & deployment posture
 
-This is a single-user, self-hosted application. The control plane has no auth — **don't expose it to the public internet**. Run it on `localhost`, behind a VPN, or in front of a reverse proxy with auth.
+The control plane has **no built-in authentication**, by design. Wiring half-baked auth into a single-user, self-hosted tool tends to create false confidence — better to pick the gating that already matches your environment.
 
-The bots it compiles, on the other hand, are designed to face users.
+Choose one:
+
+- **Run on `localhost`** (the default). Bind to `127.0.0.1`, never expose port 3001. This is the right posture for "build a bot on my laptop, ship the artifact."
+- **Tailscale / WireGuard / VPN.** Reach the control plane only from your tailnet or VPN. Zero-config, works offline, no public surface.
+- **SSH tunnel.** `ssh -L 3001:localhost:3001 your-host` for occasional remote access to a server install.
+- **Reverse proxy with auth in front.** Caddy, nginx, or Traefik with basic auth — or OAuth2 Proxy, Cloudflare Access, Authelia, Tailscale Funnel. The control plane never sees the auth; your proxy enforces it.
+
+**The bots it compiles are a different posture** — they're designed to face end users. The control plane → bot Connect Bot proxy is authenticated by a key both sides share (`MOJULO_API_KEY`, baked into the artifact at build time), and conversation data stays in the bot's local SQLite.
+
+For the threat model and what does or doesn't count as a security issue, see [SECURITY.md](SECURITY.md).
+
+## Status
 
 Currently versioned `0.x` — APIs and config shapes can change between minor versions. The artifact format and bot image are pinned to the control-plane version they were built with.
 
@@ -202,4 +213,4 @@ Issues and PRs welcome. Before opening a PR:
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE)

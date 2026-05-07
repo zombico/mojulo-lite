@@ -154,6 +154,10 @@ const createInitialState = () => ({
     model: LLM_PROVIDERS.anthropic.defaultModel,
     apiKey: '',
     apiKeyId: null,
+    // Edit mode only: GET endpoint reports a stored credential exists for
+    // the selected provider. Lets the wizard mark the credential step
+    // satisfied without re-surfacing the value.
+    hasStoredApiKey: false,
     botName: '',
     objective: '',
     botSummary: '',
@@ -195,7 +199,7 @@ const createInitialState = () => ({
   deploymentConfig: null,
 });
 
-export function ModularWizardProvider({ children, initialData = null, botSpaceId = null }) {
+export function ModularWizardProvider({ children, initialData = null, botSpaceId = null, editDeploymentId = null }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState([]);
   const [errors, setErrors] = useState({});
@@ -280,7 +284,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
       const newState = { ...prev };
 
       // Map updates to appropriate state sections
-      const coreFields = ['provider', 'model', 'apiKey', 'apiKeyId', 'botName', 'objective', 'botSummary'];
+      const coreFields = ['provider', 'model', 'apiKey', 'apiKeyId', 'hasStoredApiKey', 'botName', 'objective', 'botSummary'];
       const identityFields = ['firstMessage', 'chatDisplayName', 'placeholder', 'suggestedPrompts'];
       const knowledgeFields = ['skipRag', 'documents', 'embeddings'];
       const formFields = ['formLocale', 'formStructureInput', 'generatedFormJson', 'formCompletionWebhook', 'afterSubmitChatMessage', 'formSendHome', 'enableFormCollection', 'termsAndConditions'];
@@ -343,12 +347,16 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
     deploymentConfig: state.deploymentConfig,
     // Bot Space
     botSpaceId,
+    // Edit-mode deployment id — lets the preview chat route authorize a
+    // server-side credential lookup when the wizard is reusing the stored
+    // key (no fresh paste, no apiKeyId). Null for new bots and clones.
+    editDeploymentId,
     // UI Settings (for compatibility)
     uiSettings: {
       chatDisplayName: state.identity.chatDisplayName,
       placeholder: state.identity.placeholder,
     },
-  }), [state, botSpaceId]);
+  }), [state, botSpaceId, editDeploymentId]);
 
   // Validate a step
   const validateStep = useCallback((stepNumber) => {
@@ -367,9 +375,11 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         if (!state.core.model) newErrors.model = 'Model is required';
         // Validate credentials based on provider. A saved-key reference
         // (apiKeyId) satisfies the requirement without exposing the value to
-        // the browser — the deploy route resolves it server-side.
-        if (state.core.apiKeyId) {
-          // Saved key picked — credentials are referenced, not pasted.
+        // the browser — the deploy route resolves it server-side. In edit
+        // mode, hasStoredApiKey signals an existing on-file credential the
+        // PATCH route will preserve if no new one is supplied.
+        if (state.core.apiKeyId || state.core.hasStoredApiKey) {
+          // Saved key picked or existing key on file — no fresh paste needed.
         } else if (state.core.provider === 'bedrock') {
           if (!state.core.apiKey) {
             newErrors.apiKey = 'AWS credentials are required';
@@ -566,6 +576,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
     steps,
     maxSteps,
     botSpaceId,
+    editDeploymentId,
 
     // Protocol management
     enabledProtocols: state.enabledProtocols,
