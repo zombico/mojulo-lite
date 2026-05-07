@@ -17,6 +17,7 @@ import { pathToFileURL } from 'url';
 import { composeInstructions } from '@/lib/composer/composer';
 import { downloadToBuffer } from '@/lib/storage';
 import VectorRAGPreview from '@/lib/embedder/preview-rag';
+import { resolveSavedApiKeyIntoConfig } from '@/lib/resolve-api-key';
 
 // The bot container's runtime helpers live outside this Next project. Turbopack
 // statically follows both `import` and `require()`, even when the path is
@@ -66,6 +67,7 @@ export async function POST(request) {
       protocolData = {},
       objective,
       llm,
+      apiKeyId = null,
       turn = 0,
       embeddingsStorageKey = null,
     } = body;
@@ -75,6 +77,15 @@ export async function POST(request) {
     }
     if (!llm || !llm.provider) {
       return NextResponse.json({ error: 'llm.provider is required' }, { status: 400 });
+    }
+
+    // Saved-key path: the wizard sent only an opaque apiKeyId; decrypt the
+    // matching api_keys row and patch credentials into the llm block so the
+    // browser never had to handle plaintext. Same helper the deploy path uses.
+    let resolvedLlm = llm;
+    if (apiKeyId) {
+      const wrapped = await resolveSavedApiKeyIntoConfig({ llm }, apiKeyId);
+      resolvedLlm = wrapped.llm;
     }
 
     const { createLLMClient, assemblePrompt, extractJSON } = await loadLiteHelpers();
@@ -104,7 +115,7 @@ export async function POST(request) {
       }
     }
 
-    const llmClient = createLLMClient({ llm });
+    const llmClient = createLLMClient({ llm: resolvedLlm });
 
     const { result, ragSources } = await assemblePrompt({
       userPrompt: prompt,
