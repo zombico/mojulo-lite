@@ -1,8 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function AddAppointmentWorkflow({ onClose, onAddAppointment, existingIds = [] }) {
+  const t = useTranslations('wizard.modular');
+  const tAppts = useTranslations('wizard.appointments');
+  const tCommon = useTranslations('common');
   const [formData, setFormData] = useState({
     id: '',
     provider: 'calendly',
@@ -27,27 +31,27 @@ export default function AddAppointmentWorkflow({ onClose, onAddAppointment, exis
     const newErrors = {};
 
     if (!formData.id.trim()) {
-      newErrors.id = 'Calendar ID is required';
+      newErrors.id = tAppts('calendarIdRequired');
     } else if (existingIds.includes(formData.id.trim())) {
-      newErrors.id = 'This calendar ID already exists';
+      newErrors.id = tAppts('calendarIdExists');
     }
 
     if (!formData.provider.trim()) {
-      newErrors.provider = 'Provider name is required';
+      newErrors.provider = tAppts('providerNameRequired');
     }
 
     if (!formData.popupUrl.trim()) {
-      newErrors.popupUrl = 'Popup URL is required';
+      newErrors.popupUrl = tAppts('popupUrlRequired');
     } else {
       try {
         new URL(formData.popupUrl.trim());
       } catch {
-        newErrors.popupUrl = 'Please enter a valid URL';
+        newErrors.popupUrl = tAppts('popupUrlInvalid');
       }
     }
 
     if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
+      newErrors.description = tAppts('descriptionRequired');
     }
 
     setErrors(newErrors);
@@ -73,7 +77,7 @@ export default function AddAppointmentWorkflow({ onClose, onAddAppointment, exis
       <div className="bg-gray-800 rounded-lg w-full max-w-lg mx-4 shadow-xl border border-gray-700 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-gray-100">Add Calendar Provider</h3>
+          <h3 className="text-lg font-medium text-gray-100">{t('addCalendarProvider')}</h3>
           <button
             type="button"
             onClick={onClose}
@@ -91,27 +95,27 @@ export default function AddAppointmentWorkflow({ onClose, onAddAppointment, exis
             {/* Calendar ID */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Calendar ID <span className="text-red-400">*</span>
+                {tAppts('calendarId')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
                 value={formData.id}
                 onChange={(e) => handleChange('id', e.target.value)}
-                placeholder="e.g., dr-smith-general"
+                placeholder={tAppts('calendarIdPlaceholder')}
                 className={`w-full px-3 py-2 bg-gray-700 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm text-gray-100 placeholder-gray-500 ${
                   errors.id ? 'border-red-500' : 'border-gray-600'
                 }`}
               />
               {errors.id && <p className="mt-1 text-xs text-red-400">{errors.id}</p>}
               <p className="mt-1 text-xs text-gray-400">
-                Unique identifier returned as calendarId in the response
+                {tAppts('calendarIdHelper')}
               </p>
             </div>
 
             {/* Provider Name */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Provider Name <span className="text-red-400">*</span>
+                {tAppts('providerName')} <span className="text-red-400">*</span>
               </label>
               <select
                 value={formData.provider}
@@ -127,39 +131,39 @@ export default function AddAppointmentWorkflow({ onClose, onAddAppointment, exis
               </select>
               {errors.provider && <p className="mt-1 text-xs text-red-400">{errors.provider}</p>}
               <p className="mt-1 text-xs text-gray-400">
-                Calendar provider service
+                {tAppts('providerNameHelper')}
               </p>
             </div>
 
             {/* Popup URL */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Popup URL <span className="text-red-400">*</span>
+                {tAppts('popupUrl')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="url"
                 value={formData.popupUrl}
                 onChange={(e) => handleChange('popupUrl', e.target.value)}
-                placeholder="https://calendly.com/dr-smith"
+                placeholder={tAppts('popupUrlPlaceholder')}
                 className={`w-full px-3 py-2 bg-gray-700 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm text-gray-100 placeholder-gray-500 ${
                   errors.popupUrl ? 'border-red-500' : 'border-gray-600'
                 }`}
               />
               {errors.popupUrl && <p className="mt-1 text-xs text-red-400">{errors.popupUrl}</p>}
               <p className="mt-1 text-xs text-gray-400">
-                URL launched when user clicks the calendar button
+                {tAppts('popupUrlHelper')}
               </p>
             </div>
 
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Description <span className="text-red-400">*</span>
+                {t('description')} <span className="text-red-400">*</span>
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
-                placeholder="Describe when users should book with this calendar provider..."
+                placeholder={tAppts('descriptionPlaceholder')}
                 rows={4}
                 className={`w-full px-3 py-2 bg-gray-700 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none text-sm text-gray-100 placeholder-gray-500 ${
                   errors.description ? 'border-red-500' : 'border-gray-600'
@@ -167,7 +171,7 @@ export default function AddAppointmentWorkflow({ onClose, onAddAppointment, exis
               />
               {errors.description && <p className="mt-1 text-xs text-red-400">{errors.description}</p>}
               <p className="mt-1 text-xs text-gray-400">
-                Used for RAG matching to determine which calendar to show
+                {tAppts('descriptionHelper')}
               </p>
             </div>
           </div>
@@ -181,14 +185,14 @@ export default function AddAppointmentWorkflow({ onClose, onAddAppointment, exis
             disabled={!isFormValid}
             className="flex-1 py-2 px-4 bg-teal-600 text-white font-medium rounded-lg hover:bg-teal-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition"
           >
-            Add Calendar Provider
+            {t('addCalendarProvider')}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition"
           >
-            Cancel
+            {tCommon('cancel')}
           </button>
         </div>
       </div>

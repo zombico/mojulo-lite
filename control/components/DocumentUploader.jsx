@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function DocumentUploader({ documents, onUpload, hideFileList = false, botSpaceId = null }) {
+  const t = useTranslations('documentUploader');
+  const tCommon = useTranslations('common');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -33,7 +36,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
 
         if (!response.ok) {
           const data = await response.json();
-          throw new Error(data.error || 'Upload failed');
+          throw new Error(data.error || t('uploadFailed'));
         }
 
         const { document } = await response.json();
@@ -44,7 +47,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
       onUpload([...documents, ...uploadedDocs]);
     } catch (err) {
       console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload files');
+      setError(err.message || t('uploadFailedFallback'));
     } finally {
       setUploading(false);
     }
@@ -89,7 +92,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
     });
 
     if (filteredFiles.length < files.length) {
-      setError('Some files were skipped. Only PDF, TXT, MD, DOC, DOCX files are supported.');
+      setError(t('skippedFiles'));
     }
 
     if (filteredFiles.length > 0) {
@@ -98,7 +101,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
   };
 
   const handleDelete = async (documentId) => {
-    if (!confirm('Are you sure you want to delete this file?')) return;
+    if (!confirm(t('deleteConfirm'))) return;
 
     try {
       const response = await fetch(`/api/documents/${documentId}`, {
@@ -107,14 +110,14 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Delete failed');
+        throw new Error(data.error || t('deleteFailed'));
       }
 
       // Update parent component
       onUpload(documents.filter((doc) => doc.id !== documentId));
     } catch (err) {
       console.error('Delete error:', err);
-      setError(err.message || 'Failed to delete file');
+      setError(err.message || t('deleteFailedFallback'));
     }
   };
 
@@ -128,9 +131,9 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-l font-semibold mb-2 text-gray-100">Upload Documents <span className="text-red-400">*</span></h2>
+        <h2 className="text-l font-semibold mb-2 text-gray-100">{t('title')} <span className="text-red-400">*</span></h2>
         <p className="text-sm text-gray-400 mb-4">
-          Upload documents that your chatbot will use for RAG (Retrieval-Augmented Generation)
+          {t('description')}
         </p>
 
         {error && (
@@ -170,7 +173,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
               htmlFor="file-upload"
               className="cursor-pointer inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
             >
-              <span>{uploading ? 'Uploading...' : 'Choose Files'}</span>
+              <span>{uploading ? t('uploading') : t('chooseFiles')}</span>
             </label>
             <input
               id="file-upload"
@@ -183,10 +186,10 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
             />
           </div>
           <p className="mt-2 text-sm text-gray-400">
-            {isDragging ? 'Drop files here' : 'or drag and drop files here'}
+            {isDragging ? t('dropFilesHere') : t('dragAndDropHint')}
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            PDF, TXT, MD, DOC, DOCX
+            {t('fileTypes')}
           </p>
         </div>
       </div>
@@ -196,7 +199,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
         <div className="border border-gray-700 rounded-lg overflow-hidden">
           <div className="bg-gray-700 px-4 py-2 border-b border-gray-600">
             <h3 className="font-medium text-gray-100">
-              Uploaded Documents ({documents.length})
+              {t('uploadedDocuments', { count: documents.length })}
             </h3>
           </div>
           <ul className="divide-y divide-gray-700">
@@ -217,7 +220,7 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
                   onClick={() => handleDelete(doc.id)}
                   className="ml-4 px-3 py-1 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded"
                 >
-                  Delete
+                  {tCommon('delete')}
                 </button>
               </li>
             ))}
@@ -227,8 +230,8 @@ export default function DocumentUploader({ documents, onUpload, hideFileList = f
 
       {documents.length === 0 && !uploading && (
         <div className="text-center py-8 border-2 border-dashed border-gray-600 rounded-lg">
-          <p className="text-gray-400">No documents uploaded yet</p>
-          <p className="text-sm text-gray-500 mt-1">Click "Choose Files" to get started</p>
+          <p className="text-gray-400">{t('noDocumentsYet')}</p>
+          <p className="text-sm text-gray-500 mt-1">{t('noDocumentsHint')}</p>
         </div>
       )}
     </div>

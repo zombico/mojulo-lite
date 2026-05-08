@@ -262,10 +262,10 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
             )}
             {enabledProtocols.knowledge && (
               <div className="flex justify-between">
-                <dt className="text-gray-400">Embeddings</dt>
+                <dt className="text-gray-400">{t('embeddings')}</dt>
                 <dd className="font-medium text-gray-100">
                   <span className="text-teal-300">
-                    {formData.embeddings?.chunkCount || 0} chunks
+                    {t('embeddingsChunks', { count: formData.embeddings?.chunkCount || 0 })}
                   </span>
                 </dd>
               </div>

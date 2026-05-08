@@ -596,6 +596,7 @@ function ContextSelector({ selectedContext, onSelect, t }) {
  * Examples panel - shows scenarios based on current combination and context
  */
 function ExamplesPanel({ enabledKeys, selectedContext, isOpen, onClose, t }) {
+  const tCommon = useTranslations('common');
   const examplesData = useMemo(() => {
     if (enabledKeys.length === 0) return null;
 
@@ -663,7 +664,7 @@ function ExamplesPanel({ enabledKeys, selectedContext, isOpen, onClose, t }) {
       <button
         onClick={onClose}
         className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-300 transition-colors"
-        aria-label="Close"
+        aria-label={tCommon('close')}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

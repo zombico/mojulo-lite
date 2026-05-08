@@ -1,14 +1,16 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
 import Image from 'next/image';
 import './preview.css';
 
 export default function AppointmentsPreview({ activeTab = 'desktop' }) {
+  const t = useTranslations('wizard.previews.appointments');
   const { formData } = useModularWizard();
 
   const appointments = formData.appointmentDestinations || [];
-  const botName = formData.botName || 'Appointments Bot';
+  const botName = formData.botName || t('fallbackBotName');
 
   if (activeTab === 'desktop') {
     return (
@@ -19,8 +21,8 @@ export default function AppointmentsPreview({ activeTab = 'desktop' }) {
             <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <p className="text-sm">No calendar providers configured yet</p>
-            <p className="text-xs mt-1">Click "Add Calendar Provider" to get started</p>
+            <p className="text-sm">{t('noProviders')}</p>
+            <p className="text-xs mt-1">{t('noProvidersHint')}</p>
           </div>
         ) : (
           // Appointments topology diagram
@@ -28,7 +30,7 @@ export default function AppointmentsPreview({ activeTab = 'desktop' }) {
             <div className="flex items-center gap-3">
               {/* User Query */}
               <div className="flex flex-col items-center">
-                <div className="text-xs text-gray-500 mb-1">User Query</div>
+                <div className="text-xs text-gray-500 mb-1">{t('userQuery')}</div>
               </div>
 
               {/* Horizontal line to bot */}
@@ -69,7 +71,7 @@ export default function AppointmentsPreview({ activeTab = 'desktop' }) {
                       {/* Appointment card */}
                       <div className="flex p-2 px-3 bg-white border border-gray-200 rounded-lg shadow-sm gap-2 items-center">
                         {/* Calendar icon */}
-                        {appointment.provider === 'calendly' && <Image src={`/images/calendlyicon.png`} alt="Calendar Icon" width={16} height={16} />}
+                        {appointment.provider === 'calendly' && <Image src={`/images/calendlyicon.png`} alt={t('calendarIconAlt')} width={16} height={16} />}
                         <span className="font-medium text-gray-900 text-sm whitespace-nowrap">{appointment.id}</span>
                       </div>
                     </div>

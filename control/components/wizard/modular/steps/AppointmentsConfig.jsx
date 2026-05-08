@@ -9,6 +9,7 @@ import EditAppointmentWorkflow from '../workflows/EditAppointmentWorkflow';
 
 export default function AppointmentsConfig({ stepConfig, isEditMode = false }) {
   const t = useTranslations('wizard.modular');
+  const tAppts = useTranslations('wizard.appointments');
   const { formData, updateFormData, errors } = useModularWizard();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(null);
@@ -89,8 +90,8 @@ export default function AppointmentsConfig({ stepConfig, isEditMode = false }) {
                   <button
                     type="button"
                     onClick={(e) => handleRemoveAppointment(index, e)}
-                    aria-label="Delete Appointment"
-                    title="Delete Appointment"
+                    aria-label={tAppts('deleteAppointment')}
+                    title={tAppts('deleteAppointment')}
                     className="text-gray-500 hover:text-red-400 transition opacity-0 group-hover:opacity-100"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { LLM_PROVIDERS } from '@/lib/llm-providers';
 
 export default function LLMProviderSelector({
@@ -10,6 +11,8 @@ export default function LLMProviderSelector({
   providerError,
   modelError
 }) {
+  const t = useTranslations('wizard.resources');
+
   const handleProviderChange = (e) => {
     const newProvider = e.target.value;
     onProviderChange(newProvider);
@@ -29,7 +32,7 @@ export default function LLMProviderSelector({
       {/* Provider Selection */}
       <div>
         <label htmlFor="provider" className="block text-sm font-medium text-gray-300 mb-1">
-          Provider <span className="text-red-400">*</span>
+          {t('provider')} <span className="text-red-400">*</span>
         </label>
         <select
           id="provider"
@@ -39,7 +42,7 @@ export default function LLMProviderSelector({
             providerError ? 'border-red-500' : 'border-gray-600'
           }`}
         >
-          <option value="">Select a provider</option>
+          <option value="">{t('selectProvider')}</option>
           {Object.entries(LLM_PROVIDERS).map(([key, config]) => (
             <option key={key} value={key}>
               {config.name}
@@ -55,7 +58,7 @@ export default function LLMProviderSelector({
       {provider && (
         <div>
           <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-1">
-            Model <span className="text-red-400">*</span>
+            {t('model')} <span className="text-red-400">*</span>
           </label>
           <select
             id="model"
@@ -65,7 +68,7 @@ export default function LLMProviderSelector({
               modelError ? 'border-red-500' : 'border-gray-600'
             }`}
           >
-            <option value="">Select a model</option>
+            <option value="">{t('selectModel')}</option>
             {availableModels.map((modelItem) => {
               // Handle both string models and object models (like Bedrock)
               const modelId = typeof modelItem === 'string' ? modelItem : modelItem.id;

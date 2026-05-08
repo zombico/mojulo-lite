@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 
 export default function AddUrlDestinationWorkflow({ onClose, onAddDestination }) {
   const t = useTranslations('wizard.modular');
+  const tTriage = useTranslations('wizard.triage');
+  const tCommon = useTranslations('common');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -27,20 +29,20 @@ export default function AddUrlDestinationWorkflow({ onClose, onAddDestination })
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = 'Display name is required';
+      newErrors.name = t('displayNameRequired');
     }
 
     if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
+      newErrors.description = t('descriptionRequired');
     }
 
     if (!formData.url.trim()) {
-      newErrors.url = 'URL is required';
+      newErrors.url = t('urlRequired');
     } else {
       try {
         new URL(formData.url.trim());
       } catch {
-        newErrors.url = 'Please enter a valid URL';
+        newErrors.url = t('urlInvalid');
       }
     }
 
@@ -129,7 +131,7 @@ export default function AddUrlDestinationWorkflow({ onClose, onAddDestination })
             />
             {errors.description && <p className="mt-1 text-xs text-red-400">{errors.description}</p>}
             <p className="mt-1 text-xs text-gray-500">
-              Used for RAG matching to determine when to route users here
+              {tTriage('descriptionHelper')}
             </p>
           </div>
         </div>
@@ -149,7 +151,7 @@ export default function AddUrlDestinationWorkflow({ onClose, onAddDestination })
             onClick={onClose}
             className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition"
           >
-            Cancel
+            {tCommon('cancel')}
           </button>
         </div>
       </div>

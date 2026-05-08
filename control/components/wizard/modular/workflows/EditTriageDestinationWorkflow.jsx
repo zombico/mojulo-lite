@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 
 export default function EditTriageDestinationWorkflow({ destination, onClose, onUpdateDestination }) {
   const t = useTranslations('wizard.modular');
+  const tTriage = useTranslations('wizard.triage');
+  const tCommon = useTranslations('common');
   const [formData, setFormData] = useState({
     name: destination.name || '',
     description: destination.description || '',
@@ -27,20 +29,20 @@ export default function EditTriageDestinationWorkflow({ destination, onClose, on
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = 'Display name is required';
+      newErrors.name = t('displayNameRequired');
     }
 
     if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
+      newErrors.description = t('descriptionRequired');
     }
 
     if (!formData.url.trim()) {
-      newErrors.url = 'URL is required';
+      newErrors.url = t('urlRequired');
     } else {
       try {
         new URL(formData.url.trim());
       } catch {
-        newErrors.url = 'Please enter a valid URL';
+        newErrors.url = t('urlInvalid');
       }
     }
 
@@ -66,7 +68,7 @@ export default function EditTriageDestinationWorkflow({ destination, onClose, on
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <div>
-            <h3 className="text-lg font-medium text-gray-100">Edit URL Destination</h3>
+            <h3 className="text-lg font-medium text-gray-100">{tTriage('editUrlDestination')}</h3>
             <p className="text-xs text-gray-500 mt-1">ID: {destination.deploymentId}</p>
           </div>
           <button
@@ -132,7 +134,7 @@ export default function EditTriageDestinationWorkflow({ destination, onClose, on
             />
             {errors.description && <p className="mt-1 text-xs text-red-400">{errors.description}</p>}
             <p className="mt-1 text-xs text-gray-500">
-              Used for RAG matching to determine when to route users here
+              {tTriage('descriptionHelper')}
             </p>
           </div>
         </div>
@@ -145,14 +147,14 @@ export default function EditTriageDestinationWorkflow({ destination, onClose, on
             disabled={!isFormValid}
             className="flex-1 py-2.5 px-4 bg-teal-600 text-white font-medium rounded-lg hover:bg-teal-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition"
           >
-            Update Destination
+            {tTriage('updateDestination')}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-2.5 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition"
           >
-            Cancel
+            {tCommon('cancel')}
           </button>
         </div>
       </div>
