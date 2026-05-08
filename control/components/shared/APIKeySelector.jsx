@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { LLM_PROVIDERS } from '@/lib/llm-providers';
 
 export default function APIKeySelector({
@@ -12,6 +13,7 @@ export default function APIKeySelector({
   onApiKeyIdChange,
   error,
 }) {
+  const t = useTranslations('wizard.resources');
   const [savedApiKeys, setSavedApiKeys] = useState([]);
   const [loadingApiKeys, setLoadingApiKeys] = useState(false);
   const selectedSavedKeyId = apiKeyId || null;
@@ -142,14 +144,14 @@ export default function APIKeySelector({
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
-              Using saved AWS credentials: <span className="font-medium">{selectedSavedKey.name}</span>
+              {t('awsCredentialsUsing')} <span className="font-medium">{selectedSavedKey.name}</span>
             </p>
             <button
               type="button"
               onClick={handleClearSavedKey}
               className="text-xs text-red-400 hover:text-red-300 font-medium"
             >
-              Clear
+              {t('apiKeyClear')}
             </button>
           </div>
         )}
@@ -160,7 +162,7 @@ export default function APIKeySelector({
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
-              Existing AWS credentials configured — will be reused unless you enter new ones below
+              {t('awsCredentialsExisting')}
             </p>
           </div>
         )}
@@ -177,10 +179,10 @@ export default function APIKeySelector({
           />
           <div>
             <label htmlFor="useIamRole" className="text-sm font-medium text-gray-300 cursor-pointer">
-              Use IAM Role (recommended for EKS/EC2)
+              {t('awsUseIamRole')}
             </label>
             <p className="text-xs text-gray-500 mt-0.5">
-              Uses the instance/pod IAM role instead of explicit credentials
+              {t('awsUseIamRoleHelper')}
             </p>
           </div>
         </div>
@@ -191,7 +193,7 @@ export default function APIKeySelector({
           <>
             <div>
               <label htmlFor="accessKeyId" className="block text-sm font-medium text-gray-300 mb-1">
-                AWS Access Key ID <span className="text-red-400">*</span>
+                {t('awsAccessKeyId')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -204,13 +206,13 @@ export default function APIKeySelector({
                 className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
                   error && !bedrockCredentials.accessKeyId ? 'border-red-500' : 'border-gray-600'
                 }`}
-                placeholder="AKIAIOSFODNN7EXAMPLE"
+                placeholder={t('awsAccessKeyIdPlaceholder')}
               />
             </div>
 
             <div>
               <label htmlFor="secretAccessKey" className="block text-sm font-medium text-gray-300 mb-1">
-                AWS Secret Access Key <span className="text-red-400">*</span>
+                {t('awsSecretAccessKey')} <span className="text-red-400">*</span>
               </label>
               <input
                 id="secretAccessKey"
@@ -222,7 +224,7 @@ export default function APIKeySelector({
                 className={`w-full px-3 py-2 bg-gray-700 border rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
                   error && !bedrockCredentials.secretAccessKey ? 'border-red-500' : 'border-gray-600'
                 }`}
-                placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                placeholder={t('awsSecretAccessKeyPlaceholder')}
               />
             </div>
           </>
@@ -232,7 +234,7 @@ export default function APIKeySelector({
         {!selectedSavedKey && (
         <div>
           <label htmlFor="bedrockRegion" className="block text-sm font-medium text-gray-300 mb-1">
-            Bedrock Region <span className="text-red-400">*</span>
+            {t('bedrockRegion')} <span className="text-red-400">*</span>
           </label>
           <select
             id="bedrockRegion"
@@ -242,12 +244,18 @@ export default function APIKeySelector({
           >
             {bedrockConfig.regions.map((region) => (
               <option key={region.id} value={region.id}>
-                {region.name} ({region.geoPrefix.toUpperCase()} cross-region)
+                {t('bedrockRegionOption', { name: region.name, geoPrefix: region.geoPrefix.toUpperCase() })}
               </option>
             ))}
           </select>
           <p className="mt-1 text-xs text-gray-500">
-            Cross-region inference routes requests to available capacity across the {bedrockCredentials.region?.startsWith('us') ? 'US' : bedrockCredentials.region?.startsWith('eu') ? 'EU' : 'APAC'} region
+            {t('bedrockCrossRegion', {
+              regionName: bedrockCredentials.region?.startsWith('us')
+                ? t('regionUS')
+                : bedrockCredentials.region?.startsWith('eu')
+                ? t('regionEU')
+                : t('regionAPAC'),
+            })}
           </p>
         </div>
         )}
@@ -261,18 +269,18 @@ export default function APIKeySelector({
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
             <span className="text-xs">
-              {bedrockCredentials.useIamRole ? 'Using IAM Role' : 'AWS credentials configured'}
+              {bedrockCredentials.useIamRole ? t('awsUsingIamRoleStatus') : t('awsCredentialsConfigured')}
             </span>
           </div>
         )}
 
         {/* Saved Credentials */}
         {loadingApiKeys ? (
-          <div className="text-sm text-gray-500">Loading saved credentials...</div>
+          <div className="text-sm text-gray-500">{t('awsLoadingCredentials')}</div>
         ) : savedApiKeys.length > 0 ? (
           <div>
             <p className="text-xs font-medium text-gray-300 mb-2">
-              Or use saved AWS credentials:
+              {t('awsOrUseSaved')}
             </p>
             <div className="flex flex-wrap gap-2">
               {savedApiKeys.map((key) => (
@@ -310,7 +318,7 @@ export default function APIKeySelector({
   return (
     <div>
       <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-1">
-        API Key <span className="text-red-400">*</span>
+        {t('apiKey')} <span className="text-red-400">*</span>
       </label>
 
       <div className="relative">
@@ -327,12 +335,12 @@ export default function APIKeySelector({
           }`}
           placeholder={
             selectedSavedKey
-              ? '•••••••• (using saved key)'
+              ? t('apiKeySavedPlaceholder')
               : showStoredApiKeyStatus
-              ? '•••••••• (existing key on file — leave blank to keep)'
+              ? t('apiKeyExistingPlaceholder')
               : provider
-              ? `Enter your API key`
-              : 'Select a provider first'
+              ? t('apiKeyEnter')
+              : t('apiKeySelectProviderFirst')
           }
           disabled={!provider || !!selectedSavedKey}
         />
@@ -346,14 +354,14 @@ export default function APIKeySelector({
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
             </svg>
-            Using saved API key: <span className="font-medium">{selectedSavedKey.name}</span>
+            {t('apiKeyUsingSaved')} <span className="font-medium">{selectedSavedKey.name}</span>
           </p>
           <button
             type="button"
             onClick={handleClearSavedKey}
             className="text-xs text-red-400 hover:text-red-300 font-medium"
           >
-            Clear
+            {t('apiKeyClear')}
           </button>
         </div>
       ) : showStoredApiKeyStatus ? (
@@ -362,7 +370,7 @@ export default function APIKeySelector({
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
             </svg>
-            Existing API key configured — will be reused unless you enter a new one
+            {t('apiKeyExistingConfigured')}
           </p>
         </div>
       ) : apiKey && !error ? (
@@ -371,13 +379,13 @@ export default function APIKeySelector({
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
-            API key is set
+            {t('apiKeyIsSet')}
           </p>
           <div className="group relative">
             <button
               type="button"
               className="text-teal-400 hover:text-teal-300 transition"
-              title="About API Keys"
+              title={t('apiKeyAbout')}
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
@@ -385,25 +393,24 @@ export default function APIKeySelector({
             </button>
             <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-gray-700 border border-gray-600 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
               <p className="text-xs text-gray-300">
-                Your API key is encrypted and stored securely. It will be used to power your chatbot's responses.
-                You can manage your saved API keys in the settings.
+                {t('apiKeyTooltip')}
               </p>
             </div>
           </div>
         </div>
       ) : (
         <p className="mt-1 text-xs text-gray-500">
-          Your API key is encrypted and stored securely
+          {t('apiKeyEncryptedHelper')}
         </p>
       )}
 
       {/* Saved API Keys */}
       {loadingApiKeys ? (
-        <div className="mt-3 text-sm text-gray-500">Loading saved keys...</div>
+        <div className="mt-3 text-sm text-gray-500">{t('apiKeyLoadingSaved')}</div>
       ) : savedApiKeys.length > 0 ? (
         <div className="mt-3">
           <p className="text-xs font-medium text-gray-300 mb-2">
-            Or use a saved API key:
+            {t('apiKeyOrUseSaved')}
           </p>
           <div className="flex flex-wrap gap-2">
             {savedApiKeys.map((key) => (

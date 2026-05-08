@@ -15,6 +15,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useModularStream, MESSAGE_TYPES, TOOL_STATUS, SESSION_STATUS } from '@/hooks/useModularStream';
 import ModularChatInput from './ModularChatInput';
 import { CollapsibleToolCalls } from './ToolCallCard';
@@ -29,6 +30,7 @@ export default function InvertedModularChatPanel({
   onClose,
   onDeployComplete,
 }) {
+  const t = useTranslations('chatBuilder.invertedPanel');
   const {
     sessionId,
     status,
@@ -72,8 +74,7 @@ export default function InvertedModularChatPanel({
   };
 
   const handleAdjust = () => {
-    // Send a message to adjust
-    sendMessage("I'd like to adjust the configuration");
+    sendMessage(t('adjustMessage'));
   };
 
   // Only show confirm card when generation is complete AND we have stable data
@@ -95,10 +96,10 @@ export default function InvertedModularChatPanel({
           </div>
           <div>
             <h2 className="font-semibold text-white">
-              {isEditMode ? `Edit ${deploymentName || 'Bot'}` : 'Create a Bot'}
+              {isEditMode ? t('editBot', { name: deploymentName || t('fallbackBotName') }) : t('createABot')}
             </h2>
             <p className="text-xs text-white/60">
-              {workspaceName ? `${workspaceName} ` : 'Private'}
+              {workspaceName ? `${workspaceName} ` : t('private')}
             </p>
           </div>
         </div>
@@ -136,13 +137,13 @@ export default function InvertedModularChatPanel({
                 <EditIcon className="w-8 h-8 text-orange-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-100 mb-2">
-                Modify {deploymentName || 'your bot'}
+                {t('editTitle', { name: deploymentName || t('editFallbackName') })}
               </h3>
               <p className="text-gray-400 max-w-md mx-auto mb-4">
-                Tell me what you'd like to change. I'll load your current configuration and help you update it.
+                {t('editDescription')}
               </p>
               <p className="text-sm text-gray-500">
-                Examples: "Change the greeting", "Add a new form field", "Update the bot name"
+                {t('editExamples')}
               </p>
             </div>
           ) : (
@@ -151,11 +152,10 @@ export default function InvertedModularChatPanel({
                 <ModuloAvatar state="idle" size={64} disabled={disableModuloAnimation} />
               </div>
               <h3 className="text-lg font-medium text-gray-100 mb-2">
-                What kind of bot can I help you build?
+                {t('createTitle')}
               </h3>
               <p className="text-gray-400 max-w-md mx-auto">
-                You can also attach documents
-                to give it knowledge. Upload a file, or ask to refer to docs in the bot space.
+                {t('createDescription')}
               </p>
               <button
                 onClick={() => {
@@ -165,7 +165,7 @@ export default function InvertedModularChatPanel({
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-300 border border-gray-600 rounded-lg hover:bg-gray-800 hover:border-gray-500 transition"
               >
                 <WizardIcon className="w-4 h-4" />
-                Build with Wizard (Step by step configuration)
+                {t('buildWithWizard')}
               </button>
             </div>
           )
@@ -194,7 +194,7 @@ export default function InvertedModularChatPanel({
         {/* Error display */}
         {error && (
           <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-            <strong>Error:</strong> {error}
+            <strong>{t('errorPrefix')}</strong> {error}
           </div>
         )}
 
@@ -214,7 +214,7 @@ export default function InvertedModularChatPanel({
         onChange={setInputValue}
         onSend={handleSend}
         disabled={isStreaming || isDeploying}
-        placeholder="Describe what your bot should do..."
+        placeholder={t('inputPlaceholder')}
         showAttachButton={true}
       />
     </div>
@@ -302,13 +302,14 @@ function MessageItem({ message }) {
  * Status badge component
  */
 function StatusBadge({ status }) {
+  const t = useTranslations('chatBuilder.status');
   const statusConfig = {
-    [SESSION_STATUS.CREATED]: { label: 'Ready', color: 'bg-slate-700 text-slate-200 ring-1 ring-slate-500' },
-    [SESSION_STATUS.PROCESSING]: { label: 'Processing', color: 'bg-sky-900/50 text-sky-300 ring-1 ring-sky-600 animate-pulse' },
-    [SESSION_STATUS.AWAITING_CONFIRM]: { label: 'Awaiting confirmation', color: 'bg-amber-900/50 text-amber-300 ring-1 ring-amber-600' },
-    [SESSION_STATUS.DEPLOYING]: { label: 'Deploying', color: 'bg-violet-900/50 text-violet-300 ring-1 ring-violet-600 animate-pulse' },
-    [SESSION_STATUS.DEPLOYED]: { label: 'Deployed', color: 'bg-emerald-900/50 text-emerald-300 ring-1 ring-emerald-600' },
-    [SESSION_STATUS.EDITING]: { label: 'Editing', color: 'bg-orange-900/50 text-orange-300 ring-1 ring-orange-600' },
+    [SESSION_STATUS.CREATED]: { label: t('ready'), color: 'bg-slate-700 text-slate-200 ring-1 ring-slate-500' },
+    [SESSION_STATUS.PROCESSING]: { label: t('processing'), color: 'bg-sky-900/50 text-sky-300 ring-1 ring-sky-600 animate-pulse' },
+    [SESSION_STATUS.AWAITING_CONFIRM]: { label: t('awaitingConfirmation'), color: 'bg-amber-900/50 text-amber-300 ring-1 ring-amber-600' },
+    [SESSION_STATUS.DEPLOYING]: { label: t('deploying'), color: 'bg-violet-900/50 text-violet-300 ring-1 ring-violet-600 animate-pulse' },
+    [SESSION_STATUS.DEPLOYED]: { label: t('deployed'), color: 'bg-emerald-900/50 text-emerald-300 ring-1 ring-emerald-600' },
+    [SESSION_STATUS.EDITING]: { label: t('editing'), color: 'bg-orange-900/50 text-orange-300 ring-1 ring-orange-600' },
   };
 
   const config = statusConfig[status] || statusConfig[SESSION_STATUS.CREATED];
@@ -324,6 +325,8 @@ function StatusBadge({ status }) {
  * Deployment success card
  */
 function DeploymentSuccessCard({ deployment, botSpaceId }) {
+  const t = useTranslations('chatBuilder.success');
+  const tCommon = useTranslations('common');
   const { deploymentId, botName, url, status, documentCount } = deployment;
   const [copied, setCopied] = useState(false);
   const embedCode = url ? `<script src="${url}/widget.js"></script>` : null;
@@ -352,7 +355,7 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
           <CheckIcon className="w-3.5 h-3.5 text-white" />
         </div>
         <span className="text-sm font-semibold text-emerald-300">
-          {artifactReady ? 'Bot built!' : 'Bot saved'}
+          {artifactReady ? t('botBuilt') : t('botSaved')}
         </span>
         <div className="flex-1" />
         <ModuloAvatar state="celebrating" size={40} />
@@ -360,21 +363,16 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
 
       {/* Status message */}
       <p className="text-sm text-gray-300 mb-3">
-        {artifactReady ? (
-          <>
-            Your bot <span className="font-semibold text-emerald-400">{botName}</span> is built and ready to download.
-          </>
-        ) : (
-          <>
-            Your bot <span className="font-semibold text-emerald-400">{botName}</span> is saved. Build it from your Bot Space when you're ready.
-          </>
-        )}
+        {t.rich(artifactReady ? 'botBuiltMessage' : 'botSavedMessage', {
+          name: botName,
+          strong: (chunks) => <span className="font-semibold text-emerald-400">{chunks}</span>,
+        })}
       </p>
 
       {/* Live URL */}
       {url && (
         <div className="mb-3">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Live URL</div>
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{t('liveUrl')}</div>
           <a
             href={url}
             target="_blank"
@@ -389,7 +387,7 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
       {/* Embed code */}
       {embedCode && (
         <div className="mb-3">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Embed Code</div>
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">{t('embedCode')}</div>
           <div className="flex items-center gap-2">
             <code className="flex-1 text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 font-mono text-gray-300 truncate">
               {embedCode}
@@ -405,12 +403,12 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
               {copied ? (
                 <>
                   <CheckIcon className="w-3 h-3" />
-                  Copied
+                  {tCommon('copied')}
                 </>
               ) : (
                 <>
                   <CopyIcon className="w-3 h-3" />
-                  Copy
+                  {tCommon('copy')}
                 </>
               )}
             </button>
@@ -426,7 +424,7 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition shadow-sm"
           >
             <DownloadIcon className="w-3.5 h-3.5" />
-            Download Artifact
+            {t('downloadArtifact')}
           </a>
         )}
         {artifactReady && downloadWithDocsUrl && (
@@ -435,7 +433,7 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-800 border border-emerald-700 text-emerald-300 rounded-lg hover:bg-gray-700 hover:border-emerald-600 transition shadow-sm"
           >
             <DownloadIcon className="w-3.5 h-3.5" />
-            Download with Docs
+            {t('downloadWithDocs')}
           </a>
         )}
         {url && (
@@ -446,7 +444,7 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-800 border border-emerald-700 text-emerald-300 rounded-lg hover:bg-gray-700 hover:border-emerald-600 transition shadow-sm"
           >
             <ExternalLinkIcon className="w-3.5 h-3.5" />
-            Open Bot
+            {t('openBot')}
           </a>
         )}
         <a
@@ -454,7 +452,7 @@ function DeploymentSuccessCard({ deployment, botSpaceId }) {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-800 border border-emerald-700 text-emerald-400 rounded-lg hover:bg-gray-700 hover:border-emerald-600 transition shadow-sm"
         >
           <DashboardIcon className="w-3.5 h-3.5" />
-          View in Bot Space
+          {t('viewInBotSpace')}
         </a>
       </div>
     </div>

@@ -23,7 +23,11 @@
     "updating": "Updating...",
     "moveTo": "Move to:",
     "unknown": "Unknown",
-    "error": "Error"
+    "error": "Error",
+    "remove": "Remove",
+    "selectAnOption": "Select an option",
+    "addItemLabel": "Add {itemLabel}",
+    "itemNumber": "{itemLabel} #{number}"
   },
   "auth": {
     "signIn": "Sign In",
@@ -107,6 +111,93 @@
       "deploying": "Deploying...",
       "redeploying": "Redeploying...",
       "failed": "Redeploy Failed"
+    },
+    "myBots": "My bots",
+    "subtitle": "Each bot is a saved configuration. Build it whenever you want a runnable ZIP.",
+    "documentLibrary": "Document library →",
+    "newBotChat": "New bot (chat)",
+    "newBotWizard": "New bot (wizard)",
+    "loadingShort": "Loading…",
+    "noBotsHint": "No bots yet. Start one from the chat builder or the wizard.",
+    "searchBots": "Search bots…",
+    "noBotsMatch": "No bots match \"{query}\".",
+    "emptyDetailHint": "Select a bot to see its lifecycle actions.",
+    "buildFailedAlert": "Build failed: {error}",
+    "statuses": {
+      "building": "Building",
+      "buildFailed": "Build failed",
+      "needsRebuild": "Needs rebuild",
+      "running": "Running",
+      "runningStale": "Running · stale",
+      "ready": "Ready",
+      "draft": "Draft"
+    },
+    "builds": {
+      "building": "Building…",
+      "retry": "Retry build",
+      "rebuild": "Rebuild",
+      "build": "Build"
+    },
+    "connect": {
+      "title": "Connect a running bot",
+      "description": "Paste the URL where you're running <code>{name}</code>. The control plane will probe it with the row's baked-in API key.",
+      "botUrlLabel": "Bot URL",
+      "probeFailedFallback": "Probe failed ({status})",
+      "disconnect": "Disconnect",
+      "testing": "Testing…",
+      "testAndSave": "Test & save"
+    },
+    "documents": {
+      "title": "Document library",
+      "breadcrumbHere": "Document library",
+      "subtitle": "Every document you've uploaded, and the bots referencing each one. Documents outlive bots — deleting a bot doesn't remove its documents.",
+      "loadFailed": "Failed to load library: {error}",
+      "loading": "Loading…",
+      "searchPlaceholder": "Search by filename…",
+      "filters": {
+        "all": "All",
+        "unattached": "Unattached",
+        "parseFailed": "Parse failed"
+      },
+      "selectAll": "Select all",
+      "deselectAll": "Deselect all",
+      "selectionStatus": "{selected} of {total} selected",
+      "deleting": "Deleting…",
+      "deleteSelected": "Delete selected",
+      "deleteCount": "Delete {count}",
+      "deleteSingleConfirm": "Delete \"{name}\"? This removes the file from disk.",
+      "deleteMultiConfirm": "Delete {count} unattached documents? This removes them from disk.",
+      "deleteFailed": "Failed to delete {failed} of {total}: {details}",
+      "noDocs": "No documents uploaded yet. Upload one from the wizard or chat builder when configuring a bot.",
+      "noMatch": "No documents match this filter.",
+      "table": {
+        "document": "Document",
+        "size": "Size",
+        "uploaded": "Uploaded",
+        "parsed": "Parsed",
+        "usedBy": "Used by"
+      },
+      "parseFailedLabel": "failed",
+      "parseFailedTooltip": "No extracted text — RAG won't use this document",
+      "unattachedLabel": "Unattached"
+    },
+    "detail": {
+      "backToList": "Back to list",
+      "runningAt": "running at",
+      "staleNotice": "Config edited since last build — rebuild to get the latest ZIP.",
+      "wizard": "Wizard",
+      "chat": "Chat",
+      "connect": "Connect",
+      "reconnect": "Reconnect",
+      "conversations": "Conversations",
+      "downloadZip": "Download Zip",
+      "downloadWithDocs": "Download with Docs",
+      "deployToCloud": "Deploy to Cloud",
+      "live": "Live ↗",
+      "hideEmbed": "Hide Embed",
+      "embedScript": "Embed Script",
+      "deleteBot": "Delete bot",
+      "deleteConfirm": "Delete this bot and its artifact?"
     }
   },
   "bots": {
@@ -707,7 +798,11 @@
       "calendars": "Calendars",
       "configured": "{count} configured",
       "triageRoutes": "Triage Routes",
-      "required": "Required"
+      "required": "Required",
+      "displayNameRequired": "Display name is required",
+      "descriptionRequired": "Description is required",
+      "urlRequired": "URL is required",
+      "urlInvalid": "Please enter a valid URL"
     },
     "tabs": {
       "desktop": "Desktop",
@@ -729,7 +824,10 @@
       "suggestedPromptsHelper": "Provide quick-start prompts to help users begin conversations",
       "inputPlaceholder": "Input Placeholder",
       "inputPlaceholderHelper": "Placeholder text in the message input field",
-      "promptPlaceholder": "What can you help me with?"
+      "inputPlaceholderDefault": "Type your message...",
+      "promptPlaceholder": "What can you help me with?",
+      "chatDisplayNamePlaceholder": "Bot",
+      "promptItemLabel": "Prompt"
     },
     "resources": {
       "botName": "Set Unique Bot Name",
@@ -737,7 +835,43 @@
       "botNamePlaceholder": "My Awesome Bot",
       "aboutBotNames": "About Bot Names",
       "botNameInfo": "Resource names are searchable on the dashboard. Use meaningful descriptions or implement your own system.",
-      "botNameWarning": "Name cannot be changed after deployment."
+      "botNameWarning": "Name cannot be changed after deployment.",
+      "provider": "Provider",
+      "selectProvider": "Select a provider",
+      "model": "Model",
+      "selectModel": "Select a model",
+      "apiKey": "API Key",
+      "apiKeyEnter": "Enter your API key",
+      "apiKeySelectProviderFirst": "Select a provider first",
+      "apiKeySavedPlaceholder": "•••••••• (using saved key)",
+      "apiKeyExistingPlaceholder": "•••••••• (existing key on file — leave blank to keep)",
+      "apiKeyUsingSaved": "Using saved API key:",
+      "apiKeyExistingConfigured": "Existing API key configured — will be reused unless you enter a new one",
+      "apiKeyIsSet": "API key is set",
+      "apiKeyClear": "Clear",
+      "apiKeyAbout": "About API Keys",
+      "apiKeyTooltip": "Your API key is encrypted and stored securely. It will be used to power your chatbot's responses. You can manage your saved API keys in the settings.",
+      "apiKeyEncryptedHelper": "Your API key is encrypted and stored securely",
+      "apiKeyLoadingSaved": "Loading saved keys...",
+      "apiKeyOrUseSaved": "Or use a saved API key:",
+      "awsCredentialsUsing": "Using saved AWS credentials:",
+      "awsCredentialsExisting": "Existing AWS credentials configured — will be reused unless you enter new ones below",
+      "awsUseIamRole": "Use IAM Role (recommended for EKS/EC2)",
+      "awsUseIamRoleHelper": "Uses the instance/pod IAM role instead of explicit credentials",
+      "awsAccessKeyId": "AWS Access Key ID",
+      "awsAccessKeyIdPlaceholder": "AKIAIOSFODNN7EXAMPLE",
+      "awsSecretAccessKey": "AWS Secret Access Key",
+      "awsSecretAccessKeyPlaceholder": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "bedrockRegion": "Bedrock Region",
+      "bedrockRegionOption": "{name} ({geoPrefix} cross-region)",
+      "bedrockCrossRegion": "Cross-region inference routes requests to available capacity across the {regionName} region",
+      "regionUS": "US",
+      "regionEU": "EU",
+      "regionAPAC": "APAC",
+      "awsUsingIamRoleStatus": "Using IAM Role",
+      "awsCredentialsConfigured": "AWS credentials configured",
+      "awsLoadingCredentials": "Loading saved credentials...",
+      "awsOrUseSaved": "Or use saved AWS credentials:"
     },
     "knowledge": {
       "loadingDocuments": "Loading documents...",
@@ -777,11 +911,38 @@
     },
     "triage": {
       "addRoute": "Add Chatbot Route",
-      "deleteRoute": "Delete Route"
+      "deleteRoute": "Delete Route",
+      "deleteDestination": "Delete Destination",
+      "selectedBotUrl": "Selected Bot URL",
+      "editBotDestination": "Edit Bot Destination",
+      "editUrlDestination": "Edit URL Destination",
+      "selectBot": "Select Bot",
+      "loadingBots": "Loading bots...",
+      "noBotsAvailable": "No bots available. Create a bot first.",
+      "descriptionHelper": "Used for RAG matching to determine when to route users here",
+      "updateDestination": "Update Destination"
     },
     "appointments": {
       "addAppointment": "Add Appointment Type",
-      "deleteAppointment": "Delete Appointment"
+      "deleteAppointment": "Delete Appointment",
+      "editCalendarProvider": "Edit Calendar Provider",
+      "updateCalendarProvider": "Update Calendar Provider",
+      "calendarId": "Calendar ID",
+      "calendarIdPlaceholder": "e.g., dr-smith-general",
+      "calendarIdHelper": "Unique identifier returned as calendarId in the response",
+      "calendarIdRequired": "Calendar ID is required",
+      "calendarIdExists": "This calendar ID already exists",
+      "providerName": "Provider Name",
+      "providerNameRequired": "Provider name is required",
+      "providerNameHelper": "Calendar provider service",
+      "popupUrl": "Popup URL",
+      "popupUrlPlaceholder": "https://calendly.com/dr-smith",
+      "popupUrlHelper": "URL launched when user clicks the calendar button",
+      "popupUrlRequired": "Popup URL is required",
+      "popupUrlInvalid": "Please enter a valid URL",
+      "descriptionPlaceholder": "Describe when users should book with this calendar provider...",
+      "descriptionRequired": "Description is required",
+      "descriptionHelper": "Used for RAG matching to determine which calendar to show"
     },
     "deployment": {
       "inProgress": "Deployment in progress...",
@@ -808,6 +969,8 @@
       "formCollection": "Form Collection:",
       "uploaded": "uploaded",
       "enabled": "Enabled",
+      "embeddings": "Embeddings",
+      "embeddingsChunks": "{count} chunks",
       "editConfiguration": "Edit configuration",
       "aboutDeployments": "About Deployments",
       "testDeploymentInfo": "Test deployment: Creates a persistent url for testing.",
@@ -833,6 +996,105 @@
       "downloadArtifact": "Download Artifact",
       "downloadArtifactWithDocs": "Download with Docs",
       "previewHelp": "Try your bot live in the panel on the right. When the responses feel right, save then download the configuration. Build the runnable artifact whenever you're ready."
+    },
+    "previews": {
+      "identity": {
+        "fallbackBotName": "Bot",
+        "fallbackPlaceholder": "Type your message...",
+        "fallbackFirstMessage": "Hello! How can I help you today?",
+        "minimize": "Minimize",
+        "minimizeChat": "Minimize chat",
+        "botMessage": "Bot message",
+        "suggestedPrompts": "Suggested prompts",
+        "chatMessage": "Chat message",
+        "typeYourMessageAria": "Type your message",
+        "sendMessage": "Send message"
+      },
+      "appointments": {
+        "fallbackBotName": "Appointments Bot",
+        "noProviders": "No calendar providers configured yet",
+        "noProvidersHint": "Click \"Add Calendar Provider\" to get started",
+        "userQuery": "User Query",
+        "calendarIconAlt": "Calendar Icon"
+      },
+      "triage": {
+        "fallbackBotName": "Triage Bot",
+        "noRoutes": "No routing destinations configured yet",
+        "noRoutesHint": "Click \"Add Routing Destination\" to get started",
+        "user": "User",
+        "evaluatesAndRoutes": "Evaluates & Routes"
+      },
+      "knowledge": {
+        "unlinkTitle": "Unlink from this bot (file remains in bot space)",
+        "deleteTitle": "Delete document permanently",
+        "deleteConfirm": "Are you sure you want to delete \"{name}\"? This will permanently remove the file and cannot be undone.",
+        "deleteError": "Failed to delete file",
+        "uploadedDocuments": "Uploaded Documents",
+        "noUploadedDocs": "No uploaded documents",
+        "uploadDocsLeft": "Upload documents on the left",
+        "linkedFromBotSpace": "Linked from Bot Space",
+        "noLinkedDocs": "No linked documents",
+        "selectSharedFilesHint": "Select shared files from the bot space",
+        "linkedTooltip": "Uploaded docs become part of this botspace by default",
+        "linkedFooter": "Linked documents remain in the bot space when unlinked from this bot.",
+        "ragInfo": "These documents will be processed and used to provide context for your bot's responses through RAG (Retrieval-Augmented Generation).",
+        "fileCount": "{count} {count, plural, one {file} other {files}}",
+        "untitled": "Untitled",
+        "unknown": "Unknown",
+        "fileFallback": "FILE",
+        "embedding": {
+          "title": "Vector Embeddings",
+          "ready": "Ready",
+          "notGenerated": "Not generated",
+          "chunks": "Chunks",
+          "model": "Model",
+          "sourceDocuments": "Source Documents",
+          "generated": "Generated",
+          "embeddedFiles": "Embedded files",
+          "technicalDetails": "Technical details",
+          "noEmbeddingsYet": "No embeddings yet",
+          "uploadFirst": "Upload documents in the Documents tab first.",
+          "clickToGenerate": "Click below to chunk and embed your documents locally.",
+          "generating": "Generating…",
+          "embeddingDocs": "Embedding documents…",
+          "regenerate": "Regenerate Embeddings",
+          "generate": "Generate Vector Embeddings",
+          "errorNoDocuments": "Please upload at least one document first",
+          "errorGenerationFailed": "Failed to generate embeddings",
+          "doneStatus": "Done! {count} chunks embedded with {model}.",
+          "regenWarning": "If you change the document set, regenerate to keep the artifact in sync.",
+          "vectorModeInfo": "In vector mode, the bot embeds queries in-process using the bundled multilingual-e5-small ONNX model and runs cosine similarity locally. No factory dependency at runtime."
+        }
+      },
+      "form": {
+        "validate": "Validate",
+        "validateInput": "Validate input",
+        "selectOption": "Select an option...",
+        "noStructure": "No form structure generated",
+        "noStructureHint": "Generate a form to see the preview",
+        "editJsonTitle": "Edit Form Structure (JSON)",
+        "openLargerView": "Open in larger view",
+        "expand": "Expand",
+        "generatedJsonLabel": "Generated Form Structure (JSON)",
+        "validJson": "Valid JSON",
+        "invalidJson": "Invalid JSON",
+        "jsonParseError": "JSON Parse Error:",
+        "editJsonHelper": "Edit this JSON to customize the form structure. Changes will be reflected in the Fields Display tab.",
+        "branches": "Branches",
+        "requiredBadge": "Required",
+        "piiBadge": "PII"
+      },
+      "bot": {
+        "missingConfig": "Add a provider, model, and API key in step 1 to start the preview bot.",
+        "livePreview": "Live preview",
+        "resetPreview": "Reset preview",
+        "iframeTitle": "Bot preview",
+        "skippedInPreview": "(skipped in preview)",
+        "webhookSideEffect": "Webhook would POST to {url}",
+        "webhookNoUrl": "(no URL)",
+        "submitFormSideEffect": "Form would submit to control plane",
+        "genericSideEffect": "Side effect skipped in preview"
+      }
     },
     "botSummary": {
       "title": "Bot Summary",
@@ -1740,6 +2002,24 @@
       "unknownBot": "Unknown Bot"
     }
   },
+  "documentUploader": {
+    "title": "Upload Documents",
+    "description": "Upload documents that your chatbot will use for RAG (Retrieval-Augmented Generation)",
+    "uploading": "Uploading...",
+    "chooseFiles": "Choose Files",
+    "dropFilesHere": "Drop files here",
+    "dragAndDropHint": "or drag and drop files here",
+    "fileTypes": "PDF, TXT, MD, DOC, DOCX",
+    "uploadedDocuments": "Uploaded Documents ({count})",
+    "noDocumentsYet": "No documents uploaded yet",
+    "noDocumentsHint": "Click \"Choose Files\" to get started",
+    "skippedFiles": "Some files were skipped. Only PDF, TXT, MD, DOC, DOCX files are supported.",
+    "deleteConfirm": "Are you sure you want to delete this file?",
+    "uploadFailed": "Upload failed",
+    "uploadFailedFallback": "Failed to upload files",
+    "deleteFailed": "Delete failed",
+    "deleteFailedFallback": "Failed to delete file"
+  },
   "chatBuilder": {
     "title": "AI Bot Builder",
     "subtitle": "Describe the bot you want to build and I'll create it for you",
@@ -1782,10 +2062,14 @@
     },
     "input": {
       "placeholder": "Describe the bot you want to build...",
+      "defaultPlaceholder": "Type a message...",
       "dropFilesHere": "Drop files here...",
       "dropToAttach": "Drop files to attach them to your message",
       "hint": "Press Enter to send, Shift+Enter for new line. Drag files or click the clip to attach.",
-      "attachFiles": "Attach files"
+      "hintShort": "Press Enter to send, Shift+Enter for new line",
+      "hintWithAttach": "Drag & drop files or click attach. Press Enter to send.",
+      "attachFiles": "Attach files",
+      "attachDocuments": "Attach documents"
     },
     "tools": {
       "toolsExecuted": "{count} tool executed",
@@ -1814,6 +2098,42 @@
       "failedToSend": "Failed to send message",
       "failedToLoadSession": "Failed to load session",
       "failedToLoadDocuments": "Failed to load documents"
+    },
+    "invertedPanel": {
+      "createABot": "Create a Bot",
+      "editBot": "Edit {name}",
+      "fallbackBotName": "Bot",
+      "private": "Private",
+      "createTitle": "What kind of bot can I help you build?",
+      "createDescription": "You can also attach documents to give it knowledge. Upload a file, or ask to refer to docs in the bot space.",
+      "buildWithWizard": "Build with Wizard (Step by step configuration)",
+      "editTitle": "Modify {name}",
+      "editFallbackName": "your bot",
+      "editDescription": "Tell me what you'd like to change. I'll load your current configuration and help you update it.",
+      "editExamples": "Examples: \"Change the greeting\", \"Add a new form field\", \"Update the bot name\"",
+      "errorPrefix": "Error:",
+      "inputPlaceholder": "Describe what your bot should do...",
+      "adjustMessage": "I'd like to adjust the configuration"
+    },
+    "status": {
+      "ready": "Ready",
+      "processing": "Processing",
+      "awaitingConfirmation": "Awaiting confirmation",
+      "deploying": "Deploying",
+      "deployed": "Deployed",
+      "editing": "Editing"
+    },
+    "success": {
+      "botBuilt": "Bot built!",
+      "botSaved": "Bot saved",
+      "botBuiltMessage": "Your bot <strong>{name}</strong> is built and ready to download.",
+      "botSavedMessage": "Your bot <strong>{name}</strong> is saved. Build it from your Bot Space when you're ready.",
+      "liveUrl": "Live URL",
+      "embedCode": "Embed Code",
+      "downloadArtifact": "Download Artifact",
+      "downloadWithDocs": "Download with Docs",
+      "openBot": "Open Bot",
+      "viewInBotSpace": "View in Bot Space"
     }
   }
 }

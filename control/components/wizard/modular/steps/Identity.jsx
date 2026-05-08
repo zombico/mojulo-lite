@@ -63,7 +63,7 @@ export default function Identity({ stepConfig, isEditMode = false }) {
           error={errors.chatDisplayName}
           type="text"
           required
-          placeholder="Bot"
+          placeholder={t('chatDisplayNamePlaceholder')}
           helperText={t('chatDisplayNameHelper')}
         />
 
@@ -108,7 +108,7 @@ export default function Identity({ stepConfig, isEditMode = false }) {
             onAdd={handleAddPrompt}
             onUpdate={handleUpdatePrompt}
             onRemove={handleRemovePrompt}
-            itemLabel="Prompt"
+            itemLabel={t('promptItemLabel')}
             placeholder={t('promptPlaceholder')}
             maxItems={5}
           />
@@ -121,7 +121,7 @@ export default function Identity({ stepConfig, isEditMode = false }) {
             value={formData.uiSettings.placeholder}
             onChange={handlePlaceholderChange}
             type="text"
-            placeholder="Type your message..."
+            placeholder={t('inputPlaceholderDefault')}
             helperText={t('inputPlaceholderHelper')}
           />
         </div>

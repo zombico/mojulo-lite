@@ -1,13 +1,15 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
 import './preview.css';
 
 export default function TriagePreview({ activeTab = 'desktop' }) {
+  const t = useTranslations('wizard.previews.triage');
   const { formData } = useModularWizard();
 
   const routes = formData.triageRoutes || [];
-  const botName = formData.botName || 'Triage Bot';
+  const botName = formData.botName || t('fallbackBotName');
 
   // Calculate vertical spacing based on number of routes
   const getSpacing = (total) => {
@@ -48,8 +50,8 @@ export default function TriagePreview({ activeTab = 'desktop' }) {
             <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
-            <p className="text-sm">No routing destinations configured yet</p>
-            <p className="text-xs mt-1">Click "Add Routing Destination" to get started</p>
+            <p className="text-sm">{t('noRoutes')}</p>
+            <p className="text-xs mt-1">{t('noRoutesHint')}</p>
           </div>
         ) : (
           // Triage topology diagram - all in SVG for proper alignment
@@ -99,7 +101,7 @@ export default function TriagePreview({ activeTab = 'desktop' }) {
                     transform="scale(1)"
                   />
                 </g>
-                <text x="100" y="110" textAnchor="middle" fill="#6b7280" fontSize="11">User</text>
+                <text x="100" y="110" textAnchor="middle" fill="#6b7280" fontSize="11">{t('user')}</text>
 
                 {/* Incoming dashed line - vertical */}
                 <line
@@ -137,7 +139,7 @@ export default function TriagePreview({ activeTab = 'desktop' }) {
               <g>
                 <rect x="40" y="278" width="120" height="24" rx="12" fill="#1f2937" stroke="#374151"/>
                 <text x="100" y="294" textAnchor="middle" fill="#5eead4" fontSize="11" fontWeight="500">{botName}</text>
-                <text x="100" y="318" textAnchor="middle" fill="#6b7280" fontSize="10">Evaluates & Routes</text>
+                <text x="100" y="318" textAnchor="middle" fill="#6b7280" fontSize="10">{t('evaluatesAndRoutes')}</text>
               </g>
 
               {/* Curved paths to destinations */}

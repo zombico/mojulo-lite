@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 
 export default function AddTriageDestinationWorkflow({ onClose, onAddDestination, onUpdateDestination, editingDestination = null }) {
   const t = useTranslations('wizard.modular');
+  const tTriage = useTranslations('wizard.triage');
+  const tCommon = useTranslations('common');
   const isEditMode = !!editingDestination;
   const [availableBots, setAvailableBots] = useState([]);
   const [loadingBots, setLoadingBots] = useState(true);
@@ -94,7 +96,7 @@ export default function AddTriageDestinationWorkflow({ onClose, onAddDestination
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 shrink-0">
           <h3 className="text-lg font-medium text-gray-100">
-            {isEditMode ? 'Edit Bot Destination' : t('redirectToBot')}
+            {isEditMode ? tTriage('editBotDestination') : t('redirectToBot')}
           </h3>
           <button
             type="button"
@@ -113,7 +115,7 @@ export default function AddTriageDestinationWorkflow({ onClose, onAddDestination
             {/* Left: Bot Selection (3 cols) */}
             <div className="lg:col-span-3 flex flex-col">
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Select Bot <span className="text-red-400">*</span>
+                {tTriage('selectBot')} <span className="text-red-400">*</span>
               </label>
 
               {loadingBots ? (
@@ -122,11 +124,11 @@ export default function AddTriageDestinationWorkflow({ onClose, onAddDestination
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Loading bots...
+                  {tTriage('loadingBots')}
                 </div>
               ) : availableBots.length === 0 ? (
                 <div className="p-6 bg-gray-700 rounded-lg text-sm text-gray-400 text-center flex-1 flex items-center justify-center">
-                  No bots available. Create a bot first.
+                  {tTriage('noBotsAvailable')}
                 </div>
               ) : (
                 <div className="space-y-2 flex-1 overflow-y-auto border border-gray-600 rounded-lg p-3 bg-gray-900/50 min-h-[300px] max-h-[400px]">
@@ -185,14 +187,14 @@ export default function AddTriageDestinationWorkflow({ onClose, onAddDestination
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-sm text-gray-100 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Used for RAG matching to determine when to route users here
+                  {tTriage('descriptionHelper')}
                 </p>
               </div>
 
               {/* Selected Bot Info */}
               {selectedBot && (
                 <div className="p-3 bg-gray-700 rounded-lg border border-gray-600">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Selected Bot URL</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{tTriage('selectedBotUrl')}</p>
                   <p className="text-sm text-gray-300 break-all">{selectedBot.url}</p>
                 </div>
               )}
@@ -208,14 +210,14 @@ export default function AddTriageDestinationWorkflow({ onClose, onAddDestination
             disabled={!isFormValid}
             className="flex-1 py-2.5 px-4 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition"
           >
-            {isEditMode ? 'Update Destination' : t('addRoutingDestination')}
+            {isEditMode ? tTriage('updateDestination') : t('addRoutingDestination')}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-2.5 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition"
           >
-            Cancel
+            {tCommon('cancel')}
           </button>
         </div>
       </div>

@@ -106,3 +106,6 @@ Every bot turn writes `content_hash` + `chain_hash` to SQLite; `/verify/:id` wal
 
 - The control plane has **no auth**. It is single-user, self-hosted. Don't expose it to the public internet, and don't add features that assume multi-tenancy.
 - Versioning is `0.x`. Artifact format and bot image are pinned per-control-plane-version. When the artifact shape changes, the pinned [BOT_IMAGE](control/.env.example) tag in `.env.example` and the `docker.js` constant must move together.
+
+## Coding Standards
+- When outputting new UI, ensure strings are i18n in EN

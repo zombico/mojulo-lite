@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import useSWR, { mutate } from 'swr';
 import EmbedScript from '@/components/shared/EmbedScript';
 
@@ -30,28 +31,29 @@ const TONE_TEXT = {
   red: 'text-red-300',
 };
 
-function getStatus(deployment) {
+function getStatus(deployment, t) {
   const fresh = isFresh(deployment.lastSeenAt);
   const hasUrl = !!deployment.url;
   switch (deployment.status) {
     case 'building':
-      return { tone: 'amber', label: 'Building', pulse: true };
+      return { tone: 'amber', label: t('building'), pulse: true };
     case 'build_failed':
-      return { tone: 'red', label: 'Build failed' };
+      return { tone: 'red', label: t('buildFailed') };
     case 'stale':
-      return { tone: 'amber', label: 'Needs rebuild' };
+      return { tone: 'amber', label: t('needsRebuild') };
     case 'ready':
-      if (hasUrl && fresh) return { tone: 'green', label: 'Running' };
-      if (hasUrl) return { tone: 'amber', label: 'Running · stale' };
-      return { tone: 'teal', label: 'Ready' };
+      if (hasUrl && fresh) return { tone: 'green', label: t('running') };
+      if (hasUrl) return { tone: 'amber', label: t('runningStale') };
+      return { tone: 'teal', label: t('ready') };
     case 'saved':
     default:
-      return { tone: 'muted', label: 'Draft' };
+      return { tone: 'muted', label: t('draft') };
   }
 }
 
 function StatusIndicator({ deployment, size = 'sm' }) {
-  const s = getStatus(deployment);
+  const t = useTranslations('dashboard.statuses');
+  const s = getStatus(deployment, t);
   const dotSize = size === 'lg' ? 'h-2.5 w-2.5' : 'h-2 w-2';
   const textSize = size === 'lg' ? 'text-sm' : 'text-xs';
   return (
@@ -65,14 +67,16 @@ function StatusIndicator({ deployment, size = 'sm' }) {
   );
 }
 
-function getBuildLabel(deployment, busy) {
-  if (busy || deployment.status === 'building') return 'Building…';
-  if (deployment.status === 'build_failed') return 'Retry build';
-  if (deployment.status === 'stale') return 'Rebuild';
-  return 'Build';
+function getBuildLabel(deployment, busy, t) {
+  if (busy || deployment.status === 'building') return t('building');
+  if (deployment.status === 'build_failed') return t('retry');
+  if (deployment.status === 'stale') return t('rebuild');
+  return t('build');
 }
 
 function ConnectModal({ deployment, onClose, onConnected }) {
+  const t = useTranslations('dashboard.connect');
+  const tCommon = useTranslations('common');
   const [url, setUrl] = useState(deployment.url || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -89,7 +93,7 @@ function ConnectModal({ deployment, onClose, onConnected }) {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.error || `Probe failed (${res.status})`);
+        setError(body.error || t('probeFailedFallback', { status: res.status }));
         return;
       }
       onConnected();
@@ -113,15 +117,17 @@ function ConnectModal({ deployment, onClose, onConnected }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md rounded-xl border border-[color:var(--border-color)] bg-[color:var(--surface-primary)] p-6 space-y-4">
         <header>
-          <h2 className="text-lg font-semibold">Connect a running bot</h2>
+          <h2 className="text-lg font-semibold">{t('title')}</h2>
           <p className="text-xs text-[color:var(--text-muted)] mt-1">
-            Paste the URL where you&apos;re running <code>{deployment.botName}</code>. The control
-            plane will probe it with the row&apos;s baked-in API key.
+            {t.rich('description', {
+              name: deployment.botName,
+              code: (chunks) => <code>{chunks}</code>,
+            })}
           </p>
         </header>
         <form onSubmit={submit} className="space-y-3">
           <label className="block text-xs font-medium">
-            Bot URL
+            {t('botUrlLabel')}
             <input
               type="url"
               required
@@ -142,7 +148,7 @@ function ConnectModal({ deployment, onClose, onConnected }) {
                   disabled={submitting}
                   className="text-xs text-[color:var(--text-muted)] hover:text-red-400 transition disabled:opacity-50"
                 >
-                  Disconnect
+                  {t('disconnect')}
                 </button>
               )}
             </div>
@@ -152,14 +158,14 @@ function ConnectModal({ deployment, onClose, onConnected }) {
                 onClick={onClose}
                 className="rounded-lg px-3 py-1.5 text-sm border border-[color:var(--border-color)]"
               >
-                Cancel
+                {tCommon('cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting || !url.trim()}
                 className="rounded-lg px-3 py-1.5 text-sm bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold hover:bg-[color:var(--brand-teal-hover)] transition disabled:opacity-50"
               >
-                {submitting ? 'Testing…' : 'Test & save'}
+                {submitting ? t('testing') : t('testAndSave')}
               </button>
             </div>
           </div>
@@ -170,7 +176,8 @@ function ConnectModal({ deployment, onClose, onConnected }) {
 }
 
 function ListItem({ deployment, selected, onSelect }) {
-  const s = getStatus(deployment);
+  const t = useTranslations('dashboard.statuses');
+  const s = getStatus(deployment, t);
   return (
     <li>
       <button
@@ -226,6 +233,8 @@ function GhostAction({ children, onClick, href, external = false, title, disable
 }
 
 function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack }) {
+  const t = useTranslations('dashboard.detail');
+  const tBuilds = useTranslations('dashboard.builds');
   const [showEmbed, setShowEmbed] = useState(false);
 
   const fresh = isFresh(deployment.lastSeenAt);
@@ -235,7 +244,7 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
   const isBuilding = busy || deployment.status === 'building';
   const showBuildSlot =
     ['saved', 'build_failed', 'stale', 'building'].includes(deployment.status) || busy;
-  const buildLabel = getBuildLabel(deployment, busy);
+  const buildLabel = getBuildLabel(deployment, busy, tBuilds);
 
   const enabledProtocolList = deployment.enabledProtocols
     ? Object.entries(deployment.enabledProtocols)
@@ -251,7 +260,7 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
             type="button"
             onClick={onBack}
             className="md:hidden rounded-md px-2 py-1 text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] transition"
-            title="Back to list"
+            title={t('backToList')}
           >
             ←
           </button>
@@ -264,7 +273,7 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
           {hasUrl && (
             <>
               {' '}
-              · running at <span className="font-mono">{deployment.url}</span>
+              · {t('runningAt')} <span className="font-mono">{deployment.url}</span>
             </>
           )}
         </p>
@@ -273,7 +282,7 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
         )}
         {deployment.status === 'stale' && (
           <p className="text-xs text-amber-300/90">
-            Config edited since last build — rebuild to get the latest ZIP.
+            {t('staleNotice')}
           </p>
         )}
       </header>
@@ -281,8 +290,8 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <div className="flex flex-wrap gap-2">
-            <GhostAction href={`/bot-factory/modular?from=${deployment.id}`}>Wizard</GhostAction>
-            <GhostAction href={`/chat-builder?from=${deployment.id}`}>Chat</GhostAction>
+            <GhostAction href={`/bot-factory/modular?from=${deployment.id}`}>{t('wizard')}</GhostAction>
+            <GhostAction href={`/chat-builder?from=${deployment.id}`}>{t('chat')}</GhostAction>
           </div>
           {(isReady || hasUrl) && (
             <span
@@ -292,14 +301,14 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
           )}
           <div className="flex flex-wrap gap-2">
             {isReady && !hasUrl && (
-              <GhostAction onClick={() => onConnect(deployment)}>Connect</GhostAction>
+              <GhostAction onClick={() => onConnect(deployment)}>{t('connect')}</GhostAction>
             )}
             {hasUrl && !fresh && (
-              <GhostAction onClick={() => onConnect(deployment)}>Reconnect</GhostAction>
+              <GhostAction onClick={() => onConnect(deployment)}>{t('reconnect')}</GhostAction>
             )}
             {hasUrl && fresh && (
               <GhostAction href={`/dashboard/deployments/${deployment.id}/conversations`}>
-                Conversations
+                {t('conversations')}
               </GhostAction>
             )}
           </div>
@@ -317,16 +326,16 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
             )}
             {!showBuildSlot && hasArtifact && (
               <GhostAction href={`/api/deployments/${deployment.id}/download`}>
-                Download Zip
+                {t('downloadZip')}
               </GhostAction>
             )}
             {!showBuildSlot && hasArtifact && deployment.documentCount > 0 && (
               <GhostAction href={`/api/deployments/${deployment.id}/download?withDocs=1`}>
-                Download with Docs
+                {t('downloadWithDocs')}
               </GhostAction>
             )}
             <GhostAction href={`/dashboard/deployments/${deployment.id}/cloud-deploy`}>
-              Deploy to Cloud
+              {t('deployToCloud')}
             </GhostAction>
           </div>
           {hasUrl && (
@@ -338,10 +347,10 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
           {hasUrl && (
             <div className="flex flex-wrap gap-2">
               <GhostAction href={deployment.url} external>
-                Live ↗
+                {t('live')}
               </GhostAction>
               <GhostAction onClick={() => setShowEmbed((v) => !v)}>
-                {showEmbed ? 'Hide Embed' : 'Embed Script'}
+                {showEmbed ? t('hideEmbed') : t('embedScript')}
               </GhostAction>
             </div>
           )}
@@ -360,7 +369,7 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
           onClick={() => onDelete(deployment.id)}
           className="text-xs text-[color:var(--text-muted)] hover:text-red-400 transition"
         >
-          Delete bot
+          {t('deleteBot')}
         </button>
       </div>
     </div>
@@ -368,6 +377,8 @@ function DetailPanel({ deployment, busy, onBuild, onConnect, onDelete, onBack })
 }
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
+  const tDetail = useTranslations('dashboard.detail');
   const { data, isLoading } = useSWR('/api/deployments', fetcher);
   const deployments = data?.deployments || [];
   const [busyId, setBusyId] = useState(null);
@@ -384,7 +395,7 @@ export default function DashboardPage() {
   const selected = deployments.find((d) => d.id === selectedId) || null;
 
   async function remove(id) {
-    if (!confirm('Delete this bot and its artifact?')) return;
+    if (!confirm(tDetail('deleteConfirm'))) return;
     await fetch(`/api/deployments/${id}`, { method: 'DELETE' });
     if (selectedId === id) setSelectedId(null);
     await mutate('/api/deployments');
@@ -396,7 +407,7 @@ export default function DashboardPage() {
       const res = await fetch(`/api/deployments/${id}/build`, { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        alert(`Build failed: ${body.error || res.statusText}`);
+        alert(t('buildFailedAlert', { error: body.error || res.statusText }));
         return;
       }
       await mutate('/api/deployments');
@@ -410,15 +421,15 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <header className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold">My bots</h1>
+            <h1 className="text-3xl font-semibold">{t('myBots')}</h1>
             <p className="text-[color:var(--text-secondary)] mt-2">
-              Each bot is a saved configuration. Build it whenever you want a runnable ZIP.
+              {t('subtitle')}
             </p>
             <Link
               href="/dashboard/documents"
               className="inline-block mt-2 text-xs text-[color:var(--text-muted)] hover:text-[color:var(--text-primary)] underline decoration-dotted underline-offset-2 transition"
             >
-              Document library →
+              {t('documentLibrary')}
             </Link>
           </div>
           <div className="flex gap-2 flex-shrink-0">
@@ -426,21 +437,21 @@ export default function DashboardPage() {
               href="/chat-builder"
               className="rounded-lg px-4 py-2 bg-[color:var(--brand-teal)] text-[color:var(--brand-navy)] font-semibold hover:bg-[color:var(--brand-teal-hover)] transition"
             >
-              New bot (chat)
+              {t('newBotChat')}
             </Link>
             <Link
               href="/bot-factory/modular"
               className="rounded-lg px-4 py-2 border border-[color:var(--border-color)] hover:border-[color:var(--text-muted)] transition"
             >
-              New bot (wizard)
+              {t('newBotWizard')}
             </Link>
           </div>
         </header>
 
-        {isLoading && <p className="text-sm text-[color:var(--text-muted)]">Loading…</p>}
+        {isLoading && <p className="text-sm text-[color:var(--text-muted)]">{t('loadingShort')}</p>}
         {!isLoading && deployments.length === 0 && (
           <p className="text-sm text-[color:var(--text-muted)]">
-            No bots yet. Start one from the chat builder or the wizard.
+            {t('noBotsHint')}
           </p>
         )}
 
@@ -449,7 +460,7 @@ export default function DashboardPage() {
             <aside className={`md:col-span-1 space-y-3 ${selected ? 'hidden md:block' : ''}`}>
               <input
                 type="search"
-                placeholder="Search bots…"
+                placeholder={t('searchBots')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-md border border-[color:var(--border-color)] bg-[color:var(--surface-elevated)]/40 px-3 py-2 text-sm"
@@ -457,7 +468,7 @@ export default function DashboardPage() {
               <ul className="space-y-0.5 overflow-y-auto pr-1 max-h-[calc(100vh-220px)]">
                 {filtered.length === 0 ? (
                   <li className="text-xs text-[color:var(--text-muted)] px-1 py-2">
-                    No bots match &ldquo;{search}&rdquo;.
+                    {t('noBotsMatch', { query: search })}
                   </li>
                 ) : (
                   filtered.map((d) => (
@@ -491,7 +502,7 @@ export default function DashboardPage() {
                     className="mx-auto mb-4 h-16 w-16"
                   />
                   <p className="text-sm text-[color:var(--text-muted)]">
-                    Select a bot to see its lifecycle actions.
+                    {t('emptyDetailHint')}
                   </p>
                 </div>
               )}

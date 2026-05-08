@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import useSWR, { mutate } from 'swr';
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
@@ -26,13 +27,14 @@ function formatDate(iso) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'unattached', label: 'Unattached' },
-  { id: 'parse-failed', label: 'Parse failed' },
-];
+const FILTER_IDS = ['all', 'unattached', 'parse-failed'];
+const FILTER_LABEL_KEYS = {
+  all: 'all',
+  unattached: 'unattached',
+  'parse-failed': 'parseFailed',
+};
 
-function FilterTab({ filter, count, active, onClick }) {
+function FilterTab({ id, label, count, active, onClick }) {
   return (
     <button
       type="button"
@@ -43,13 +45,15 @@ function FilterTab({ filter, count, active, onClick }) {
           : 'border-[color:var(--border-color)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'
       }`}
     >
-      {filter.label}
+      {label}
       <span className="ml-1.5 text-[color:var(--text-muted)]">{count}</span>
     </button>
   );
 }
 
 export default function DocumentsLibraryPage() {
+  const t = useTranslations('dashboard.documents');
+  const tNav = useTranslations('nav');
   const { data, isLoading, error } = useSWR(LIBRARY_KEY, fetcher);
   const documents = data?.documents || [];
 
@@ -118,8 +122,8 @@ export default function DocumentsLibraryPage() {
     if (visibleSelected.length === 0) return;
     const msg =
       visibleSelected.length === 1
-        ? `Delete "${visibleSelected[0].originalName}"? This removes the file from disk.`
-        : `Delete ${visibleSelected.length} unattached documents? This removes them from disk.`;
+        ? t('deleteSingleConfirm', { name: visibleSelected[0].originalName })
+        : t('deleteMultiConfirm', { count: visibleSelected.length });
     if (!confirm(msg)) return;
 
     setBusy(true);
@@ -138,9 +142,11 @@ export default function DocumentsLibraryPage() {
       const failures = results.filter((r) => r.error);
       if (failures.length > 0) {
         setActionError(
-          `Failed to delete ${failures.length} of ${results.length}: ${failures
-            .map((f) => `${f.name} (${f.error})`)
-            .join('; ')}`
+          t('deleteFailed', {
+            failed: failures.length,
+            total: results.length,
+            details: failures.map((f) => `${f.name} (${f.error})`).join('; '),
+          })
         );
       }
       setSelectedIds(new Set());
@@ -156,38 +162,38 @@ export default function DocumentsLibraryPage() {
         <header className="space-y-2">
           <div className="flex items-center gap-2 text-xs text-[color:var(--text-muted)]">
             <Link href="/dashboard" className="hover:text-[color:var(--text-primary)] transition">
-              Dashboard
+              {tNav('dashboard')}
             </Link>
             <span>/</span>
-            <span>Document library</span>
+            <span>{t('breadcrumbHere')}</span>
           </div>
-          <h1 className="text-3xl font-semibold">Document library</h1>
+          <h1 className="text-3xl font-semibold">{t('title')}</h1>
           <p className="text-[color:var(--text-secondary)]">
-            Every document you&apos;ve uploaded, and the bots referencing each one. Documents
-            outlive bots — deleting a bot doesn&apos;t remove its documents.
+            {t('subtitle')}
           </p>
         </header>
 
         {error && (
-          <p className="text-sm text-red-400">Failed to load library: {String(error)}</p>
+          <p className="text-sm text-red-400">{t('loadFailed', { error: String(error) })}</p>
         )}
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-wrap gap-2">
-            {FILTERS.map((f) => (
+            {FILTER_IDS.map((id) => (
               <FilterTab
-                key={f.id}
-                filter={f}
-                count={counts[f.id] ?? 0}
-                active={filter === f.id}
-                onClick={() => changeFilter(f.id)}
+                key={id}
+                id={id}
+                label={t(`filters.${FILTER_LABEL_KEYS[id]}`)}
+                count={counts[id] ?? 0}
+                active={filter === id}
+                onClick={() => changeFilter(id)}
               />
             ))}
           </div>
           <div className="flex-1 min-w-[200px]">
             <input
               type="search"
-              placeholder="Search by filename…"
+              placeholder={t('searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-md border border-[color:var(--border-color)] bg-[color:var(--surface-elevated)]/40 px-3 py-2 text-sm"
@@ -203,11 +209,11 @@ export default function DocumentsLibraryPage() {
                 onClick={toggleAllVisible}
                 className="hover:text-[color:var(--text-primary)] transition"
               >
-                {filtered.every((d) => selectedIds.has(d.id)) ? 'Deselect all' : 'Select all'}
+                {filtered.every((d) => selectedIds.has(d.id)) ? t('deselectAll') : t('selectAll')}
               </button>
               <span>·</span>
               <span>
-                {visibleSelected.length} of {filtered.length} selected
+                {t('selectionStatus', { selected: visibleSelected.length, total: filtered.length })}
               </span>
             </div>
             <button
@@ -217,10 +223,10 @@ export default function DocumentsLibraryPage() {
               className="rounded-md px-3 py-1.5 text-xs border border-red-500/40 text-red-300 hover:bg-red-500/10 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {busy
-                ? 'Deleting…'
+                ? t('deleting')
                 : visibleSelected.length === 0
-                  ? 'Delete selected'
-                  : `Delete ${visibleSelected.length}`}
+                  ? t('deleteSelected')
+                  : t('deleteCount', { count: visibleSelected.length })}
             </button>
           </div>
         )}
@@ -230,15 +236,13 @@ export default function DocumentsLibraryPage() {
         )}
 
         {isLoading && (
-          <p className="text-sm text-[color:var(--text-muted)]">Loading…</p>
+          <p className="text-sm text-[color:var(--text-muted)]">{t('loading')}</p>
         )}
 
         {!isLoading && filtered.length === 0 && (
           <div className="rounded-xl border border-dashed border-[color:var(--border-color)] bg-[color:var(--surface-primary)] p-12 text-center">
             <p className="text-sm text-[color:var(--text-muted)]">
-              {documents.length === 0
-                ? 'No documents uploaded yet. Upload one from the wizard or chat builder when configuring a bot.'
-                : 'No documents match this filter.'}
+              {documents.length === 0 ? t('noDocs') : t('noMatch')}
             </p>
           </div>
         )}
@@ -249,11 +253,11 @@ export default function DocumentsLibraryPage() {
               <thead className="bg-[color:var(--surface-elevated)]/40 text-[color:var(--text-muted)]">
                 <tr className="text-left">
                   {showBulkDelete && <th className="w-10 px-4 py-2"></th>}
-                  <th className="px-4 py-2 font-medium">Document</th>
-                  <th className="px-4 py-2 font-medium">Size</th>
-                  <th className="px-4 py-2 font-medium">Uploaded</th>
-                  <th className="px-4 py-2 font-medium">Parsed</th>
-                  <th className="px-4 py-2 font-medium">Used by</th>
+                  <th className="px-4 py-2 font-medium">{t('table.document')}</th>
+                  <th className="px-4 py-2 font-medium">{t('table.size')}</th>
+                  <th className="px-4 py-2 font-medium">{t('table.uploaded')}</th>
+                  <th className="px-4 py-2 font-medium">{t('table.parsed')}</th>
+                  <th className="px-4 py-2 font-medium">{t('table.usedBy')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -295,16 +299,16 @@ export default function DocumentsLibraryPage() {
                         ) : (
                           <span
                             className="text-xs text-amber-300"
-                            title="No extracted text — RAG won't use this document"
+                            title={t('parseFailedTooltip')}
                           >
-                            failed
+                            {t('parseFailedLabel')}
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {unattached ? (
                           <span className="text-xs text-[color:var(--text-muted)]">
-                            Unattached
+                            {t('unattachedLabel')}
                           </span>
                         ) : (
                           <ul className="space-y-1">

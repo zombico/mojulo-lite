@@ -10,6 +10,7 @@ import EditTriageDestinationWorkflow from '../workflows/EditTriageDestinationWor
 
 export default function TriageConfig({ stepConfig, isEditMode = false }) {
   const t = useTranslations('wizard.modular');
+  const tTriage = useTranslations('wizard.triage');
   const { formData, updateFormData, errors, clearError } = useModularWizard();
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [showBotModal, setShowBotModal] = useState(false);
@@ -123,8 +124,8 @@ export default function TriageConfig({ stepConfig, isEditMode = false }) {
                   <button
                     type="button"
                     onClick={(e) => handleRemoveDestination(index, e)}
-                    aria-label="Delete Destination"
-                    title="Delete Destination"
+                    aria-label={tTriage('deleteDestination')}
+                    title={tTriage('deleteDestination')}
                     className="text-gray-500 hover:text-red-400 transition opacity-0 group-hover:opacity-100"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

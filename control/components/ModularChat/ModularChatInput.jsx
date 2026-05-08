@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function ModularChatInput({
   value,
@@ -8,9 +9,11 @@ export default function ModularChatInput({
   onSend,
   onFilesAttached,
   disabled = false,
-  placeholder = 'Type a message...',
+  placeholder,
   showAttachButton = false,
 }) {
+  const t = useTranslations('chatBuilder.input');
+  const effectivePlaceholder = placeholder ?? t('defaultPlaceholder');
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const [attachedFiles, setAttachedFiles] = useState([]);
@@ -150,7 +153,7 @@ export default function ModularChatInput({
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled}
               className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-gray-400 hover:text-indigo-400 hover:bg-gray-800 rounded-xl disabled:opacity-50 transition"
-              title="Attach documents"
+              title={t('attachDocuments')}
             >
               <AttachIcon className="w-5 h-5" />
             </button>
@@ -163,7 +166,7 @@ export default function ModularChatInput({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isDragging ? 'Drop files here...' : placeholder}
+            placeholder={isDragging ? t('dropFilesHere') : effectivePlaceholder}
             disabled={disabled}
             rows={1}
             className="w-full px-4 py-3 border border-gray-600 bg-gray-800 text-gray-100 placeholder-gray-500 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:bg-gray-700"
@@ -183,9 +186,7 @@ export default function ModularChatInput({
         </button>
       </div>
       <div className="mt-2 text-xs text-gray-500 text-center">
-        {showAttachButton
-          ? 'Drag & drop files or click attach. Press Enter to send.'
-          : 'Press Enter to send, Shift+Enter for new line'}
+        {showAttachButton ? t('hintWithAttach') : t('hintShort')}
       </div>
     </form>
   );

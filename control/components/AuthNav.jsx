@@ -5,8 +5,11 @@
 // to settings.
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 export default function AuthNav() {
+  const tDashboard = useTranslations('dashboard');
+  const tSettings = useTranslations('settings');
   return (
     <nav className="w-full border-b border-[color:var(--border-color)] bg-[color:var(--surface-primary)] px-4 py-2 flex items-center justify-between text-sm">
       <Link href="/" className="font-semibold tracking-tight">
@@ -14,10 +17,10 @@ export default function AuthNav() {
       </Link>
       <div className="flex items-center gap-4 text-[color:var(--text-muted)]">
         <Link href="/dashboard" className="hover:text-white">
-          My bots
+          {tDashboard('myBots')}
         </Link>
         <Link href="/settings" className="hover:text-white">
-          Settings
+          {tSettings('title')}
         </Link>
       </div>
     </nav>

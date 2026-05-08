@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 export default function FormField({
   label,
   value,
@@ -15,6 +17,7 @@ export default function FormField({
   maxLength = null,
   id = null
 }) {
+  const t = useTranslations('common');
   const fieldId = id || label?.toLowerCase().replace(/\s+/g, '-');
   const hasError = !!error;
 
@@ -47,7 +50,7 @@ export default function FormField({
             disabled={disabled}
             className={baseInputClasses}
           >
-            <option value="">Select an option</option>
+            <option value="">{t('selectAnOption')}</option>
             {options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}

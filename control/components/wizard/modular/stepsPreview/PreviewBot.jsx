@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
 import { buildPreviewConfig } from '@/lib/preview/build-preview-config';
 
@@ -18,6 +19,7 @@ import { buildPreviewConfig } from '@/lib/preview/build-preview-config';
  * lite-template/client/preview-shim.js.
  */
 export default function PreviewBot() {
+  const t = useTranslations('wizard.previews.bot');
   const { formData, enabledProtocols } = useModularWizard();
   const [resetKey, setResetKey] = useState(0);
   const [sideEffects, setSideEffects] = useState([]); // banner messages
@@ -48,10 +50,10 @@ export default function PreviewBot() {
       if (msg.type === 'preview-side-effect') {
         const label =
           msg.kind === 'webhook'
-            ? `Webhook would POST to ${msg.detail?.url || '(no URL)'}`
+            ? t('webhookSideEffect', { url: msg.detail?.url || t('webhookNoUrl') })
             : msg.kind === 'submit-form'
-              ? 'Form would submit to control plane'
-              : 'Side effect skipped in preview';
+              ? t('submitFormSideEffect')
+              : t('genericSideEffect');
         setSideEffects((prev) => [...prev.slice(-2), { id: Date.now(), label }]);
       }
     }
@@ -60,7 +62,7 @@ export default function PreviewBot() {
     return () => window.removeEventListener('message', onMessage);
     // We deliberately re-run on resetKey/payload change so the latest
     // payload is captured in the closure when the shim sends its ready.
-  }, [previewPayload, resetKey]);
+  }, [previewPayload, resetKey, t]);
 
   function reset() {
     setSideEffects([]);
@@ -70,7 +72,7 @@ export default function PreviewBot() {
   if (!previewPayload) {
     return (
       <div className="h-full flex items-center justify-center p-6 text-sm text-yellow-300">
-        Add a provider, model, and API key in step 1 to start the preview bot.
+        {t('missingConfig')}
       </div>
     );
   }
@@ -78,13 +80,13 @@ export default function PreviewBot() {
   return (
     <div className="h-full flex flex-col bg-gray-900">
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-800">
-        <span className="text-xs text-gray-400">Live preview</span>
+        <span className="text-xs text-gray-400">{t('livePreview')}</span>
         <button
           type="button"
           onClick={reset}
           className="text-xs text-teal-400 hover:text-teal-300 font-medium"
         >
-          Reset preview
+          {t('resetPreview')}
         </button>
       </div>
 
@@ -92,7 +94,7 @@ export default function PreviewBot() {
         <div className="px-3 py-2 border-b border-gray-700 bg-gray-800 space-y-1">
           {sideEffects.map((e) => (
             <div key={e.id} className="text-xs text-amber-300">
-              {e.label} <span className="text-gray-500">(skipped in preview)</span>
+              {e.label} <span className="text-gray-500">{t('skippedInPreview')}</span>
             </div>
           ))}
         </div>
@@ -102,7 +104,7 @@ export default function PreviewBot() {
         key={resetKey}
         ref={iframeRef}
         src="/api/preview/bot/index.html"
-        title="Bot preview"
+        title={t('iframeTitle')}
         className="flex-1 w-full border-0"
         sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
       />

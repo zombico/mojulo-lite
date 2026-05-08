@@ -1,28 +1,33 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 export default function ArrayField({
   items,
   onAdd,
   onUpdate,
   onRemove,
-  itemLabel = 'Item',
-  placeholder = 'Enter value',
+  itemLabel,
+  placeholder = '',
   maxItems = 10
 }) {
+  const t = useTranslations('common');
+  const label = itemLabel ?? t('unknown');
+
   return (
     <div className="space-y-3">
       {items.map((item, index) => (
         <div key={index} className="p-4 border border-gray-700 rounded-lg ">
           <div className="flex justify-between items-start mb-3">
             <span className="text-sm font-medium text-gray-400">
-              {itemLabel} #{index + 1}
+              {t('itemNumber', { itemLabel: label, number: index + 1 })}
             </span>
             <button
               type="button"
               onClick={() => onRemove(index)}
               className="text-red-400 hover:text-red-300 text-sm font-medium transition"
             >
-              Remove
+              {t('remove')}
             </button>
           </div>
           <input
@@ -44,7 +49,7 @@ export default function ArrayField({
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add {itemLabel}
+          {t('addItemLabel', { itemLabel: label })}
         </button>
       )}
     </div>

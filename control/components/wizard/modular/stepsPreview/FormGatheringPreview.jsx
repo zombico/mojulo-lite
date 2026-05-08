@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
 import './preview.css';
 
 export default function FormGatheringPreview({ activeTab = 'fields' }) {
+  const t = useTranslations('wizard.previews.form');
+  const tCommon = useTranslations('common');
   const { formData, updateFormData, clearError } = useModularWizard();
   const [validationErrors, setValidationErrors] = useState({});
   const [jsonError, setJsonError] = useState(null);
@@ -136,9 +139,9 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                 type="button"
                 className="preview-validate-btn"
                 onClick={() => handleValidate(field, index)}
-                title="Validate input"
+                title={t('validateInput')}
               >
-                Validate
+                {t('validate')}
               </button>
             )}
             {validationErrors[fieldId] && (
@@ -171,7 +174,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
       case 'dropdown':
         return (
           <select key={fieldId} id={fieldId} className="form-input">
-            <option value="">{field.placeholder || 'Select an option...'}</option>
+            <option value="">{field.placeholder || t('selectOption')}</option>
             {field.options && field.options.map((option, optIndex) => (
               <option key={optIndex} value={option.value || option}>
                 {option.label || option}
@@ -231,7 +234,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
             <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-sm">No form structure generated</p>
+            <p className="text-sm">{t('noStructure')}</p>
           </div>
         </div>
       );
@@ -244,7 +247,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
           <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl w-[95vw] h-[95vh] flex flex-col border border-gray-700">
               <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-100">Edit Form Structure (JSON)</h3>
+                <h3 className="text-lg font-semibold text-gray-100">{t('editJsonTitle')}</h3>
                 <button
                   onClick={handleCancelJsonModal}
                   className="text-gray-400 hover:text-gray-200 transition"
@@ -263,7 +266,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         </svg>
-                        Invalid JSON
+                        {t('invalidJson')}
                       </span>
                     )}
                     {!modalJsonError && modalJsonText && (
@@ -271,7 +274,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        Valid JSON
+                        {t('validJson')}
                       </span>
                     )}
                   </div>
@@ -284,7 +287,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                   />
                   {modalJsonError && (
                     <div className="mt-2 p-3 bg-red-900/30 border border-red-800 rounded-lg">
-                      <p className="text-xs font-semibold text-red-300 mb-1">JSON Parse Error:</p>
+                      <p className="text-xs font-semibold text-red-300 mb-1">{t('jsonParseError')}</p>
                       <p className="text-xs text-red-400 font-mono">{modalJsonError}</p>
                     </div>
                   )}
@@ -296,14 +299,14 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                   onClick={handleCancelJsonModal}
                   className="px-4 py-2 text-gray-300 font-medium hover:text-gray-100 transition"
                 >
-                  Cancel
+                  {tCommon('cancel')}
                 </button>
                 <button
                   onClick={handleSaveJsonModal}
                   disabled={!!modalJsonError}
                   className="px-6 py-2 bg-teal-600 text-white font-medium rounded-md hover:bg-teal-500 transition disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
-                  Save
+                  {tCommon('save')}
                 </button>
               </div>
             </div>
@@ -315,17 +318,17 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
                 <label className="block text-sm font-medium text-gray-300">
-                  Generated Form Structure (JSON)
+                  {t('generatedJsonLabel')}
                 </label>
                 <button
                   onClick={handleOpenJsonModal}
                   className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-teal-400 hover:text-teal-300 hover:bg-teal-900/30 rounded-md transition"
-                  title="Open in larger view"
+                  title={t('openLargerView')}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                   </svg>
-                  Expand
+                  {t('expand')}
                 </button>
               </div>
               {jsonError && (
@@ -333,7 +336,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  Invalid JSON
+                  {t('invalidJson')}
                 </span>
               )}
               {!jsonError && formData.generatedFormJson && (
@@ -341,7 +344,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  Valid JSON
+                  {t('validJson')}
                 </span>
               )}
             </div>
@@ -353,13 +356,13 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
             />
             {jsonError && (
               <div className="mt-2 p-3 bg-red-900/30 border border-red-800 rounded-lg">
-                <p className="text-xs font-semibold text-red-300 mb-1">JSON Parse Error:</p>
+                <p className="text-xs font-semibold text-red-300 mb-1">{t('jsonParseError')}</p>
                 <p className="text-xs text-red-400 font-mono">{jsonError}</p>
               </div>
             )}
             {!jsonError && (
               <p className="mt-2 text-xs text-gray-400">
-                Edit this JSON to customize the form structure. Changes will be reflected in the Fields Display tab.
+                {t('editJsonHelper')}
               </p>
             )}
           </div>
@@ -377,7 +380,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
             <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-sm">No form structure generated</p>
+            <p className="text-sm">{t('noStructure')}</p>
           </div>
         </div>
       );
@@ -407,7 +410,7 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
         {/* Branches Legend */}
         {branches.length > 0 && (
           <div className="mb-4 p-3 bg-gray-800 rounded-lg border border-gray-700">
-            <div className="text-xs font-medium text-gray-400 mb-2">Branches</div>
+            <div className="text-xs font-medium text-gray-400 mb-2">{t('branches')}</div>
             <div className="flex flex-wrap gap-2">
               {branches.map((branch, idx) => (
                 <span
@@ -727,8 +730,8 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
             <svg className="preview-form-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p>No form structure generated</p>
-            <p className="preview-form-hint">Generate a form to see the preview</p>
+            <p>{t('noStructure')}</p>
+            <p className="preview-form-hint">{t('noStructureHint')}</p>
           </div>
         </div>
       </div>
@@ -753,8 +756,8 @@ export default function FormGatheringPreview({ activeTab = 'fields' }) {
               </div>
               <div className="preview-form-field-meta">
                 <span className="preview-form-field-type">{field.type}</span>
-                {field.required && <span className="preview-form-field-badge">Required</span>}
-                {field.pii && <span className="preview-form-field-badge pii">PII</span>}
+                {field.required && <span className="preview-form-field-badge">{t('requiredBadge')}</span>}
+                {field.pii && <span className="preview-form-field-badge pii">{t('piiBadge')}</span>}
               </div>
             </div>
           ))}
