@@ -80,6 +80,10 @@ After the LLM call returns and the response payload is assembled, the server com
 
 Recorded on the *sender* when the user clicks a triage card. Hashes are computed identically: the same `hashTurnContent` and `createChainHash` functions, with `userPrompt = ''`, `llmResponse = ''`, and the click metadata JSON-serialized into `machineState`. The chain extends past the last chat turn — the chain math does not branch on `event_type`. See [federated-routing.md](federated-routing.md) for the full handoff event flow.
 
+### `POST /api/extract` — Optical Read extraction turn
+
+Recorded as a regular chat-shaped row (no `event_type`) but with the user's image bytes baked into the hash. The `user_prompt` column stores the sentinel `[optical_read image: <sha256(imageBytes)>]`; the natural-language prompt the model saw lives in `full_prompt`. `machine_state` carries the structured response plus `source: 'optical_read'`, `imageHash`, `imageMime`, `imageBytes`, and `fileName`. Verify hashes the sentinel value as-is — the chain therefore breaks if the stored image hash is altered, even when the prose response is unchanged. The submission step that follows (`/api/submit-form` with `metadata.source: 'optical_read'`) extends the chain through the existing `form_submissions` write; the diff between Turn 1 (extraction) and Turn 2 (submission) is the audit trail. See [optical-read.md](optical-read.md).
+
 ---
 
 ## Verify

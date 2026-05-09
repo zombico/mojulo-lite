@@ -76,6 +76,7 @@ export async function PATCH(request, { params }) {
       enabledProtocols,
       appointmentDestinations,
       triageDestinations,
+      opticalReadFields,
       documentIds,
       embeddings,
       apiKeyId = null,
@@ -99,6 +100,8 @@ export async function PATCH(request, { params }) {
       appointmentDestinations || baseConfig.appointmentDestinations || [];
     const finalTriage =
       triageDestinations || baseConfig.triageRoutes || baseConfig.triageDestinations || [];
+    const finalOpticalReadFields =
+      opticalReadFields || baseConfig.opticalReadFields || [];
 
     // All bots run vector retrieval. Knowledge or triage protocols require
     // embeddings; bots with neither have no embeddings and RAG is disabled.
@@ -133,6 +136,7 @@ export async function PATCH(request, { params }) {
         formStructure: baseConfig.formStructure,
         appointments: finalAppointments,
         triage: finalTriage,
+        opticalRead: { fields: finalOpticalReadFields },
       },
     });
 
@@ -140,6 +144,7 @@ export async function PATCH(request, { params }) {
       ...baseConfig,
       appointmentDestinations: finalAppointments,
       triageRoutes: finalTriage,
+      opticalReadFields: finalOpticalReadFields,
       _modular: {
         paradigm: 'modular',
         enabledProtocols: finalEnabledProtocols,

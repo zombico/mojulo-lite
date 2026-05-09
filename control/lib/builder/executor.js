@@ -214,6 +214,17 @@ function buildDeploymentConfig(session, instructions, apiKey) {
     configSection.triageRoutes = './config/triageRoutes.json';
   }
 
+  // Optical Read: chat-builder writes opticalRead.fields onto generatedConfigs
+  // (see generate_optical_read_config). Wire the artifact-side flag/path here
+  // and surface the field list at top-level for build.js to pick up.
+  const opticalReadFields = enabledProtocols.opticalRead
+    ? generatedConfigs?.opticalRead?.fields || []
+    : [];
+  if (enabledProtocols.opticalRead && opticalReadFields.length > 0) {
+    configSection.isOpticalRead = true;
+    configSection.opticalReadFields = './config/opticalReadFields.json';
+  }
+
   return {
     config: configSection,
     llm: buildLLMConfig(provider, apiKey, model, {}),
@@ -229,6 +240,7 @@ function buildDeploymentConfig(session, instructions, apiKey) {
       ? protocolData.appointments?.destinations
       : undefined,
     triageRoutes: enabledProtocols.triage ? protocolData.triage?.routes : undefined,
+    opticalReadFields: enabledProtocols.opticalRead ? opticalReadFields : undefined,
     paradigm: 'modular',
     enabledProtocols,
     _composedInstructions: instructions,

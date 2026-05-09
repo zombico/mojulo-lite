@@ -174,11 +174,14 @@ Per-package docs:
 
 Concept docs:
 
+- [docs/mojulo-bots.md](docs/mojulo-bots.md) — **start here:** plain-language orientation to bots, protocols, and the Control Plane before diving into the deep dives below
 - [docs/wizard-builder.md](docs/wizard-builder.md) — the structured wizard: how steps are generated from protocol toggles, how the live-preview Theatre runs the real bot client, and how its output converges with the chat builder at `buildDeploymentConfig`
 - [docs/chat-builder.md](docs/chat-builder.md) — the conversational builder: the 10 tools Claude orchestrates, two-tier intent evaluation, the streaming tool loop with custom event overlays
+- [docs/protocol-composition.md](docs/protocol-composition.md) — how the bot's `instructions.txt` is assembled at deploy time from stackable protocol cartridges + a matching response schema (the convergence point both builders feed)
 - [docs/bot-frontend.md](docs/bot-frontend.md) — the bot's UI: standalone client, embeddable widget, control-plane preview shim — one HTML file, three surfaces, no build step
 - [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
 - [docs/form-collection.md](docs/form-collection.md) — ghost forms: locale-aware schema generated at build time, rendered on the client, submitted via a dedicated endpoint that bypasses the LLM (PII never reaches the model)
+- [docs/optical-read.md](docs/optical-read.md) — extract user-defined fields from an uploaded image with a vision-capable LLM; the extraction turn is hashed into the conversation chain over the source image bytes
 - [docs/conversations-api.md](docs/conversations-api.md) — Connect Bot: how the control plane proxies through to a running bot's conversations API without copying data
 - [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot tamper-evident chain that `/verify/:id` walks
 - [docs/federated-routing.md](docs/federated-routing.md) — cross-bot tamper-evident chain across triage handoffs (extends turn-hashing across bot boundaries)

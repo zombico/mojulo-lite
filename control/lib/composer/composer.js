@@ -13,12 +13,13 @@ const PROTOCOL_FILES = {
   formGathering: '02_form-gathering.txt',
   appointments: '03_appointments.txt',
   triage: '04_triage.txt',
+  opticalRead: '05_optical-read.txt',
 };
 
 /**
  * Deterministic protocol ordering for consistent composition
  */
-const PROTOCOL_ORDER = ['base', 'knowledge', 'formGathering', 'appointments', 'triage'];
+const PROTOCOL_ORDER = ['base', 'knowledge', 'formGathering', 'appointments', 'triage', 'opticalRead'];
 
 /**
  * Reads a protocol file from the protocols directory
@@ -102,6 +103,26 @@ function buildTriageSection(triageRoutes) {
 }
 
 /**
+ * Builds the optical-read field list section for the optical read protocol.
+ * Stripped to { idName, label, hint } — the model resolves visual slots
+ * against its own templated-artifact prior; the hint is the load-bearing tuning
+ * primitive (location/format priming).
+ * @param {Array} fields - Array of { idName, label, hint } objects
+ * @returns {string} - Extraction fields section text
+ */
+function buildOpticalReadSection(fields) {
+  if (!fields || fields.length === 0) return '';
+
+  const stripped = fields.map(({ idName, label, hint }) => ({
+    idName,
+    label,
+    ...(hint ? { hint } : {}),
+  }));
+
+  return `## EXTRACTION FIELDS - Return one entry per idName in extractedFields\n\n${JSON.stringify(stripped, null, 2)}`;
+}
+
+/**
  * Composes instructions.txt from enabled protocols
  * @param {Object} config
  * @param {string} config.objective - Bot objective
@@ -147,6 +168,14 @@ async function composeInstructions(config) {
     }
   }
 
+  if (enabledProtocols.opticalRead) {
+    sections.push(await readProtocol(PROTOCOL_FILES.opticalRead));
+    const opticalSection = buildOpticalReadSection(protocolData.opticalRead?.fields);
+    if (opticalSection) {
+      sections.push(opticalSection);
+    }
+  }
+
   // 3. Add user objective
   sections.push(`## USER CUSTOM INSTRUCTIONS\n\n## OBJECTIVE: ${objective}`);
 
@@ -166,7 +195,8 @@ function validateEnabledProtocols(enabledProtocols) {
   return enabledProtocols.knowledge ||
          enabledProtocols.formGathering ||
          enabledProtocols.appointments ||
-         enabledProtocols.triage;
+         enabledProtocols.triage ||
+         enabledProtocols.opticalRead;
 }
 
 /**
@@ -188,6 +218,7 @@ export {
   buildFormStructureSection,
   buildCalendarSection,
   buildTriageSection,
+  buildOpticalReadSection,
   readProtocol,
   PROTOCOL_FILES,
   PROTOCOL_ORDER,

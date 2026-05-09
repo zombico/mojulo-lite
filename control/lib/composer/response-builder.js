@@ -44,6 +44,16 @@ const TRIAGE_ATTRIBUTES = {
 };
 
 /**
+ * Optical Read response attributes
+ */
+const OPTICAL_READ_ATTRIBUTES = {
+  extractedFields: '{ "<idName>": "<value or empty string>", ... }',
+  showUploadButton: 'true/false',
+  extractionConfidence: 'high/medium/low',
+  extractionNotes: 'one-sentence rationale citing missing/guessed fields and image quality',
+};
+
+/**
  * Builds a JSON template string with inline text descriptions
  * @param {Object} attributes - Map of attribute name to description
  * @returns {string} - JSON template with descriptions as values
@@ -81,6 +91,9 @@ async function buildResponseFormatSection(enabledProtocols) {
   if (enabledProtocols.triage) {
     Object.assign(attributes, TRIAGE_ATTRIBUTES);
   }
+  if (enabledProtocols.opticalRead) {
+    Object.assign(attributes, OPTICAL_READ_ATTRIBUTES);
+  }
 
   const jsonTemplate = buildInlineTemplate(attributes);
 
@@ -98,4 +111,5 @@ export {
   FORM_GATHERING_ATTRIBUTES,
   APPOINTMENTS_ATTRIBUTES,
   TRIAGE_ATTRIBUTES,
-};  
+  OPTICAL_READ_ATTRIBUTES,
+};

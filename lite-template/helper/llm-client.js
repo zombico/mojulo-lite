@@ -94,10 +94,25 @@ class LLMAdapter {
 }
 
 /**
+ * Defense in depth for v1: only the Anthropic adapter implements vision.
+ * The wizard gates the protocol toggle so an OpenAI/Gemini/etc. bot can never
+ * reach this code path, but a misconfigured artifact (post-deploy provider
+ * swap, hand-edited config.json) shouldn't silently drop the image.
+ */
+function rejectImage(adapterName, image) {
+    if (image) {
+        throw new Error(
+            `${adapterName} adapter does not support vision input. Optical Read requires the Anthropic provider in v1.`
+        );
+    }
+}
+
+/**
  * Ollama adapter - uses /api/chat for role-based messaging
  */
 class OllamaAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory) {
+    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
+        rejectImage('Ollama', image);
         const url = `${this.config.host}/api/chat`;
 
         // Build history from previous conversation turns
@@ -147,7 +162,8 @@ class OllamaAdapter extends LLMAdapter {
  * OpenAI adapter
  */
 class OpenAIAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory) {
+    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
+        rejectImage('OpenAI', image);
         const url = `${this.config.baseURL}${this.config.endpoint}`;
         const history = (conversationHistory || []).flatMap(item => {
             try {
@@ -204,9 +220,14 @@ class OpenAIAdapter extends LLMAdapter {
 
 /**
  * Anthropic adapter
+ *
+ * Optical Read uses the optional `image` parameter: when set, the current user
+ * turn is rewritten as a multipart content array — image block first, text
+ * second — which is what claude-3+ vision expects. Other call paths are
+ * unaffected; image=null short-circuits to the original string-content shape.
  */
 class AnthropicAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory) {
+    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
         const url = `${this.config.baseURL}${this.config.endpoint}`;
 
         // Safely build history with error handling
@@ -230,8 +251,26 @@ class AnthropicAdapter extends LLMAdapter {
             }
         });
 
-        // Add current user prompt
-        history.push({ role: 'user', content: userPrompt });
+        // Current user turn: text-only by default; multipart with image-first
+        // when an image is attached.
+        if (image && image.base64 && image.mime) {
+            history.push({
+                role: 'user',
+                content: [
+                    {
+                        type: 'image',
+                        source: {
+                            type: 'base64',
+                            media_type: image.mime,
+                            data: image.base64
+                        }
+                    },
+                    { type: 'text', text: userPrompt }
+                ]
+            });
+        } else {
+            history.push({ role: 'user', content: userPrompt });
+        }
         const systemInstructions = {
             type: "text",
             text: instructions,
@@ -263,7 +302,7 @@ class AnthropicAdapter extends LLMAdapter {
         const content = response.data.content[0]
         const raw = content.text;
         const jsonString = raw.replace(/```json|```/g, '').trim();
-        
+
         return {
             response: jsonString,
             trace: response.trace
@@ -275,7 +314,8 @@ class AnthropicAdapter extends LLMAdapter {
  * Gemini adapter
  */
 class GeminiAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory) {
+    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
+        rejectImage('Gemini', image);
         const url = `${this.config.baseURL}${this.config.model}${this.config.endpoint}`;
         const history = (conversationHistory || []).flatMap(item => {
             try {
@@ -344,7 +384,8 @@ class GeminiAdapter extends LLMAdapter {
  * Cohere adapter
  */
 class CohereAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory) {
+    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
+        rejectImage('Cohere', image);
         const url = `${this.config.baseURL}${this.config.endpoint}`;
 
         // Safely build history with error handling

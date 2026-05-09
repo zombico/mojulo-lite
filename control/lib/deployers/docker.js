@@ -260,6 +260,7 @@ export class DockerDeployer {
    * @param {string} params.apiKey - Generated admin API key for bot
    * @param {Array} [params.appointmentDestinations]
    * @param {Array} [params.triageDestinations]
+   * @param {Array} [params.opticalReadFields]
    * @param {Object} [params.enabledProtocols]
    * @param {string} [params.embeddingStorageKey]
    * @param {string} [params.embeddingModel]
@@ -275,6 +276,7 @@ export class DockerDeployer {
       apiKey,
       appointmentDestinations = [],
       triageDestinations = [],
+      opticalReadFields = [],
       enabledProtocols = {},
       embeddingStorageKey = null,
       embeddingModel = null,
@@ -313,6 +315,7 @@ export class DockerDeployer {
       formStructure: config.formStructure,
       appointments: appointmentDestinations,
       triage: triageDestinations,
+      opticalRead: { fields: opticalReadFields },
     };
     const instructions =
       config._composedInstructions ||
@@ -354,6 +357,13 @@ export class DockerDeployer {
       // the authoritative deploymentId list the LLM picks from; route
       // description text lives in embeddings.json for retrieval reinforcement.
       await writeJson(path.join(configDir, 'triageRoutes.json'), triageDestinations);
+    }
+    if (opticalReadFields.length > 0) {
+      // Read once at bot startup like formFormat.json. The bot's /api/extract
+      // endpoint and the upload-card UX both key off this list — keep the
+      // shape (idName, label, hint) byte-identical to what the wizard saved
+      // so edit-mode round-trips don't drift.
+      await writeJson(path.join(configDir, 'opticalReadFields.json'), opticalReadFields);
     }
 
     // 6. Vector RAG: copy the pre-baked embeddings blob into the artifact.

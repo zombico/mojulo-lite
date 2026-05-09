@@ -165,6 +165,41 @@ export const BUILDER_TOOLS = [
     },
   },
   {
+    name: 'generate_optical_read_config',
+    description:
+      'Generate Optical Read extraction fields for the bot. The user names slots they want pulled out of an uploaded image; the model resolves them against its own visual prior. The optional hint primes location ("bottom-right of card frame") or format ("MM/DD/YYYY") and is the load-bearing tuning primitive.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fields: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              label: {
+                type: 'string',
+                description: 'Display label for the field (e.g., "Date of Birth")',
+              },
+              idName: {
+                type: 'string',
+                description:
+                  'snake_case key used in extractedFields. If omitted, slugified from label.',
+              },
+              hint: {
+                type: 'string',
+                description:
+                  'Optional priming hint — location or format. Examples: "MM/DD/YYYY", "bottom-right of card frame", "all caps".',
+              },
+            },
+            required: ['label'],
+          },
+          description: 'Array of extraction fields',
+        },
+      },
+      required: ['fields'],
+    },
+  },
+  {
     name: 'compose_identity',
     description: 'Generate the bot\'s identity including name, objective, first message, and suggested prompts. Pass userMessage and domainDigest for contextual LLM-generated identity.',
     input_schema: {
@@ -250,6 +285,7 @@ export const TOOL_LABELS = {
   generate_form_schema: 'Generating form',
   generate_appointment_config: 'Configuring appointments',
   generate_triage_config: 'Configuring triage routes',
+  generate_optical_read_config: 'Configuring optical read fields',
   compose_identity: 'Composing identity',
   set_suggested_prompts: 'Setting suggested prompts',
   generate_bot_summary: 'Generating bot summary',
@@ -266,6 +302,7 @@ export const TOOL_ICONS = {
   generate_form_schema: 'form',
   generate_appointment_config: 'calendar',
   generate_triage_config: 'split',
+  generate_optical_read_config: 'eye',
   compose_identity: 'robot',
   set_suggested_prompts: 'message-square',
   generate_bot_summary: 'sparkles',

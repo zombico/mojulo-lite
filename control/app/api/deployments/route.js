@@ -54,6 +54,7 @@ export async function POST(request) {
       enabledProtocols = {},
       appointmentDestinations = [],
       triageDestinations = [],
+      opticalReadFields = [],
       documentIds = [],
       flowType = 'modular',
       embeddings = null,
@@ -97,6 +98,7 @@ export async function POST(request) {
         formStructure: config.formStructure,
         appointments: appointmentDestinations,
         triage: triageDestinations,
+        opticalRead: { fields: opticalReadFields },
       },
     });
 
@@ -108,6 +110,7 @@ export async function POST(request) {
         ...config,
         appointmentDestinations,
         triageRoutes: triageDestinations,
+        opticalReadFields,
         _modular: {
           paradigm: 'modular',
           enabledProtocols,

@@ -943,6 +943,72 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
   },
 
   /**
+   * Generate Optical Read extraction fields
+   *
+   * Slugifies idName from label when missing, dedupes by idName, and persists
+   * the field list onto the session under generatedConfigs.opticalRead.
+   * Mirrors generate_triage_config in shape; the protocol's directional
+   * principle (templated-artifact prior, hint as load-bearing primitive) is
+   * encoded in the cartridge — this executor just normalizes the field list.
+   */
+  async generate_optical_read_config(input, context) {
+    const { fields } = input;
+    const { session, userId } = context;
+
+    if (!fields || fields.length === 0) {
+      throw new Error('No optical read fields provided');
+    }
+
+    const slugify = (label) =>
+      (label || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const ID_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+    const seen = new Set();
+    const processedFields = [];
+    for (const field of fields) {
+      if (!field.label || !field.label.trim()) {
+        throw new Error(`Invalid optical read field: label is required. Got: ${JSON.stringify(field)}`);
+      }
+      const idName = (field.idName && field.idName.trim()) || slugify(field.label);
+      if (!ID_NAME_PATTERN.test(idName)) {
+        throw new Error(`Invalid idName "${idName}": must be snake_case (lowercase letters, digits, underscores)`);
+      }
+      if (seen.has(idName)) {
+        // Dedupe rather than throw — the chat builder may produce overlapping
+        // labels ("Name", "Full Name") that slug to the same key.
+        continue;
+      }
+      seen.add(idName);
+      processedFields.push({
+        label: field.label.trim(),
+        idName,
+        hint: field.hint ? field.hint.trim() : '',
+      });
+    }
+
+    if (processedFields.length === 0) {
+      throw new Error('No valid optical read fields after normalization');
+    }
+
+    console.log(`[Builder] Generated optical read config with ${processedFields.length} fields`);
+
+    await BuilderSessionRepository.updateGeneratedConfig(session.id, userId, 'opticalRead', {
+      fields: processedFields,
+    });
+
+    return {
+      fields: processedFields,
+      fieldCount: processedFields.length,
+      message: `Configured ${processedFields.length} extraction field(s): ${processedFields.map((f) => f.idName).join(', ')}`,
+    };
+  },
+
+  /**
    * Compose bot identity from context
    */
   async compose_identity(input, context) {

@@ -128,6 +128,7 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
       enabledProtocols,
       appointmentDestinations: enabledProtocols.appointments ? formData.appointmentDestinations : undefined,
       triageDestinations: enabledProtocols.triage ? formData.triageRoutes : undefined,
+      opticalReadFields: enabledProtocols.opticalRead ? formData.opticalReadFields : undefined,
       botSpaceId: !isEditMode ? botSpaceId : undefined,
       embeddings: embeddings || null,
       apiKeyId,

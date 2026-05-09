@@ -1556,6 +1556,17 @@
                         }
                     }
 
+                    // Optical Read: surface the upload card whenever the model
+                    // signals it. The cartridge instructs the model to set
+                    // showUploadButton on first turn and any turn where a new
+                    // upload is welcome.
+                    if (botContext.isOpticalRead && data.response.showUploadButton === 'true') {
+                        const uploadCard = createUploadCard();
+                        if (uploadCard) {
+                            messagesDiv.lastChild.querySelector('.message-content').appendChild(uploadCard);
+                        }
+                    }
+
                     // Scroll to the last message element
                     const lastMessage = messagesDiv.lastElementChild;
                     if (lastMessage) {
@@ -1734,6 +1745,458 @@
             return container;
         }
 
+        // ============================================================
+        // Optical Read upload + render
+        //
+        // Two turns:
+        //   Turn 1 — POST /api/extract: image → model → extractedFields. The
+        //            bot side hashes the image bytes into the chain.
+        //   Turn 2 — Send: user-attested values posted to /api/submit-form
+        //            with metadata.source: 'optical_read'. The diff between
+        //            Turn 1 and Turn 2 is the audit trail.
+        //
+        // The fields rendered after extraction start disabled (read-only) so
+        // the user reviews before editing; Send unlocks them, then validates
+        // and submits.
+        // ============================================================
+
+        const OPTICAL_READ_MAX_BYTES = 5 * 1024 * 1024;
+        const OPTICAL_READ_TARGET_PIXELS = 3500000; // ~3.5 MP downscale target
+
+        // Open the OS file picker, run the upload pipeline (downscale →
+        // /api/extract → render extracted fields). onProgress receives state
+        // strings the caller can use to update its own UI ('reading',
+        // 'done', 'error'). Returns a promise that resolves once the
+        // extracted-fields panel is on screen (or rejects on failure).
+        function triggerOpticalReadUpload({ onProgress } = {}) {
+            return new Promise((resolve, reject) => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/png,image/jpeg,image/webp';
+                fileInput.style.display = 'none';
+                document.body.appendChild(fileInput);
+
+                fileInput.addEventListener('change', async (event) => {
+                    const file = event.target.files?.[0];
+                    fileInput.remove();
+                    if (!file) {
+                        resolve(false);
+                        return;
+                    }
+                    onProgress?.('reading');
+                    try {
+                        const { base64, mime } = await prepareImageForUpload(file);
+                        await runOpticalRead({ base64, mime, fileName: file.name });
+                        onProgress?.('done');
+                        resolve(true);
+                    } catch (err) {
+                        console.error('Optical Read failed:', err);
+                        addMessage(`Could not read that image: ${err.message || err}`, true, false, null, null, null, true, true);
+                        onProgress?.('error');
+                        reject(err);
+                    }
+                });
+
+                // Cancel-safe: if the user closes the picker without picking,
+                // the change event never fires. Cleanup happens on the next
+                // window focus.
+                window.addEventListener(
+                    'focus',
+                    () => {
+                        setTimeout(() => {
+                            if (fileInput.isConnected && !fileInput.files?.length) {
+                                fileInput.remove();
+                                resolve(false);
+                            }
+                        }, 200);
+                    },
+                    { once: true }
+                );
+
+                fileInput.click();
+            });
+        }
+
+        function createUploadCard() {
+            if (!botContext?.opticalReadFields || botContext.opticalReadFields.length === 0) {
+                console.warn('No opticalReadFields configured; suppressing upload card');
+                return null;
+            }
+
+            const container = document.createElement('div');
+            container.className = 'calendar-card-container';
+
+            const card = document.createElement('button');
+            card.className = 'calendar-card';
+            card.setAttribute('type', 'button');
+
+            const labelElement = document.createElement('span');
+            labelElement.className = 'calendar-card-label';
+            labelElement.textContent = 'Upload an image';
+            card.appendChild(labelElement);
+
+            const iconElement = document.createElement('span');
+            iconElement.className = 'calendar-card-icon';
+            iconElement.textContent = '📎';
+            card.appendChild(iconElement);
+
+            card.addEventListener('click', async () => {
+                card.disabled = true;
+                try {
+                    // Remove the upload card the moment the file is picked
+                    // (well before /api/extract returns) so the user doesn't
+                    // see a "Reading..." button next to the rendered form.
+                    await triggerOpticalReadUpload({
+                        onProgress: (state) => {
+                            if (state === 'reading') container.remove();
+                        },
+                    });
+                } catch {
+                    if (container.isConnected) {
+                        card.disabled = false;
+                        labelElement.textContent = 'Upload an image';
+                    }
+                }
+            });
+
+            container.appendChild(card);
+            return container;
+        }
+
+        // Starter-strip variant: same upload pipeline, but styled as a
+        // suggested-prompt-card so it slots naturally into the first-message
+        // suggestions row. Gated by botContext.opticalReadShowUploadOnStart.
+        function createUploadStarterCard() {
+            if (!botContext?.opticalReadFields || botContext.opticalReadFields.length === 0) {
+                return null;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'suggested-prompt-card';
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+
+            const promptElement = document.createElement('span');
+            promptElement.className = 'suggested-prompt';
+            promptElement.textContent = '📎  Upload an image';
+            card.appendChild(promptElement);
+
+            const startUpload = async () => {
+                if (card.dataset.busy === '1') return;
+                card.dataset.busy = '1';
+                try {
+                    // Hide the suggested-prompts strip the moment the file
+                    // is picked, before /api/extract is even called — keeps
+                    // the "Reading..." card from sitting next to the form
+                    // once it lands. Cancelled picker = strip stays put.
+                    await triggerOpticalReadUpload({
+                        onProgress: (state) => {
+                            if (state === 'reading') {
+                                suggestedPromptsContainer.style.display = 'none';
+                            }
+                        },
+                    });
+                    if (suggestedPromptsContainer.style.display !== 'none') {
+                        card.dataset.busy = '0';
+                        promptElement.textContent = '📎  Upload an image';
+                    }
+                } catch {
+                    if (suggestedPromptsContainer.style.display !== 'none') {
+                        card.dataset.busy = '0';
+                        promptElement.textContent = '📎  Upload an image';
+                    }
+                }
+            };
+
+            card.addEventListener('click', startUpload);
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    startUpload();
+                }
+            });
+
+            return card;
+        }
+
+        // Read a file as base64 and downscale through canvas if needed. Output
+        // is plain base64 (no data: prefix); the server tolerates either but
+        // we strip on the way out for a clean payload.
+        async function prepareImageForUpload(file) {
+            if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+                throw new Error('Image must be PNG, JPEG, or WebP');
+            }
+
+            // Decode to bitmap so we can measure (and resize if needed).
+            const arrayBuffer = await file.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            const blob = new Blob([bytes], { type: file.type });
+
+            let outBase64;
+            let outMime = file.type;
+
+            if (bytes.byteLength <= OPTICAL_READ_MAX_BYTES) {
+                outBase64 = await blobToBase64(blob);
+            } else {
+                const bitmap = await createImageBitmap(blob);
+                const ratio = Math.sqrt(OPTICAL_READ_TARGET_PIXELS / (bitmap.width * bitmap.height));
+                const scale = Math.min(1, ratio);
+                const w = Math.max(1, Math.round(bitmap.width * scale));
+                const h = Math.max(1, Math.round(bitmap.height * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(bitmap, 0, 0, w, h);
+                // JPEG re-encode is the safest cross-browser path; preserve
+                // PNG/WebP only when the source already fit under the cap.
+                const downsampled = await new Promise((resolve, reject) => {
+                    canvas.toBlob(
+                        (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob failed'))),
+                        'image/jpeg',
+                        0.9
+                    );
+                });
+                if (downsampled.size > OPTICAL_READ_MAX_BYTES) {
+                    throw new Error('Image is too large even after downscale');
+                }
+                outBase64 = await blobToBase64(downsampled);
+                outMime = 'image/jpeg';
+            }
+
+            return { base64: outBase64, mime: outMime };
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = reader.result;
+                    const idx = typeof result === 'string' ? result.indexOf(',') : -1;
+                    resolve(idx >= 0 ? result.slice(idx + 1) : result);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        async function runOpticalRead({ base64, mime, fileName }) {
+            // Reuse the /chat thinking-dots pattern: addMessage with the
+            // thinking flag drops a bot bubble whose ::after is animated by
+            // the #thinking-div CSS rule. Removed right before the form
+            // lands so the user sees one continuous loading → form sequence.
+            addMessage(' ', true, true, null, null, null, true, true);
+            const thinkingBubble = messagesDiv.lastElementChild;
+            const removeThinking = () => {
+                if (thinkingBubble && thinkingBubble.isConnected) {
+                    thinkingBubble.remove();
+                }
+            };
+
+            let data;
+            try {
+                const response = await fetch(`${API_URL}/api/extract`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversationId, fileName, mime, base64 }),
+                });
+                data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || `Extract failed (${response.status})`);
+                }
+            } catch (err) {
+                removeThinking();
+                throw err;
+            }
+
+            // Adopt the conversationId minted by the bot if we didn't have one.
+            if (!conversationId && data.conversationId) {
+                conversationId = data.conversationId;
+            }
+            currentChainHash = data.chainHash || currentChainHash;
+
+            // Suppress the model's prose response — Optical Read's deliverable
+            // is the pre-filled form, not a chat answer. The only time we
+            // surface answer text is when extraction came back fully empty
+            // (image unreadable / wrong artifact type), and we slot it as a
+            // tiny note above the (empty) form so the user gets feedback.
+            const extracted = data.extractedFields || {};
+            const allEmpty = Object.values(extracted).every((v) => !v);
+            const note = allEmpty && data.answer ? data.answer : null;
+
+            removeThinking();
+
+            // Create an empty bot bubble for the form to attach to. Skips the
+            // streaming-text path (no answer prose to stream).
+            addMessage('', true, false, null, null, null, true);
+
+            const messageContent = messagesDiv.lastChild.querySelector('.message-content');
+            const fieldsCard = renderExtractedFields(extracted, note);
+            if (fieldsCard) {
+                messageContent.appendChild(fieldsCard);
+            }
+            const confidenceBlock = renderExtractionConfidence(
+                data.extractionConfidence,
+                data.extractionNotes
+            );
+            if (confidenceBlock) {
+                messageContent.appendChild(confidenceBlock);
+            }
+
+            const lastMessage = messagesDiv.lastElementChild;
+            if (lastMessage) {
+                lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+        }
+
+        function renderExtractedFields(extractedFields, note = null) {
+            const fields = botContext?.opticalReadFields || [];
+            if (fields.length === 0) return null;
+
+            const container = document.createElement('div');
+            container.className = 'optical-read-fields';
+
+            // Only surfaced when extraction came back fully empty — gives the
+            // user the model's "couldn't read this" explanation without
+            // streaming a redundant chat bubble.
+            if (note) {
+                const noteEl = document.createElement('div');
+                noteEl.className = 'optical-read-fields-note';
+                noteEl.textContent = note;
+                container.appendChild(noteEl);
+            }
+
+            const inputs = new Map();
+
+            fields.forEach((field) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'optical-read-field';
+
+                const label = document.createElement('label');
+                label.className = 'optical-read-field-label';
+                label.textContent = field.label;
+                label.setAttribute('for', `optical-${field.idName}`);
+                wrapper.appendChild(label);
+
+                const input = document.createElement('input');
+                input.className = 'optical-read-field-input';
+                input.type = 'text';
+                input.id = `optical-${field.idName}`;
+                input.value = extractedFields[field.idName] || '';
+                input.disabled = true;
+                wrapper.appendChild(input);
+
+                inputs.set(field.idName, input);
+                container.appendChild(wrapper);
+            });
+
+            const buttonRow = document.createElement('div');
+            buttonRow.className = 'optical-read-fields-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.textContent = 'Edit';
+            editBtn.className = 'calendar-card';
+
+            const sendBtn = document.createElement('button');
+            sendBtn.type = 'button';
+            sendBtn.textContent = 'Send';
+            sendBtn.className = 'calendar-card';
+
+            editBtn.addEventListener('click', () => {
+                inputs.forEach((input) => {
+                    input.disabled = false;
+                });
+                editBtn.disabled = true;
+            });
+
+            sendBtn.addEventListener('click', async () => {
+                sendBtn.disabled = true;
+                editBtn.disabled = true;
+                sendBtn.textContent = 'Sending...';
+                try {
+                    const formData = {};
+                    inputs.forEach((input, idName) => {
+                        formData[idName] = input.value;
+                    });
+                    const resp = await fetch(`${API_URL}/api/submit-form`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            conversationId,
+                            formData,
+                            metadata: { source: 'optical_read' },
+                        }),
+                    });
+                    if (!resp.ok) {
+                        const body = await resp.json().catch(() => ({}));
+                        throw new Error(body.error || `Submit failed (${resp.status})`);
+                    }
+                    sendBtn.textContent = 'Sent';
+                    inputs.forEach((input) => {
+                        input.disabled = true;
+                    });
+                    if (botContext?.afterSubmitChatMessage) {
+                        addMessage(botContext.afterSubmitChatMessage, true, false, null, null, null, true, true);
+                    }
+                } catch (err) {
+                    console.error('Optical Read submit failed:', err);
+                    addMessage(`Submit failed: ${err.message || err}`, true, false, null, null, null, true, true);
+                    sendBtn.disabled = false;
+                    editBtn.disabled = false;
+                    sendBtn.textContent = 'Send';
+                }
+            });
+
+            buttonRow.appendChild(editBtn);
+            buttonRow.appendChild(sendBtn);
+            container.appendChild(buttonRow);
+
+            return container;
+        }
+
+        // Render the extraction quality signal as a small badge + rationale,
+        // sitting underneath the extracted-fields card. Three-tier categorical
+        // (high/medium/low) so the user gets a fast at-a-glance confidence
+        // read; the notes string is the model's one-sentence rationale.
+        function renderExtractionConfidence(confidence, notes) {
+            if (!confidence && !notes) return null;
+
+            const TIER_LABELS = { high: 'High', medium: 'Medium', low: 'Low' };
+            const tier = TIER_LABELS[confidence] ? confidence : 'medium';
+
+            const container = document.createElement('div');
+            container.className = `optical-read-confidence optical-read-confidence--${tier}`;
+
+            const header = document.createElement('div');
+            header.className = 'optical-read-confidence-header';
+
+            const dot = document.createElement('span');
+            dot.className = 'optical-read-confidence-dot';
+            header.appendChild(dot);
+
+            const labelTitle = document.createElement('span');
+            labelTitle.className = 'optical-read-confidence-label';
+            labelTitle.textContent = 'Extraction confidence';
+            header.appendChild(labelTitle);
+
+            const value = document.createElement('span');
+            value.className = 'optical-read-confidence-value';
+            value.textContent = TIER_LABELS[tier];
+            header.appendChild(value);
+
+            container.appendChild(header);
+
+            if (notes) {
+                const notesEl = document.createElement('div');
+                notesEl.className = 'optical-read-confidence-notes';
+                notesEl.textContent = notes;
+                container.appendChild(notesEl);
+            }
+
+            return container;
+        }
+
         // Create a triage card element (with link and starterPrompt)
         // Clicking navigates to link with ?prompt=starterPrompt&source=configName to auto-start conversation
         function createTriageCard(link, starterPrompt, directedBotName, deploymentId) {
@@ -1854,6 +2317,18 @@
 
                 // populate form template
                 botContext = data
+
+                // Optical Read: when configured to surface upload-as-starter,
+                // prepend the upload card to the suggested-prompts strip so
+                // it sits with (or instead of) the bot's text suggestions.
+                // botContext must be set first — createUploadStarterCard
+                // reads the field list from it.
+                if (data.isOpticalRead && data.opticalReadShowUploadOnStart) {
+                    const starter = createUploadStarterCard();
+                    if (starter) {
+                        suggestedPromptsContainer.insertBefore(starter, suggestedPromptsContainer.firstChild);
+                    }
+                }
                 
                 document.title = data.name;
                 botDisplayName=data.chatDisplayName;

@@ -52,6 +52,7 @@ export async function buildArtifact(deploymentId, { withDocs = false } = {}) {
       apiKey: deployment.apiKey,
       appointmentDestinations: config.appointmentDestinations || [],
       triageDestinations: config.triageRoutes || config.triageDestinations || [],
+      opticalReadFields: config.opticalReadFields || [],
       enabledProtocols,
       embeddingStorageKey: deployment.embeddingStorageKey || null,
       embeddingModel: deployment.embeddingModel || null,

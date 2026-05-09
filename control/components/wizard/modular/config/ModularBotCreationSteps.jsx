@@ -86,6 +86,17 @@ export const MODULAR_BASE_STEPS = {
       </svg>
     ),
   },
+  'optical-read': {
+    id: 'optical-read',
+    sectionKey: 'opticalRead',
+    titleKey: 'configureOpticalRead',
+    protocol: 'opticalRead',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v4a1 1 0 001 1h3m10-5v4a1 1 0 01-1 1h-3M3 17v-4a1 1 0 011-1h3m10 5v-4a1 1 0 00-1-1h-3M9 11a3 3 0 116 0 3 3 0 01-6 0z" />
+      </svg>
+    ),
+  },
   deploy: {
     id: 'deploy',
     sectionKey: 'deploy',
@@ -127,6 +138,10 @@ export function generateStepConfigs(enabledProtocols) {
 
   if (enabledProtocols.triage) {
     configs.push({ ...MODULAR_BASE_STEPS.triage, number: stepNumber++ });
+  }
+
+  if (enabledProtocols.opticalRead) {
+    configs.push({ ...MODULAR_BASE_STEPS['optical-read'], number: stepNumber++ });
   }
 
   configs.push({ ...MODULAR_BASE_STEPS.deploy, number: stepNumber });

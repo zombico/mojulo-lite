@@ -27,6 +27,7 @@ Five plain-text files in [control/lib/composer/protocols/](../control/lib/compos
 | 2 | `02_form-gathering.txt` | `formGathering` | No | Progressive form filling: third-person confirmations, `formTracker` state, `consentToTC` ordering |
 | 3 | `03_appointments.txt` | `appointments` | No | Match user intent to a calendar destination; emit `calendarId` + `showCalendarLaunchButton` |
 | 4 | `04_triage.txt` | `triage` | No | Match user intent to a downstream bot; emit `deploymentId` + `starterPrompt` |
+| 5 | `05_optical-read.txt` | `opticalRead` | No | Extract structured fields from an uploaded image; emit `extractedFields` + `showUploadButton` |
 
 `00_base.txt` is special: it's not a capability, it's the safety floor. Every bot gets it, including bots that have *no* capabilities toggled on (which are still legal — they just answer from RAG with no tool-shaped behaviors).
 
