@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useModularWizard } from './ModularWizardContext';
 import { generateStepConfigs } from './config/ModularBotCreationSteps';
-import AuthNav from '../../AuthNav';
 import Theatre from '../../Theatre';
 import { parseModularDeploymentConfig, isModularDeployment } from '@/lib/config-builder';
 import { useBreadcrumbs } from '@/contexts/BreadcrumbsContext';
@@ -414,21 +413,16 @@ export default function ModularBotCreationWizard() {
 
   if (loading && deploymentId) {
     return (
-      <>
-        <AuthNav />
-        <div className="flex flex-col items-center justify-center bg-gray-900" style={{ height: 'calc(100vh - 33px)' }}>
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
-            <p className="text-gray-400">{t('loadingDeployment')}</p>
-          </div>
+      <div className="flex flex-col items-center justify-center bg-gray-900" style={{ height: 'calc(100vh - 33px)' }}>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
+          <p className="text-gray-400">{t('loadingDeployment')}</p>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-    <AuthNav />
     <div className="relative flex flex-col bg-gray-900" style={{ height: 'calc(100vh - 33px)' }}>
 
       <div className="border-b border-gray-700 bg-gray-900 px-8 py-2">
@@ -548,6 +542,5 @@ export default function ModularBotCreationWizard() {
         </div>
       )}
     </div>
-    </>
   );
 }

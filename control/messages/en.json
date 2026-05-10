@@ -114,6 +114,10 @@
     },
     "myBots": "My bots",
     "subtitle": "Each bot is a saved configuration. Build it whenever you want a runnable ZIP.",
+    "noKeyBanner": {
+      "text": "Add an LLM provider key to unlock the chat builder and form-based wizard.",
+      "cta": "Open Settings →"
+    },
     "documentLibrary": "Document library →",
     "newBotChat": "New bot (chat)",
     "newBotWizard": "New bot (wizard)",
