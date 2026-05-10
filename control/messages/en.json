@@ -313,7 +313,8 @@
       "modular": "Modular",
       "knowledge": "Knowledge",
       "forms": "Forms",
-      "routing": "Routing"
+      "routing": "Routing",
+      "opticalRead": "Optical Read"
     },
     "theatre": {
       "modelConfiguration": "Model Configuration",
@@ -819,6 +820,7 @@
       "calendars": "Calendars",
       "configured": "{count} configured",
       "triageRoutes": "Triage Routes",
+      "opticalReadFields": "Optical Read Fields",
       "required": "Required",
       "displayNameRequired": "Display name is required",
       "descriptionRequired": "Description is required",
@@ -967,7 +969,10 @@
       "providerNotSupported": "Optical Read requires a vision-capable provider. Anthropic supported in v1; OpenAI and Gemini coming soon.",
       "intro": "Name the slots you want extracted. The model resolves them against its own visual prior — the optional hint primes location or format.",
       "showUploadOnStart": "Show upload button as a starter prompt",
-      "showUploadOnStartHelper": "Renders an upload card alongside the bot's first-message suggestions. Skips the conversational warm-up — the user can upload immediately."
+      "showUploadOnStartHelper": "Renders an upload card alongside the bot's first-message suggestions. Skips the conversational warm-up — the user can upload immediately.",
+      "afterSubmitMessage": "After-Submit Chat Message (Optional)",
+      "afterSubmitMessagePlaceholder": "Thanks! We've received your details.",
+      "afterSubmitMessageHelper": "Bot reply rendered in the chat after the user submits the extracted fields. Leave empty to skip."
     },
     "appointments": {
       "addAppointment": "Add Appointment Type",

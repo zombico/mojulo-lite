@@ -96,6 +96,9 @@ export function buildPreviewConfig(formData, enabledProtocols) {
     opticalReadShowUploadOnStart: Boolean(
       enabledProtocols.opticalRead && formData.opticalReadShowUploadOnStart,
     ),
+    opticalReadAfterSubmitMessage: enabledProtocols.opticalRead
+      ? formData.opticalReadAfterSubmitMessage || ''
+      : '',
   };
 
   // The shim uses these to translate /chat calls into /api/preview/chat

@@ -2,13 +2,11 @@
     "config": {
         "documentsPath": "./documents",
         "instructions": "./config/instructions.txt",
-        "ragSummary": "./config/ragSummary.txt",
         "name": "",
         "chatDisplayName": "",
         "placeholder": "",
         "firstMessage": "",
         "suggestedPrompts": [],
-        "isRouter": false,
         "triage": false,
         "triagePrompts": [],
         "isForm": false,

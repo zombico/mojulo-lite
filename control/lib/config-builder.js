@@ -251,6 +251,12 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
       // strip on first load; field list ships separately (see opticalReadFields).
       configSection.opticalReadShowUploadOnStart = true;
     }
+    if (formData.opticalReadAfterSubmitMessage && formData.opticalReadAfterSubmitMessage.trim()) {
+      // Optional follow-up message rendered in the chat after the user
+      // submits the extracted-fields panel. Independent from form-gathering's
+      // afterSubmitChatMessage so each protocol can have its own copy.
+      configSection.opticalReadAfterSubmitMessage = formData.opticalReadAfterSubmitMessage.trim();
+    }
   }
 
   return {
@@ -449,6 +455,7 @@ export function parseModularDeploymentConfig(config, options = {}) {
       opticalRead: {
         fields: config.opticalReadFields || [],
         showUploadOnStart: !!config.config?.opticalReadShowUploadOnStart,
+        afterSubmitMessage: config.config?.opticalReadAfterSubmitMessage || '',
       },
     },
 

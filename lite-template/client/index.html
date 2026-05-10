@@ -2136,8 +2136,8 @@
                     inputs.forEach((input) => {
                         input.disabled = true;
                     });
-                    if (botContext?.afterSubmitChatMessage) {
-                        addMessage(botContext.afterSubmitChatMessage, true, false, null, null, null, true, true);
+                    if (botContext?.opticalReadAfterSubmitMessage) {
+                        addMessage(botContext.opticalReadAfterSubmitMessage, true, false, null, null, null, true, true);
                     }
                 } catch (err) {
                     console.error('Optical Read submit failed:', err);

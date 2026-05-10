@@ -62,7 +62,6 @@ export default function ModularBotCreationWizard() {
   const [step3ActiveTab, setStep3ActiveTab] = useState('documents');
   const [formGatheringActiveTab, setFormGatheringActiveTab] = useState('fields');
   const [opticalReadActiveTab, setOpticalReadActiveTab] = useState('fields');
-  const [botSpaceName, setBotSpaceName] = useState('');
   const { setBreadcrumbs } = useBreadcrumbs();
 
   // Generate step configs based on enabled protocols
@@ -97,35 +96,11 @@ export default function ModularBotCreationWizard() {
     }
   }, [deploymentId, isClone]);
 
-  // Fetch bot space name for breadcrumbs
-  useEffect(() => {
-    async function fetchBotSpaceName() {
-      if (!botSpaceId) return;
-      try {
-        const response = await fetch('/api/dashboard/bot-spaces');
-        if (response.ok) {
-          const data = await response.json();
-          const space = data.botSpaces?.find(s => s.id === botSpaceId);
-          if (space) {
-            setBotSpaceName(space.name);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching bot space:', err);
-      }
-    }
-    fetchBotSpaceName();
-  }, [botSpaceId]);
-
   // Set breadcrumbs
   useEffect(() => {
     const crumbs = [
       { label: 'Dashboard', href: '/dashboard' },
     ];
-
-    if (botSpaceId && botSpaceName) {
-      crumbs.push({ label: botSpaceName, href: `/dashboard?botSpaceId=${botSpaceId}` });
-    }
 
     if (formData.botName) {
       crumbs.push({ label: formData.botName });
@@ -136,7 +111,7 @@ export default function ModularBotCreationWizard() {
     setBreadcrumbs(crumbs);
 
     return () => setBreadcrumbs([]);
-  }, [botSpaceId, botSpaceName, formData.botName, isEditMode, isClone, setBreadcrumbs]);
+  }, [formData.botName, isEditMode, isClone, setBreadcrumbs]);
 
   async function loadDeploymentConfig(id) {
     setLoading(true);

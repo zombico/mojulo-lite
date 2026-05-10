@@ -42,7 +42,8 @@ export default function OpticalReadPreview({ activeTab = 'fields' }) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-gray-400 p-6">
           <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v4a1 1 0 001 1h3m10-5v4a1 1 0 01-1 1h-3M3 17v-4a1 1 0 011-1h3m10 5v-4a1 1 0 00-1-1h-3M9 11a3 3 0 116 0 3 3 0 01-6 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <p className="text-sm">{t('noFields')}</p>
           <p className="text-xs mt-1">{t('noFieldsHint')}</p>
@@ -104,7 +105,8 @@ export default function OpticalReadPreview({ activeTab = 'fields' }) {
       {fields.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">
           <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v4a1 1 0 001 1h3m10-5v4a1 1 0 01-1 1h-3M3 17v-4a1 1 0 011-1h3m10 5v-4a1 1 0 00-1-1h-3M9 11a3 3 0 116 0 3 3 0 01-6 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <p className="text-sm">{t('noFields')}</p>
           <p className="text-xs mt-1">{t('noFieldsHint')}</p>
@@ -120,7 +122,8 @@ export default function OpticalReadPreview({ activeTab = 'fields' }) {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex-shrink-0 w-8 h-8 bg-sky-900/50 rounded-full flex items-center justify-center">
                     <svg className="w-4 h-4 text-sky-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v4a1 1 0 001 1h3m10-5v4a1 1 0 01-1 1h-3M3 17v-4a1 1 0 011-1h3m10 5v-4a1 1 0 00-1-1h-3M9 11a3 3 0 116 0 3 3 0 01-6 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <div className="min-w-0">

@@ -48,13 +48,14 @@ Local `docker compose up` or one-click cloud deploy to Fly.io from the dashboard
 - **Tamper-evident transcripts.** Every turn is content-hashed and chain-linked; verify at `/verify/:id`. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/turn-hashing.md](docs/turn-hashing.md) and [docs/federated-routing.md](docs/federated-routing.md).
 - **Multilingual vector RAG, fully offline.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. A Thai query against a Spanish corpus retrieves the right chunks with no language detection and no embedding-API key at runtime. See [docs/vector-rag.md](docs/vector-rag.md).
 - **Ghost forms — PII never reaches the LLM.** Locale-aware structured fields render client-side and submit through a dedicated endpoint that bypasses the model. The chat history records only an opaque marker like `{contact_form_filled}`. See [docs/form-collection.md](docs/form-collection.md).
+- **Optical Read — structured fields out of an uploaded image.** Name the slots you want (DOB, license #, expiry, prescription dose); a vision-capable LLM reads the artifact, the user reviews and optionally edits before submit. The extraction turn is hashed over the image bytes — the chain breaks if the source image is altered after the fact, so the audit trail covers what the model actually saw. See [docs/optical-read.md](docs/optical-read.md).
 - **Connect Bot.** Browse live conversations from the control plane without exporting a database — the bot's SQLite stays on the bot. The control plane proxies through using a key both sides already share. See [docs/conversations-api.md](docs/conversations-api.md).
 
 **The basics**
 
 - **Two builders, same output.** Conversational builder for vibes, structured wizard for precision.
 - **Five LLM providers.** OpenAI, Anthropic, Gemini, Cohere, AWS Bedrock — pick at build time, swap by editing `.env`.
-- **Protocol cartridges.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing.
+- **Protocol cartridges.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing, optical read.
 - **One-click cloud deploy** to Fly.io — paste a token in Settings, click Deploy. Persistent volume, autostart on request, autostop when idle. No shell, no `flyctl`.
 - **Document library.** Upload once, reuse across bots. Optionally bundle the source documents back into the artifact zip for archival or client handoff.
 - **Embeddable widget** + Prometheus metrics + form-submission webhooks.
@@ -182,6 +183,7 @@ Concept docs:
 - [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
 - [docs/form-collection.md](docs/form-collection.md) — ghost forms: locale-aware schema generated at build time, rendered on the client, submitted via a dedicated endpoint that bypasses the LLM (PII never reaches the model)
 - [docs/optical-read.md](docs/optical-read.md) — extract user-defined fields from an uploaded image with a vision-capable LLM; the extraction turn is hashed into the conversation chain over the source image bytes
+- [docs/conversation-events.md](docs/conversation-events.md) — the `turns` table as a typed event log: chat turns, optical-read extractions, and handoff events share one chain; how each consumer (LLM, verifier, dashboard) replays a different view of it
 - [docs/conversations-api.md](docs/conversations-api.md) — Connect Bot: how the control plane proxies through to a running bot's conversations API without copying data
 - [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot tamper-evident chain that `/verify/:id` walks
 - [docs/federated-routing.md](docs/federated-routing.md) — cross-bot tamper-evident chain across triage handoffs (extends turn-hashing across bot boundaries)

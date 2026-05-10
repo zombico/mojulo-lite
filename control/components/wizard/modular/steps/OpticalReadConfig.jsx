@@ -15,6 +15,7 @@ export default function OpticalReadConfig({ stepConfig, isEditMode = false }) {
 
   const fields = formData.opticalReadFields || [];
   const showUploadOnStart = !!formData.opticalReadShowUploadOnStart;
+  const afterSubmitMessage = formData.opticalReadAfterSubmitMessage || '';
   const provider = formData.provider;
   const providerSupported = provider === 'anthropic';
 
@@ -22,6 +23,10 @@ export default function OpticalReadConfig({ stepConfig, isEditMode = false }) {
 
   const handleToggleStartUpload = () => {
     updateProtocolData('opticalRead', { showUploadOnStart: !showUploadOnStart });
+  };
+
+  const handleAfterSubmitMessageChange = (e) => {
+    updateProtocolData('opticalRead', { afterSubmitMessage: e.target.value });
   };
 
   const handleAddField = (field) => {
@@ -63,6 +68,23 @@ export default function OpticalReadConfig({ stepConfig, isEditMode = false }) {
             <span className="block text-xs text-gray-500 mt-0.5">{t('showUploadOnStartHelper')}</span>
           </span>
         </label>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            {t('afterSubmitMessage')}
+          </label>
+          <textarea
+            value={afterSubmitMessage}
+            onChange={handleAfterSubmitMessageChange}
+            placeholder={t('afterSubmitMessagePlaceholder')}
+            rows={2}
+            disabled={!providerSupported}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none text-sm text-gray-100 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            {t('afterSubmitMessageHelper')}
+          </p>
+        </div>
 
         <button
           type="button"

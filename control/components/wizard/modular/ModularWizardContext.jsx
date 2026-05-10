@@ -228,9 +228,14 @@ const createInitialState = () => ({
       fields: [],
       // When true, the bot's frontend renders an upload card alongside the
       // first-message suggestion strip — the user can upload immediately
-      // without a conversational warm-up. Default off; the model still emits
-      // showUploadButton mid-conversation per the cartridge.
-      showUploadOnStart: false,
+      // without a conversational warm-up. Default on — upload-first is the
+      // expected entry point for this protocol; users can opt out per bot.
+      showUploadOnStart: true,
+      // Optional chat message rendered after the user submits the extracted
+      // fields. Empty string = no follow-up message. Independent from the
+      // form-gathering afterSubmitChatMessage so each protocol can have its
+      // own copy.
+      afterSubmitMessage: '',
     },
   },
 
@@ -357,6 +362,11 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
             ...newState.protocolData,
             opticalRead: { ...newState.protocolData.opticalRead, fields: value },
           };
+        } else if (key === 'opticalReadAfterSubmitMessage') {
+          newState.protocolData = {
+            ...newState.protocolData,
+            opticalRead: { ...newState.protocolData.opticalRead, afterSubmitMessage: value },
+          };
         } else if (key === 'uiSettings') {
           newState.identity = {
             ...newState.identity,
@@ -390,6 +400,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
     // Optical Read fields + UI flags
     opticalReadFields: state.protocolData.opticalRead?.fields || [],
     opticalReadShowUploadOnStart: !!state.protocolData.opticalRead?.showUploadOnStart,
+    opticalReadAfterSubmitMessage: state.protocolData.opticalRead?.afterSubmitMessage || '',
     // Deployment
     deploymentConfig: state.deploymentConfig,
     // Bot Space

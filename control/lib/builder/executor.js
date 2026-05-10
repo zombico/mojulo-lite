@@ -223,6 +223,10 @@ function buildDeploymentConfig(session, instructions, apiKey) {
   if (enabledProtocols.opticalRead && opticalReadFields.length > 0) {
     configSection.isOpticalRead = true;
     configSection.opticalReadFields = './config/opticalReadFields.json';
+    // Default the upload-first entry point on for chat-builder output. The
+    // chat builder doesn't expose a per-bot toggle; users can opt out by
+    // editing the deployment in the wizard, which respects the saved value.
+    configSection.opticalReadShowUploadOnStart = true;
   }
 
   return {
