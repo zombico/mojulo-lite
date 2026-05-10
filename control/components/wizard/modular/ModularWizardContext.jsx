@@ -13,6 +13,7 @@ const STEP_TO_PROTOCOL = {
   'form-gathering': 'formGathering',
   'appointments': 'appointments',
   'triage': 'triage',
+  'optical-read': 'opticalRead',
 };
 
 /**
@@ -74,6 +75,26 @@ const PROTOCOL_VALIDATORS = {
     }
     return { valid: true };
   },
+
+  opticalRead: (data) => {
+    if (!data.fields || data.fields.length === 0) {
+      return { valid: false, error: 'Add at least one extraction field' };
+    }
+    const seen = new Set();
+    for (const field of data.fields) {
+      if (!field.label?.trim()) {
+        return { valid: false, error: 'All fields need a label' };
+      }
+      if (!field.idName?.trim() || !/^[a-z][a-z0-9_]*$/.test(field.idName)) {
+        return { valid: false, error: 'idName must be snake_case (lowercase letters, digits, underscores)' };
+      }
+      if (seen.has(field.idName)) {
+        return { valid: false, error: `Duplicate idName: ${field.idName}` };
+      }
+      seen.add(field.idName);
+    }
+    return { valid: true };
+  },
 };
 
 /**
@@ -125,6 +146,15 @@ function generateSteps(enabledProtocols) {
     });
   }
 
+  if (enabledProtocols.opticalRead) {
+    steps.push({
+      id: 'optical-read',
+      number: stepNumber++,
+      section: 'Optical Read',
+      protocol: 'opticalRead',
+    });
+  }
+
   // Deploy is always last
   steps.push({
     id: 'deploy',
@@ -146,6 +176,7 @@ const createInitialState = () => ({
     formGathering: false,
     appointments: false,
     triage: false,
+    opticalRead: false,
   },
 
   // Core fields (always required)
@@ -192,6 +223,19 @@ const createInitialState = () => ({
     },
     triage: {
       routes: [],
+    },
+    opticalRead: {
+      fields: [],
+      // When true, the bot's frontend renders an upload card alongside the
+      // first-message suggestion strip — the user can upload immediately
+      // without a conversational warm-up. Default on — upload-first is the
+      // expected entry point for this protocol; users can opt out per bot.
+      showUploadOnStart: true,
+      // Optional chat message rendered after the user submits the extracted
+      // fields. Empty string = no follow-up message. Independent from the
+      // form-gathering afterSubmitChatMessage so each protocol can have its
+      // own copy.
+      afterSubmitMessage: '',
     },
   },
 
@@ -313,6 +357,16 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
             ...newState.protocolData,
             triage: { ...newState.protocolData.triage, routes: value },
           };
+        } else if (key === 'opticalReadFields') {
+          newState.protocolData = {
+            ...newState.protocolData,
+            opticalRead: { ...newState.protocolData.opticalRead, fields: value },
+          };
+        } else if (key === 'opticalReadAfterSubmitMessage') {
+          newState.protocolData = {
+            ...newState.protocolData,
+            opticalRead: { ...newState.protocolData.opticalRead, afterSubmitMessage: value },
+          };
         } else if (key === 'uiSettings') {
           newState.identity = {
             ...newState.identity,
@@ -343,6 +397,10 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
     appointmentDestinations: state.protocolData.appointments.destinations,
     // Triage fields
     triageRoutes: state.protocolData.triage.routes,
+    // Optical Read fields + UI flags
+    opticalReadFields: state.protocolData.opticalRead?.fields || [],
+    opticalReadShowUploadOnStart: !!state.protocolData.opticalRead?.showUploadOnStart,
+    opticalReadAfterSubmitMessage: state.protocolData.opticalRead?.afterSubmitMessage || '',
     // Deployment
     deploymentConfig: state.deploymentConfig,
     // Bot Space
@@ -403,8 +461,16 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         if (!state.enabledProtocols.knowledge &&
             !state.enabledProtocols.formGathering &&
             !state.enabledProtocols.appointments &&
-            !state.enabledProtocols.triage) {
+            !state.enabledProtocols.triage &&
+            !state.enabledProtocols.opticalRead) {
           newErrors.protocols = 'At least one capability must be enabled';
+        }
+        // Defense in depth: opticalRead requires Anthropic in v1. The
+        // ProtocolSelection card disables the toggle for other providers, but
+        // an out-of-band state set (clone of an Anthropic bot, then provider
+        // swap) could still leave it on.
+        if (state.enabledProtocols.opticalRead && state.core.provider !== 'anthropic') {
+          newErrors.protocols = 'Optical Read requires the Anthropic provider in v1';
         }
         break;
 
@@ -457,6 +523,13 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         const triageValidation = PROTOCOL_VALIDATORS.triage(state.protocolData.triage);
         if (!triageValidation.valid) {
           newErrors.triageRoutes = triageValidation.error;
+        }
+        break;
+
+      case 'optical-read':
+        const opticalReadValidation = PROTOCOL_VALIDATORS.opticalRead(state.protocolData.opticalRead);
+        if (!opticalReadValidation.valid) {
+          newErrors.opticalReadFields = opticalReadValidation.error;
         }
         break;
 
@@ -519,6 +592,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         formGathering: state.enabledProtocols.formGathering ? state.protocolData.formGathering : null,
         appointments: state.enabledProtocols.appointments ? state.protocolData.appointments : null,
         triage: state.enabledProtocols.triage ? state.protocolData.triage : null,
+        opticalRead: state.enabledProtocols.opticalRead ? state.protocolData.opticalRead : null,
       },
     };
   }, [state]);
@@ -554,10 +628,14 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
           ...prev.protocolData.triage,
           ...parsedConfig.protocolData?.triage,
         },
+        opticalRead: {
+          ...prev.protocolData.opticalRead,
+          ...parsedConfig.protocolData?.opticalRead,
+        },
       },
     }));
     // Mark all steps as completed for edit mode navigation
-    setCompletedSteps(['core', 'protocols', 'identity', 'knowledge', 'form-gathering', 'appointments', 'triage']);
+    setCompletedSteps(['core', 'protocols', 'identity', 'knowledge', 'form-gathering', 'appointments', 'triage', 'optical-read']);
     console.log('[ModularWizard] State hydrated from config:', parsedConfig);
   }, []);
 

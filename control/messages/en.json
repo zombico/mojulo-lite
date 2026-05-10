@@ -276,6 +276,7 @@
       "capabilities": "Capabilities",
       "formCollection": "Form Collection",
       "routing": "Routing",
+      "opticalRead": "Optical Read",
       "deploy": "Build"
     },
     "titles": {
@@ -298,6 +299,7 @@
       "configureFormCollection": "Configure Form Collection",
       "configureAppointments": "Configure Appointments",
       "configureTriageRouting": "Configure Triage Routing",
+      "configureOpticalRead": "Configure Optical Read",
       "deployYourBot": "Build & Download"
     },
     "badges": {
@@ -311,7 +313,8 @@
       "modular": "Modular",
       "knowledge": "Knowledge",
       "forms": "Forms",
-      "routing": "Routing"
+      "routing": "Routing",
+      "opticalRead": "Optical Read"
     },
     "theatre": {
       "modelConfiguration": "Model Configuration",
@@ -326,7 +329,8 @@
       "protocolPreview": "Protocol Preview",
       "formPreview": "Form Preview",
       "appointmentPreview": "Appointment Preview",
-      "triagePreview": "Triage Preview"
+      "triagePreview": "Triage Preview",
+      "opticalReadPreview": "Optical Read Preview"
     },
     "protocols": {
       "selectCapabilities": "Select Bot Capabilities",
@@ -339,6 +343,9 @@
       "appointmentBookingDescription": "Route users to calendar providers like Calendly or Google calendar",
       "triageRouting": "Triage Routing",
       "triageRoutingDescription": "Route users to specialized bots or human support based on their needs",
+      "opticalRead": "Optical Read",
+      "opticalReadDescription": "Extract structured data from an uploaded image using a vision-capable LLM",
+      "opticalReadProviderGate": "Optical Read requires a vision-capable provider. Anthropic supported in v1; OpenAI and Gemini coming soon.",
       "exampleFaq": "FAQ chatbots",
       "exampleDocumentation": "Documentation assistants",
       "exampleProductSupport": "Product support",
@@ -690,7 +697,14 @@
           "scenarioDepartmentRouting": "Department Routing",
           "scenarioEscalation": "Escalation Handling",
           "scenarioLanguageRouting": "Language-Based Routing",
-          "scenarioVIPRouting": "Priority/VIP Routing"
+          "scenarioVIPRouting": "Priority/VIP Routing",
+          "singleOpticalRead": "Vision Extractor",
+          "singleOpticalReadDesc": "Pull structured fields from an uploaded image — the model reads, the user reviews and submits",
+          "scenarioIdScan": "ID Document Scan",
+          "scenarioInsuranceCard": "Insurance Card Capture",
+          "scenarioReceiptExtract": "Receipt Extraction",
+          "scenarioBusinessCard": "Business Card Reader",
+          "scenarioPrescriptionLabel": "Prescription Label"
         },
         "synergies": {
           "synergyKnowledgeForm": "Informed Lead Capture",
@@ -716,6 +730,14 @@
           "scenarioTieredSupport": "Tiered support",
           "scenarioDeflectOrRoute": "Deflect or route",
           "scenarioL1Automation": "L1 automation",
+
+          "synergyKnowledgeOpticalRead": "Scan & Explain",
+          "synergyKnowledgeOpticalReadDesc": "Extract data from an uploaded image, then answer follow-up questions grounded in your knowledge base",
+          "scenarioScanThenAsk": "Scan then ask",
+          "scenarioDocumentExplainer": "Document explainer",
+          "scenarioCardToPolicy": "Card → policy lookup",
+          "scenarioPrescriptionExplainer": "Prescription explainer",
+          "scenarioReceiptToReturns": "Receipt → returns FAQ",
 
           "synergyFormAppointments": "Intake to Booking",
           "synergyFormAppointmentsDesc": "Collect qualifying information, then offer personalized appointment slots",
@@ -798,18 +820,24 @@
       "calendars": "Calendars",
       "configured": "{count} configured",
       "triageRoutes": "Triage Routes",
+      "opticalReadFields": "Optical Read Fields",
       "required": "Required",
       "displayNameRequired": "Display name is required",
       "descriptionRequired": "Description is required",
       "urlRequired": "URL is required",
-      "urlInvalid": "Please enter a valid URL"
+      "urlInvalid": "Please enter a valid URL",
+      "addOpticalReadField": "Add Extraction Field",
+      "editOpticalReadField": "Edit Extraction Field",
+      "updateOpticalReadField": "Update Extraction Field"
     },
     "tabs": {
       "desktop": "Desktop",
       "documents": "Documents",
       "fieldsDisplay": "Fields Display",
       "flow": "Flow",
-      "jsonView": "JSON View"
+      "jsonView": "JSON View",
+      "fields": "Fields",
+      "preview": "Preview"
     },
     "identity": {
       "chatDisplayName": "Chat Window Display Name",
@@ -922,6 +950,30 @@
       "descriptionHelper": "Used for RAG matching to determine when to route users here",
       "updateDestination": "Update Destination"
     },
+    "opticalRead": {
+      "addField": "Add Extraction Field",
+      "deleteField": "Delete Field",
+      "label": "Label",
+      "labelPlaceholder": "Date of Birth",
+      "labelRequired": "Label is required",
+      "idName": "ID Name",
+      "idNamePlaceholder": "dob",
+      "idNameHelper": "snake_case key used in extractedFields",
+      "idNameRequired": "ID name is required",
+      "idNameInvalid": "Use lowercase letters, numbers, and underscores only",
+      "idNameDuplicate": "ID name must be unique",
+      "hint": "Hint",
+      "hintPlaceholder": "MM/DD/YYYY, front of license",
+      "hintHelper": "Optional: prime location or format. The hint is the load-bearing tuning primitive.",
+      "noFieldsYet": "Add at least one extraction field to enable Optical Read.",
+      "providerNotSupported": "Optical Read requires a vision-capable provider. Anthropic supported in v1; OpenAI and Gemini coming soon.",
+      "intro": "Name the slots you want extracted. The model resolves them against its own visual prior — the optional hint primes location or format.",
+      "showUploadOnStart": "Show upload button as a starter prompt",
+      "showUploadOnStartHelper": "Renders an upload card alongside the bot's first-message suggestions. Skips the conversational warm-up — the user can upload immediately.",
+      "afterSubmitMessage": "After-Submit Chat Message (Optional)",
+      "afterSubmitMessagePlaceholder": "Thanks! We've received your details.",
+      "afterSubmitMessageHelper": "Bot reply rendered in the chat after the user submits the extracted fields. Leave empty to skip."
+    },
     "appointments": {
       "addAppointment": "Add Appointment Type",
       "deleteAppointment": "Delete Appointment",
@@ -1023,6 +1075,14 @@
         "noRoutesHint": "Click \"Add Routing Destination\" to get started",
         "user": "User",
         "evaluatesAndRoutes": "Evaluates & Routes"
+      },
+      "opticalRead": {
+        "noFields": "No extraction fields configured yet",
+        "noFieldsHint": "Click \"Add Extraction Field\" to get started",
+        "clientPreviewLabel": "How users will see it",
+        "editButton": "Edit",
+        "sendButton": "Send",
+        "previewNote": "Inputs render disabled until extraction. Users tap Edit to correct, Send to submit."
       },
       "knowledge": {
         "unlinkTitle": "Unlink from this bot (file remains in bot space)",

@@ -26,9 +26,22 @@ export async function composeFromSession(session) {
   if (enabledProtocols.appointments && protocolData.appointments) {
     composerProtocolData.appointments = protocolData.appointments.destinations;
   }
-  
+
   if (enabledProtocols.triage && protocolData.triage) {
     composerProtocolData.triage = protocolData.triage.routes;
+  }
+
+  // Optical Read: tool executor stores fields under generatedConfigs.opticalRead.
+  // Honor protocolData first for symmetry with the wizard-side path, then fall
+  // back to generatedConfigs for the chat-builder path.
+  if (enabledProtocols.opticalRead) {
+    const fields =
+      protocolData.opticalRead?.fields ||
+      session.generatedConfigs?.opticalRead?.fields ||
+      [];
+    if (fields.length > 0) {
+      composerProtocolData.opticalRead = { fields };
+    }
   }
 
   // Call composer

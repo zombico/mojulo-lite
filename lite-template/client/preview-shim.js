@@ -141,6 +141,69 @@
     });
   }
 
+  async function handleExtract(init) {
+    if (!CONFIG_RESOLVED) await configReady;
+    let body = {};
+    try {
+      body = JSON.parse(init?.body || '{}');
+    } catch {
+      /* keep empty */
+    }
+
+    // The preview iframe doesn't run the bot's /api/extract. Forward the
+    // image to the control plane's /api/preview/extract along with the
+    // wizard config (previewMeta) so the same vision call runs server-side
+    // — same model, same field list, same prompt shape as the deployed bot.
+    const previewPayload = {
+      mime: body.mime,
+      base64: body.base64,
+      fileName: body.fileName,
+      conversationHistory: HISTORY,
+      turn: TURN,
+      opticalReadFields:
+        window.__INITIAL_CONFIG__?.opticalReadFields ||
+        previewMeta?.protocolData?.opticalRead?.fields ||
+        [],
+      ...(previewMeta || {}),
+    };
+
+    const res = await realFetch('/api/preview/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(previewPayload),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return jsonResponse(
+        { error: json.error || `Preview extract failed (${res.status})` },
+        res.status,
+      );
+    }
+
+    // Mirror the bot's bookkeeping so a subsequent /chat (if any) sees this
+    // extraction in conversationHistory, and the turn counter advances.
+    const sentinel = `[optical_read image]`;
+    HISTORY.push({
+      user_prompt: sentinel,
+      llm_response: JSON.stringify({
+        answer: json.answer,
+        extractedFields: json.extractedFields,
+      }),
+    });
+    TURN += 1;
+
+    return jsonResponse({
+      answer: json.answer,
+      extractedFields: json.extractedFields,
+      extractionConfidence: json.extractionConfidence,
+      extractionNotes: json.extractionNotes,
+      conversationId: json.conversationId || 'preview',
+      turn: json.turn,
+      chainHash: json.chainHash || 'preview',
+      trace: json.trace || {},
+    });
+  }
+
   window.fetch = async function patchedFetch(input, init) {
     if (isUrl(input, (u) => u.pathname === '/chat')) {
       return handleChat(init);
@@ -150,6 +213,9 @@
     }
     if (isUrl(input, (u) => u.pathname === '/api/submit-form')) {
       return handleSubmitFormStub(init);
+    }
+    if (isUrl(input, (u) => u.pathname === '/api/extract')) {
+      return handleExtract(init);
     }
     if (isUrl(input, (u) => u.pathname === '/context')) {
       // The production client checks window.__INITIAL_CONFIG__ first and

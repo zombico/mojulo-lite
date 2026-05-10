@@ -24,9 +24,15 @@ const PROTOCOL_ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
     </svg>
   ),
+  opticalRead: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
 };
 
-function useProtocolCards(t) {
+function useProtocolCards(t, { provider } = {}) {
   return [
     {
       id: 'knowledge',
@@ -52,19 +58,35 @@ function useProtocolCards(t) {
       description: t('triageRoutingDescription'),
       icon: PROTOCOL_ICONS.triage,
     },
+    {
+      id: 'opticalRead',
+      title: t('opticalRead'),
+      description: t('opticalReadDescription'),
+      icon: PROTOCOL_ICONS.opticalRead,
+      // v1: vision adapter is Anthropic-only. Disabling the card here keeps
+      // users from picking a combo the runtime can't honor; the wizard step
+      // also re-checks so direct toggles via state can't bypass.
+      disabled: provider && provider !== 'anthropic',
+      disabledReason: t('opticalReadProviderGate'),
+    },
   ];
 }
 
 function ProtocolCard({ protocol, enabled, onToggle }) {
+  const disabled = !!protocol.disabled;
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={disabled ? undefined : onToggle}
+      disabled={disabled}
+      title={disabled ? protocol.disabledReason : undefined}
       className={`
         w-full text-left p-3 rounded-lg border-2 transition-all group
-        ${enabled
-          ? 'border-teal-500 bg-teal-900/30 shadow-sm'
-          : 'border-gray-700 bg-gray-800 hover:border-gray-600 hover:bg-gray-700'
+        ${disabled
+          ? 'border-gray-800 bg-gray-900 opacity-50 cursor-not-allowed'
+          : enabled
+            ? 'border-teal-500 bg-teal-900/30 shadow-sm'
+            : 'border-gray-700 bg-gray-800 hover:border-gray-600 hover:bg-gray-700'
         }
       `}
     >
@@ -72,9 +94,9 @@ function ProtocolCard({ protocol, enabled, onToggle }) {
         {/* Toggle indicator */}
         <div className={`
           flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center
-          ${enabled ? 'border-teal-500 bg-teal-500' : 'border-gray-600 group-hover:border-gray-500'}
+          ${enabled && !disabled ? 'border-teal-500 bg-teal-500' : 'border-gray-600 group-hover:border-gray-500'}
         `}>
-          {enabled && (
+          {enabled && !disabled && (
             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
@@ -82,7 +104,7 @@ function ProtocolCard({ protocol, enabled, onToggle }) {
         </div>
 
         {/* Icon */}
-        <span className={enabled ? 'text-teal-400' : 'text-gray-500 group-hover:text-gray-400'}>
+        <span className={enabled && !disabled ? 'text-teal-400' : 'text-gray-500 group-hover:text-gray-400'}>
           {protocol.icon}
         </span>
 
@@ -91,9 +113,9 @@ function ProtocolCard({ protocol, enabled, onToggle }) {
           <h3 className="font-semibold text-gray-100">
             {protocol.title}
           </h3>
-          {!enabled && (
+          {(!enabled || disabled) && (
             <p className="text-sm text-gray-500">
-              {protocol.description}
+              {disabled ? protocol.disabledReason : protocol.description}
             </p>
           )}
         </div>
@@ -104,13 +126,14 @@ function ProtocolCard({ protocol, enabled, onToggle }) {
 
 export default function ProtocolSelection({ stepConfig }) {
   const t = useTranslations('wizard.protocols');
-  const { enabledProtocols, toggleProtocol, errors, clearError } = useModularWizard();
-  const protocolCards = useProtocolCards(t);
+  const { enabledProtocols, toggleProtocol, errors, clearError, formData } = useModularWizard();
+  const protocolCards = useProtocolCards(t, { provider: formData.provider });
 
   const hasAnyProtocol = enabledProtocols.knowledge ||
                          enabledProtocols.formGathering ||
                          enabledProtocols.appointments ||
-                         enabledProtocols.triage;
+                         enabledProtocols.triage ||
+                         enabledProtocols.opticalRead;
 
   const handleToggle = (protocolId) => {
     toggleProtocol(protocolId);

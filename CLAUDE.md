@@ -59,7 +59,7 @@ The chat builder is Claude tool-use over SSE. Tools are defined in [control/lib/
 
 [DockerDeployer.deploy()](control/lib/deployers/docker.js) is the entrypoint. It:
 
-1. Composes `instructions.txt` from the enabled cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/) (`00_base`, `01_knowledge`, `02_form-gathering`, `03_appointments`, `04_triage`).
+1. Composes `instructions.txt` from the enabled cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/) (`00_base`, `01_knowledge`, `02_form-gathering`, `03_appointments`, `04_triage`, `05_optical-read`).
 2. Copies the prebaked `embeddings.json` (built upstream by [control/app/api/vectorize-rag/route.js](control/app/api/vectorize-rag/route.js)) — knowledge chunks AND triage-route chunks share one cosine index, distinguished by `metadata.source`.
 3. Writes `config/`, `docker-compose.yml`, `.env`, `.env.example`, `README.md` into a staging dir and zips it.
 

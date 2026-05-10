@@ -86,6 +86,19 @@ export function buildPreviewConfig(formData, enabledProtocols) {
       enabledProtocols.triage && formData.triageRoutes?.length > 0,
     ),
     triageRoutes: enabledProtocols.triage ? formData.triageRoutes || [] : [],
+
+    isOpticalRead: Boolean(
+      enabledProtocols.opticalRead && formData.opticalReadFields?.length > 0,
+    ),
+    opticalReadFields: enabledProtocols.opticalRead
+      ? formData.opticalReadFields || []
+      : [],
+    opticalReadShowUploadOnStart: Boolean(
+      enabledProtocols.opticalRead && formData.opticalReadShowUploadOnStart,
+    ),
+    opticalReadAfterSubmitMessage: enabledProtocols.opticalRead
+      ? formData.opticalReadAfterSubmitMessage || ''
+      : '',
   };
 
   // The shim uses these to translate /chat calls into /api/preview/chat
@@ -102,6 +115,9 @@ export function buildPreviewConfig(formData, enabledProtocols) {
         : {}),
       ...(enabledProtocols.triage
         ? { triage: formData.triageRoutes || [] }
+        : {}),
+      ...(enabledProtocols.opticalRead
+        ? { opticalRead: { fields: formData.opticalReadFields || [] } }
         : {}),
     },
     llm,

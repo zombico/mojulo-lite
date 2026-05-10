@@ -17,6 +17,7 @@ import KnowledgeConfig from './steps/KnowledgeConfig';
 import FormGatheringConfig from './steps/FormGatheringConfig';
 import AppointmentsConfig from './steps/AppointmentsConfig';
 import TriageConfig from './steps/TriageConfig';
+import OpticalReadConfig from './steps/OpticalReadConfig';
 import Deploy from './steps/Deploy';
 import ProtocolSelection from './steps/ProtocolSelection';
 
@@ -28,6 +29,7 @@ import KnowledgePreview from './stepsPreview/KnowledgePreview';
 import FormGatheringPreview from './stepsPreview/FormGatheringPreview';
 import AppointmentsPreview from './stepsPreview/AppointmentsPreview';
 import TriagePreview from './stepsPreview/TriagePreview';
+import OpticalReadPreview from './stepsPreview/OpticalReadPreview';
 
 export default function ModularBotCreationWizard() {
   const searchParams = useSearchParams();
@@ -59,7 +61,7 @@ export default function ModularBotCreationWizard() {
   const [step2ActiveTab, setStep2ActiveTab] = useState('desktop');
   const [step3ActiveTab, setStep3ActiveTab] = useState('documents');
   const [formGatheringActiveTab, setFormGatheringActiveTab] = useState('fields');
-  const [botSpaceName, setBotSpaceName] = useState('');
+  const [opticalReadActiveTab, setOpticalReadActiveTab] = useState('fields');
   const { setBreadcrumbs } = useBreadcrumbs();
 
   // Generate step configs based on enabled protocols
@@ -94,35 +96,11 @@ export default function ModularBotCreationWizard() {
     }
   }, [deploymentId, isClone]);
 
-  // Fetch bot space name for breadcrumbs
-  useEffect(() => {
-    async function fetchBotSpaceName() {
-      if (!botSpaceId) return;
-      try {
-        const response = await fetch('/api/dashboard/bot-spaces');
-        if (response.ok) {
-          const data = await response.json();
-          const space = data.botSpaces?.find(s => s.id === botSpaceId);
-          if (space) {
-            setBotSpaceName(space.name);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching bot space:', err);
-      }
-    }
-    fetchBotSpaceName();
-  }, [botSpaceId]);
-
   // Set breadcrumbs
   useEffect(() => {
     const crumbs = [
       { label: 'Dashboard', href: '/dashboard' },
     ];
-
-    if (botSpaceId && botSpaceName) {
-      crumbs.push({ label: botSpaceName, href: `/dashboard?botSpaceId=${botSpaceId}` });
-    }
 
     if (formData.botName) {
       crumbs.push({ label: formData.botName });
@@ -133,7 +111,7 @@ export default function ModularBotCreationWizard() {
     setBreadcrumbs(crumbs);
 
     return () => setBreadcrumbs([]);
-  }, [botSpaceId, botSpaceName, formData.botName, isEditMode, isClone, setBreadcrumbs]);
+  }, [formData.botName, isEditMode, isClone, setBreadcrumbs]);
 
   async function loadDeploymentConfig(id) {
     setLoading(true);
@@ -205,6 +183,8 @@ export default function ModularBotCreationWizard() {
         return <AppointmentsConfig stepConfig={stepConfig} />;
       case 'triage':
         return <TriageConfig stepConfig={stepConfig} />;
+      case 'optical-read':
+        return <OpticalReadConfig stepConfig={stepConfig} isEditMode={isEditMode} />;
       case 'deploy':
         return <Deploy
           stepConfig={stepConfig}
@@ -240,6 +220,8 @@ export default function ModularBotCreationWizard() {
         return <AppointmentsPreview />;
       case 'triage':
         return <TriagePreview />;
+      case 'optical-read':
+        return <OpticalReadPreview activeTab={opticalReadActiveTab} />;
       default:
         return (
           <div className="flex items-center justify-center h-full text-gray-400">
@@ -273,6 +255,8 @@ export default function ModularBotCreationWizard() {
         return t('theatre.appointmentPreview');
       case 'triage':
         return t('theatre.triagePreview');
+      case 'optical-read':
+        return t('theatre.opticalReadPreview');
       case 'deploy':
         return t('theatre.preview');
       default:
@@ -333,6 +317,12 @@ export default function ModularBotCreationWizard() {
           { id: 'flow', label: t('tabs.flow'), badge: branchCount > 0 ? branchCount : null },
           { id: 'json', label: t('tabs.jsonView') }
         ];
+      case 'optical-read':
+        const opticalReadFieldCount = (formData.opticalReadFields || []).length;
+        return [
+          { id: 'fields', label: t('tabs.fields'), badge: opticalReadFieldCount > 0 ? opticalReadFieldCount : null },
+          { id: 'preview', label: t('tabs.preview') }
+        ];
       default:
         return null;
     }
@@ -348,6 +338,8 @@ export default function ModularBotCreationWizard() {
         return step3ActiveTab;
       case 'form-gathering':
         return formGatheringActiveTab;
+      case 'optical-read':
+        return opticalReadActiveTab;
       default:
         return null;
     }
@@ -365,6 +357,9 @@ export default function ModularBotCreationWizard() {
         break;
       case 'form-gathering':
         setFormGatheringActiveTab(tabId);
+        break;
+      case 'optical-read':
+        setOpticalReadActiveTab(tabId);
         break;
     }
   };

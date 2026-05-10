@@ -128,6 +128,7 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
       enabledProtocols,
       appointmentDestinations: enabledProtocols.appointments ? formData.appointmentDestinations : undefined,
       triageDestinations: enabledProtocols.triage ? formData.triageRoutes : undefined,
+      opticalReadFields: enabledProtocols.opticalRead ? formData.opticalReadFields : undefined,
       botSpaceId: !isEditMode ? botSpaceId : undefined,
       embeddings: embeddings || null,
       apiKeyId,
@@ -211,6 +212,7 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
     if (enabledProtocols.formGathering) protocols.push(tWizard('badges.forms'));
     if (enabledProtocols.appointments) protocols.push(tWizard('badges.appointments'));
     if (enabledProtocols.triage) protocols.push(tWizard('badges.routing'));
+    if (enabledProtocols.opticalRead) protocols.push(tWizard('badges.opticalRead'));
     return protocols.join(' + ') || t('none');
   }
 
@@ -289,6 +291,14 @@ export default function Deploy({ stepConfig, deploymentId = null, isEditMode = f
                 <dt className="text-gray-400">{tModular('triageRoutes')}</dt>
                 <dd className="font-medium text-gray-100">
                   {tModular('configured', { count: formData.triageRoutes?.length || 0 })}
+                </dd>
+              </div>
+            )}
+            {enabledProtocols.opticalRead && (
+              <div className="flex justify-between">
+                <dt className="text-gray-400">{tModular('opticalReadFields')}</dt>
+                <dd className="font-medium text-gray-100">
+                  {tModular('configured', { count: formData.opticalReadFields?.length || 0 })}
                 </dd>
               </div>
             )}

@@ -321,6 +321,20 @@ const PROTOCOL_CONFIG = {
       </svg>
     ),
   },
+  opticalRead: {
+    key: 'opticalRead',
+    color: 'sky',
+    fillColor: '#0284c7',
+    bgGradient: 'from-sky-900/60 to-sky-800/40',
+    borderColor: '#0ea5e9',
+    textClass: 'text-sky-300',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+  },
 };
 
 /**
@@ -347,6 +361,11 @@ const SINGLE_PROTOCOL_EXAMPLES = {
     descKey: 'singleTriageDesc',
     scenarios: ['scenarioRouteToAgent', 'scenarioDepartmentRouting', 'scenarioEscalation', 'scenarioLanguageRouting', 'scenarioVIPRouting'],
   },
+  opticalRead: {
+    titleKey: 'singleOpticalRead',
+    descKey: 'singleOpticalReadDesc',
+    scenarios: ['scenarioIdScan', 'scenarioInsuranceCard', 'scenarioReceiptExtract', 'scenarioBusinessCard', 'scenarioPrescriptionLabel'],
+  },
 };
 
 /**
@@ -368,6 +387,11 @@ const COMBINATION_EXAMPLES = {
     titleKey: 'synergyKnowledgeTriage',
     descKey: 'synergyKnowledgeTriageDesc',
     scenarios: ['scenarioAnswerOrEscalate', 'scenarioSmartRouting', 'scenarioTieredSupport', 'scenarioDeflectOrRoute', 'scenarioL1Automation'],
+  },
+  'knowledge+opticalRead': {
+    titleKey: 'synergyKnowledgeOpticalRead',
+    descKey: 'synergyKnowledgeOpticalReadDesc',
+    scenarios: ['scenarioScanThenAsk', 'scenarioDocumentExplainer', 'scenarioCardToPolicy', 'scenarioPrescriptionExplainer', 'scenarioReceiptToReturns'],
   },
   'formGathering+appointments': {
     titleKey: 'synergyFormAppointments',
@@ -552,7 +576,7 @@ function PuzzleChain({ enabledKeys }) {
  * Generate synergy key using predefined protocol order (not alphabetical)
  */
 function getSynergyKey(protocols) {
-  const order = ['knowledge', 'formGathering', 'appointments', 'triage'];
+  const order = ['knowledge', 'formGathering', 'appointments', 'triage', 'opticalRead'];
   return order.filter(p => protocols.includes(p)).join('+');
 }
 
@@ -756,7 +780,7 @@ export default function ProtocolSelectionPreview() {
 
   // Get list of enabled protocol keys in order
   const enabledKeys = useMemo(() => {
-    const order = ['knowledge', 'formGathering', 'appointments', 'triage'];
+    const order = ['knowledge', 'formGathering', 'appointments', 'triage', 'opticalRead'];
     return order.filter((key) => enabledProtocols[key]);
   }, [enabledProtocols]);
 

@@ -40,7 +40,8 @@ The control plane's [DockerDeployer](control/lib/deployers/docker.js) assembles 
   │              │           │ - 02_forms   │           │ (built upstream  │
   │              │           │ - 03_appts   │           │  by /api/vectorize│
   │              │           │ - 04_triage  │           │  -rag; copied in │
-  │              │           │              │           │  here)           │
+  │              │           │ - 05_optical │           │  here)           │
+  │              │           │   _read      │           │                  │
   └──────┬───────┘           └──────┬───────┘           └──────┬───────────┘
          │                          │                          │
          └──────────────────────────┼──────────────────────────┘

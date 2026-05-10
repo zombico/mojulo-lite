@@ -212,6 +212,12 @@ app.get('/', (req, res) => {
         console.log('Injected triageRoutes count:', configToInject.triageRoutes?.length || 0);
     }
 
+    // Optical Read: ship the field list to the client so it can render the
+    // read-only display after extraction without a second round trip.
+    if (config.config.isOpticalRead && opticalReadFields) {
+        configToInject.opticalReadFields = opticalReadFields;
+    }
+
     // Inject config as a global variable before other scripts
     const configScript = `<script>window.__INITIAL_CONFIG__ = ${JSON.stringify(configToInject)};</script>`;
     html = html.replace('</head>', `${configScript}\n</head>`);
@@ -225,6 +231,10 @@ app.use(express.static(path.join(__dirname, './client')));
 let llmClient = null;
 let cachedInstructions = null;
 let ragInstance = null;
+// Optical Read field list, loaded once at startup like instructions.txt.
+// Null when the protocol is not enabled. The /api/extract endpoint and the
+// frontend's __INITIAL_CONFIG__ both read from here.
+let opticalReadFields = null;
 
 // Initialize database
 // Use absolute /data path in Docker (mounted volume); relative ./data for local dev
@@ -362,6 +372,22 @@ const handoffLimiter = rateLimit({
     message: 'Too many handoff events, please try again later'
 });
 
+// /api/extract carries a base64 image inside a JSON body. The default
+// express.json() limit (100kb) is way too small. We cap at ~7MB raw, which
+// covers a 5MB image after base64 inflation (1.37×) plus the small JSON
+// envelope. The 5MB image cap itself is enforced after parsing.
+const extractJsonParser = express.json({ limit: '7mb' });
+const extractLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: 'Too many extraction requests, please try again later'
+});
+
+// 5MB raw image cap. Enforced post-parse against the decoded byte length so
+// padded-base64 tricks can't slip past.
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
 // Chat endpoint
 app.post('/chat', chatLimiter, async (req, res) => {
     try {
@@ -479,6 +505,164 @@ app.post('/chat', chatLimiter, async (req, res) => {
         res.status(500).json({ error: e.message || 'Internal server error' });
     }
 })
+
+// Optical Read extraction endpoint. Conceptually Turn 1 of a two-turn
+// conversation: the user uploads, the model reads, the chain locks. Whatever
+// happens next (edit, submit, abandon) is downstream and chained separately.
+//
+// Input  : { conversationId?, fileName, mime, base64 }
+// Output : { answer, extractedFields, conversationId, turn, chainHash }
+//
+// Hashing: content_hash includes sha256(imageBytes), so the chain is
+// tamper-evident over the source artifact, not just the prose response. The
+// row's user_prompt is set to a sentinel string and the actual prompt the
+// model saw is stored in full_prompt — same pattern as /chat.
+app.post('/api/extract', extractLimiter, extractJsonParser, async (req, res) => {
+    try {
+        if (!opticalReadFields || opticalReadFields.length === 0) {
+            return res.status(400).json({ error: 'Optical Read is not configured for this bot' });
+        }
+
+        let { conversationId, fileName, mime, base64 } = req.body || {};
+
+        if (!mime || !ALLOWED_IMAGE_MIMES.has(mime)) {
+            return res.status(400).json({ error: 'Unsupported image type. Use PNG, JPEG, or WebP.' });
+        }
+        if (typeof base64 !== 'string' || base64.length === 0) {
+            return res.status(400).json({ error: 'base64 image data is required' });
+        }
+
+        // Strip data: URL prefix if the client forgot to. Decode and check the
+        // raw byte length against the cap.
+        const cleaned = base64.replace(/^data:[^;]+;base64,/, '');
+        let imageBuffer;
+        try {
+            imageBuffer = Buffer.from(cleaned, 'base64');
+        } catch (e) {
+            return res.status(400).json({ error: 'Invalid base64 payload' });
+        }
+        if (imageBuffer.length === 0) {
+            return res.status(400).json({ error: 'Empty image payload' });
+        }
+        if (imageBuffer.length > MAX_IMAGE_BYTES) {
+            return res.status(413).json({ error: `Image exceeds ${Math.floor(MAX_IMAGE_BYTES / 1024 / 1024)}MB cap` });
+        }
+
+        if (!conversationId || !isValidConversationId(conversationId)) {
+            conversationId = crypto.randomUUID();
+        }
+
+        // Compose the user prompt deterministically so the hash chain stays
+        // reproducible. The cartridge in instructions.txt already explains the
+        // protocol — this is just the per-turn data envelope.
+        const fieldList = JSON.stringify(opticalReadFields, null, 2);
+        const userPrompt =
+            `Extract the configured fields from this image. ` +
+            `Return one entry per idName in extractedFields, empty string when missing.\n\n` +
+            `Field list:\n${fieldList}`;
+
+        const conversationHistory = getConversationHistory(conversationId);
+        const result = await llmClient.generate(
+            cachedInstructions,
+            userPrompt,
+            '', // No RAG context for extraction — the prior is in the model.
+            conversationHistory,
+            { base64: cleaned, mime }
+        );
+        llmRequestsTotal.inc({ status: 'success' });
+
+        // Parse the response. extractJSON handles fenced blocks; fall back to a
+        // best-effort empty envelope if it can't.
+        let parsed;
+        try {
+            parsed = extractJSON(result.response);
+        } catch (e) {
+            console.error('Optical Read JSON parse failed:', e.message);
+            parsed = {
+                answer: 'Could not read the image. Please try a clearer upload.',
+                extractedFields: {},
+                showUploadButton: 'true',
+            };
+        }
+
+        // Defense in depth: only retain idNames that the artifact actually
+        // configured. Stops a hallucinated key from leaking into Turn 2.
+        const allowedIds = new Set(opticalReadFields.map((f) => f.idName));
+        const cleanedExtracted = {};
+        for (const id of allowedIds) {
+            const v = parsed.extractedFields?.[id];
+            cleanedExtracted[id] = typeof v === 'string' ? v : '';
+        }
+
+        // Confidence signal — narrow to the three allowed labels and treat
+        // anything else as 'medium' (the model occasionally answers "okay" or
+        // "good" instead of one of the enum values).
+        const ALLOWED_CONFIDENCE = new Set(['high', 'medium', 'low']);
+        const confRaw = (parsed.extractionConfidence || '').toString().trim().toLowerCase();
+        const extractionConfidence = ALLOWED_CONFIDENCE.has(confRaw) ? confRaw : 'medium';
+        const extractionNotes = typeof parsed.extractionNotes === 'string' ? parsed.extractionNotes : '';
+
+        const turn = (getLastTurnNumber(conversationId) ?? 0) + 1;
+
+        // Hash inputs include the image's sha256 so verify covers the source
+        // bytes, not just the model output. machineState carries the full
+        // structured response; full_prompt holds the assembled text the model
+        // saw.
+        const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
+        const machineState = JSON.stringify({
+            ...parsed,
+            extractedFields: cleanedExtracted,
+            extractionConfidence,
+            extractionNotes,
+            source: 'optical_read',
+            imageHash,
+            imageMime: mime,
+            imageBytes: imageBuffer.length,
+            fileName: typeof fileName === 'string' ? fileName : null,
+            turn,
+        });
+        // Sentinel for user_prompt: the chain hashes "<imageHash>" so a
+        // tampered image breaks verification even when the prose response is
+        // unchanged. The full prompt stays in full_prompt for replay.
+        const userPromptSentinel = `[optical_read image: ${imageHash}]`;
+        const contentHash = hashTurnContent(
+            turn,
+            userPromptSentinel,
+            result.response,
+            machineState
+        );
+        const previousChainHash = getLastChainHash(conversationId);
+        const chainHash = createChainHash(contentHash, previousChainHash);
+
+        insertTurn.run(
+            conversationId,
+            turn,
+            userPromptSentinel,
+            userPrompt,
+            result.response,
+            machineState,
+            null,
+            contentHash,
+            chainHash,
+            null
+        );
+
+        res.json({
+            answer: typeof parsed.answer === 'string' ? parsed.answer : '',
+            extractedFields: cleanedExtracted,
+            extractionConfidence,
+            extractionNotes,
+            conversationId,
+            turn,
+            chainHash,
+            trace: result.trace,
+        });
+    } catch (e) {
+        llmRequestsTotal.inc({ status: 'error' });
+        console.error('Extract error:', e.message, e.stack);
+        res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+});
 
 // Handoff event endpoint: triage card click on the sender. Records the routing
 // transition as a chained event row so the sender's tamper-evident chain
@@ -1315,6 +1499,11 @@ app.get('/context', async (req, res) => {
     if (fs.existsSync(triageRoutesPath)) {
         response.triageRoutes = JSON.parse(fs.readFileSync(triageRoutesPath, 'utf-8'));
     }
+    // Optical Read field list — same shape the / route ships as
+    // __INITIAL_CONFIG__.opticalReadFields. Loaded once at boot.
+    if (config.config.isOpticalRead && opticalReadFields) {
+        response.opticalReadFields = opticalReadFields;
+    }
     res.json(response);
 })
 
@@ -1521,6 +1710,20 @@ app.listen(PORT, async () => {
     const instructionsPath = path.join(__dirname, config.config.instructions);
     cachedInstructions = fs.readFileSync(instructionsPath, "utf-8");
     console.log(`Cached instructions`);
+
+    // 5a. Load Optical Read field list (if enabled). Like formFormat.json,
+    //     this is read once at startup and held in memory; the /api/extract
+    //     endpoint reads from this cached list every turn.
+    if (config.config.isOpticalRead && config.config.opticalReadFields) {
+        try {
+            const opticalReadPath = path.join(__dirname, config.config.opticalReadFields);
+            opticalReadFields = JSON.parse(fs.readFileSync(opticalReadPath, 'utf-8'));
+            console.log(`Loaded ${opticalReadFields.length} optical read field(s)`);
+        } catch (err) {
+            console.warn(`Optical read fields could not be loaded: ${err.message}`);
+            opticalReadFields = null;
+        }
+    }
 
     // 6. Initialize Vector RAG. Loads pre-baked embeddings and embeds queries
     //    in-process via the bundled multilingual-e5-small ONNX model. Bots

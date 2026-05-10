@@ -27,6 +27,7 @@ Five plain-text files in [control/lib/composer/protocols/](../control/lib/compos
 | 2 | `02_form-gathering.txt` | `formGathering` | No | Progressive form filling: third-person confirmations, `formTracker` state, `consentToTC` ordering |
 | 3 | `03_appointments.txt` | `appointments` | No | Match user intent to a calendar destination; emit `calendarId` + `showCalendarLaunchButton` |
 | 4 | `04_triage.txt` | `triage` | No | Match user intent to a downstream bot; emit `deploymentId` + `starterPrompt` |
+| 5 | `05_optical-read.txt` | `opticalRead` | No | Extract structured fields from an uploaded image; emit `extractedFields` + `showUploadButton` |
 
 `00_base.txt` is special: it's not a capability, it's the safety floor. Every bot gets it, including bots that have *no* capabilities toggled on (which are still legal — they just answer from RAG with no tool-shaped behaviors).
 
@@ -69,6 +70,10 @@ The cartridges are written in a deliberately blunt voice — short lines, ALL CA
 ## TRIAGE ROUTES ...
 [ stripped triage routes JSON ]
 
+<05_optical-read.txt>          # if opticalRead enabled
+## EXTRACTION FIELDS ...
+[ stripped optical-read fields JSON ]
+
 ## USER CUSTOM INSTRUCTIONS
 
 ## OBJECTIVE: <user's objective string>
@@ -83,11 +88,12 @@ Each section is joined with a blank line. Disabled protocols and their inline-da
 
 ### Inline data injection
 
-Three of the four optional protocols don't just add prose — they also embed runtime config the LLM needs to reference:
+Four of the five optional protocols don't just add prose — they also embed runtime config the LLM needs to reference:
 
 - **Form gathering** (`buildFormStructureSection`) ships the form schema *stripped* down to `id`, `label`, `condition`, `required`. Field types, validation rules, UI hints — anything the LLM doesn't need for conversational orchestration — are dropped. The bot's frontend already owns rendering; the LLM only needs to know which IDs exist and which are required.
 - **Appointments** (`buildCalendarSection`) ships destinations as-is. The shape is small and there's no field that needs hiding from the model.
 - **Triage** (`buildTriageSection`) ships routes stripped to `deploymentId`, `name`, `description`. The `url` field is **deliberately excluded** — it's a client-side redirect handle, and keeping it out of the prompt prevents the LLM from emitting raw URLs in `answer` text. Same stripping discipline as form structure.
+- **Optical read** (`buildOpticalReadSection`) ships extraction fields stripped to `idName`, `label`, `hint`. Wizard widget metadata stays out of the prompt — the model only sees the slot names, the human-readable label, and the optional priming hint that disambiguates ambiguous reads.
 
 If a protocol is enabled but its data is missing or malformed (e.g. invalid form JSON), the helper returns an empty string and the inline section is skipped — the prose cartridge still ships, the bot just has no concrete config to reference. This is logged but not fatal; deploys with bad form JSON should be caught at validation time, not here.
 
@@ -118,6 +124,10 @@ TRIAGE_ATTRIBUTES                  if triage
   ├─ deploymentId
   ├─ starterPrompt
   └─ suggestions   (overrides)
+
+OPTICAL_READ_ATTRIBUTES            if opticalRead
+  ├─ extractedFields
+  └─ showUploadButton
 ```
 
 The output is a JSON-shaped template with **inline descriptions as values** — `"isComplete": "true/false"`, `"suggestions": "[3 MAX]"` — so the LLM sees both the field name and an inline hint about what to put there, without a separate description block to keep in sync.
@@ -174,13 +184,14 @@ What you do **not** need to touch: the deployer, the bot runtime, the prompt ass
 
 | File | Role |
 |------|------|
-| [control/lib/composer/composer.js](../control/lib/composer/composer.js) | `composeInstructions` entrypoint; protocol registry (`PROTOCOL_FILES`, `PROTOCOL_ORDER`); inline-section helpers (`buildFormStructureSection`, `buildCalendarSection`, `buildTriageSection`) |
+| [control/lib/composer/composer.js](../control/lib/composer/composer.js) | `composeInstructions` entrypoint; protocol registry (`PROTOCOL_FILES`, `PROTOCOL_ORDER`); inline-section helpers (`buildFormStructureSection`, `buildCalendarSection`, `buildTriageSection`, `buildOpticalReadSection`) |
 | [control/lib/composer/response-builder.js](../control/lib/composer/response-builder.js) | `buildResponseFormatSection` + the `*_ATTRIBUTES` groups merged by toggle |
 | [control/lib/composer/protocols/00_base.txt](../control/lib/composer/protocols/00_base.txt) | Reasoning restriction + prompt-injection defenses (always included) |
 | [control/lib/composer/protocols/01_knowledge.txt](../control/lib/composer/protocols/01_knowledge.txt) | RAG-anchored answers; paragraph formatting |
 | [control/lib/composer/protocols/02_form-gathering.txt](../control/lib/composer/protocols/02_form-gathering.txt) | Progressive form filling; `formTracker`; `consentToTC` ordering |
 | [control/lib/composer/protocols/03_appointments.txt](../control/lib/composer/protocols/03_appointments.txt) | Calendar destination matching; `showCalendarLaunchButton` |
 | [control/lib/composer/protocols/04_triage.txt](../control/lib/composer/protocols/04_triage.txt) | Downstream-bot routing; `deploymentId` + `starterPrompt` |
+| [control/lib/composer/protocols/05_optical-read.txt](../control/lib/composer/protocols/05_optical-read.txt) | Image-to-fields extraction; `extractedFields` + `showUploadButton` |
 | [control/lib/builder/composer-bridge.js](../control/lib/builder/composer-bridge.js) | Adapts a chat-builder session into the composer's input shape; powers `previewComposition` |
 | [control/lib/deployers/docker.js](../control/lib/deployers/docker.js) §step 3 | Calls `composeInstructions` (or uses cached `_composedInstructions`); writes `config/instructions.txt` into the artifact |
 | [lite-template/server.js](../lite-template/server.js) §boot | Reads `config/instructions.txt` once at startup into `cachedInstructions` |

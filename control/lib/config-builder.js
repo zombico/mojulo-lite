@@ -176,6 +176,7 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
 
   const isModularTriage = flowType === 'modular' && enabledProtocols?.triage;
   const isAppointments = flowType === 'modular' && enabledProtocols?.appointments;
+  const isOpticalRead = flowType === 'modular' && enabledProtocols?.opticalRead;
   const isSkipRag = !!formData.skipRag;
 
   const required = apiKeyId
@@ -239,6 +240,25 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
     configSection.triageRoutes = './config/triageRoutes.json';
   }
 
+  // Add optical read flag for modular optical-read flow. The bot runtime
+  // reads opticalReadFields.json at boot like formFormat.json — it gates the
+  // /api/extract endpoint and primes the upload-card UX.
+  if (isOpticalRead) {
+    configSection.isOpticalRead = true;
+    configSection.opticalReadFields = './config/opticalReadFields.json';
+    if (formData.opticalReadShowUploadOnStart) {
+      // Frontend reads this to render an upload card in the suggested-prompts
+      // strip on first load; field list ships separately (see opticalReadFields).
+      configSection.opticalReadShowUploadOnStart = true;
+    }
+    if (formData.opticalReadAfterSubmitMessage && formData.opticalReadAfterSubmitMessage.trim()) {
+      // Optional follow-up message rendered in the chat after the user
+      // submits the extracted-fields panel. Independent from form-gathering's
+      // afterSubmitChatMessage so each protocol can have its own copy.
+      configSection.opticalReadAfterSubmitMessage = formData.opticalReadAfterSubmitMessage.trim();
+    }
+  }
+
   return {
     // Config section (UI settings)
     config: configSection,
@@ -267,7 +287,12 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
     triageRoutes: isModularTriage ? formData.triageRoutes : undefined,
 
     // Appointments-specific: store destinations for edit mode
-    appointmentDestinations: isAppointments ? formData.appointmentDestinations : undefined
+    appointmentDestinations: isAppointments ? formData.appointmentDestinations : undefined,
+
+    // Optical Read: store fields for the deployer + edit-mode round trip.
+    // The deployer also gets these via the top-level opticalReadFields body
+    // field for parity with appointmentDestinations / triageDestinations.
+    opticalReadFields: isOpticalRead ? formData.opticalReadFields : undefined
   };
 }
 
@@ -360,6 +385,7 @@ export function parseModularDeploymentConfig(config, options = {}) {
     formGathering: !!config.formStructure || !!config.config?.isForm,
     appointments: (config.appointmentDestinations?.length > 0) || !!config.config?.isCalendar,
     triage: (config.triageRoutes?.length > 0) || !!config.config?.isTriage,
+    opticalRead: (config.opticalReadFields?.length > 0) || !!config.config?.isOpticalRead,
   };
 
   // Compute core fields (handles Bedrock vs standard providers)
@@ -425,6 +451,11 @@ export function parseModularDeploymentConfig(config, options = {}) {
       },
       triage: {
         routes: config.triageRoutes || [],
+      },
+      opticalRead: {
+        fields: config.opticalReadFields || [],
+        showUploadOnStart: !!config.config?.opticalReadShowUploadOnStart,
+        afterSubmitMessage: config.config?.opticalReadAfterSubmitMessage || '',
       },
     },
 
