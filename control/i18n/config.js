@@ -8,7 +8,7 @@
 // realistically expect to translate to, so adding a locale only requires
 // pushing the code into `locales`. Names are written in the language itself
 // (autonym) so a user who doesn't read English can still find their language.
-export const locales = ['en', 'es', 'fr'];
+export const locales = ['en', 'de', 'es', 'fr', 'it', 'ja', 'ko', 'nl', 'pl', 'pt', 'ru', 'uk', 'zh'];
 export const defaultLocale = 'en';
 
 export const localeNames = {
