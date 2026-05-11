@@ -123,8 +123,6 @@ function buildEnvExample(llmConfig) {
     '# Uncomment and set the key for the provider you selected:',
     '# OPENAI_API_KEY=',
     '# ANTHROPIC_API_KEY=',
-    '# GEMINI_API_KEY=',
-    '# COHERE_API_KEY=',
     '',
     '# AWS Bedrock (only if provider=bedrock)',
     '# AWS_REGION=us-east-1',

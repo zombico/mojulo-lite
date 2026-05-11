@@ -718,7 +718,6 @@
           "scenarioContextualForms": "Formularze kontekstowe",
           "scenarioEducateThenConvert": "Edukuj, potem konwertuj",
           "scenarioSupportToLead": "Wsparcie → lead",
-
           "synergyKnowledgeAppointments": "Konsultacyjna rezerwacja",
           "synergyKnowledgeAppointmentsDesc": "Edukuj użytkowników o usługach/produktach, a następnie pozwól im rezerwować, gdy są gotowi",
           "scenarioInformThenBook": "Informuj, potem rezerwuj",
@@ -726,7 +725,6 @@
           "scenarioPreQualifyBooking": "Wstępna kwalifikacja rezerwacji",
           "scenarioServiceExplainer": "Wyjaśniacz usług → rezerwacja",
           "scenarioPricingToDemo": "FAQ o cenach → demo",
-
           "synergyKnowledgeTriage": "Inteligentna eskalacja",
           "synergyKnowledgeTriageDesc": "Samoobsługowe odpowiedzi na typowe pytania, płynne przekazanie dla skomplikowanych spraw",
           "scenarioAnswerOrEscalate": "Odpowiedz lub eskaluj",
@@ -734,7 +732,6 @@
           "scenarioTieredSupport": "Wsparcie wielopoziomowe",
           "scenarioDeflectOrRoute": "Odeprzyj lub przekieruj",
           "scenarioL1Automation": "Automatyzacja L1",
-
           "synergyKnowledgeOpticalRead": "Skanuj i wyjaśniaj",
           "synergyKnowledgeOpticalReadDesc": "Wyodrębniaj dane z przesłanego obrazu, a następnie odpowiadaj na pytania osadzone w bazie wiedzy",
           "scenarioScanThenAsk": "Skanuj, potem pytaj",
@@ -742,7 +739,6 @@
           "scenarioCardToPolicy": "Karta → wyszukiwanie polisy",
           "scenarioPrescriptionExplainer": "Wyjaśniacz recepty",
           "scenarioReceiptToReturns": "Paragon → FAQ zwrotów",
-
           "synergyFormAppointments": "Od przyjmowania do rezerwacji",
           "synergyFormAppointmentsDesc": "Zbieraj informacje kwalifikujące, a następnie oferuj spersonalizowane terminy spotkań",
           "scenarioIntakeSchedule": "Przyjmuj, potem planuj",
@@ -750,7 +746,6 @@
           "scenarioQualifyBook": "Kwalifikuj, potem rezerwuj",
           "scenarioPreVisitForm": "Formularz przed wizytą → rezerwacja",
           "scenarioNeedsAssessment": "Ocena potrzeb → planowanie",
-
           "synergyFormTriage": "Inteligentne kierowanie leadów",
           "synergyFormTriageDesc": "Zbieraj szczegóły użytkownika, a następnie kieruj do idealnego członka zespołu lub działu",
           "scenarioCollectThenRoute": "Zbieraj, potem kieruj",
@@ -758,7 +753,6 @@
           "scenarioLeadDistribution": "Dystrybucja leadów",
           "scenarioSkillBasedRouting": "Kierowanie według umiejętności",
           "scenarioTerritoryAssignment": "Przypisanie terytorium",
-
           "synergyAppointmentsTriage": "Rezerwacja specjalistyczna",
           "synergyAppointmentsTriageDesc": "Zidentyfikuj właściwego specjalistę dla potrzeb użytkownika, a następnie rezerwuj bezpośrednio",
           "scenarioRouteToCalendar": "Kieruj do kalendarza",
@@ -766,35 +760,30 @@
           "scenarioSmartDelegation": "Inteligentne delegowanie",
           "scenarioExpertMatch": "Dopasowanie eksperta",
           "scenarioAvailabilityRouting": "Kierowanie według dostępności",
-
           "synergyTriple1": "Pełny lejek sprzedażowy",
           "synergyTriple1Desc": "Kompletna ścieżka sprzedaży: edukuj potencjalnych klientów, pozyskuj leady i rezerwuj wykwalifikowane dema",
           "scenarioFullSalesFlow": "Pełny proces sprzedażowy",
           "scenarioCompleteOnboarding": "Pełny onboarding",
           "scenarioNurtureToClose": "Pielęgnuj do zamknięcia",
           "scenarioInboundSales": "Automatyzacja sprzedaży przychodzącej",
-
           "synergyTriple2": "Centrum wsparcia",
           "synergyTriple2Desc": "Samoobsługowa baza wiedzy, tworzenie ticketów i inteligentna eskalacja do agentów",
           "scenarioSupportEscalation": "Eskalacja wsparcia",
           "scenarioIntelligentTicketing": "Inteligentne tworzenie ticketów",
           "scenarioHelpDeskAuto": "Automatyzacja help desk",
           "scenarioIssueCapture": "Zbieranie problemów → kierowanie",
-
           "synergyTriple3": "Proces konsultacji",
           "synergyTriple3Desc": "Odpowiadaj na pytania, dopasuj właściwego eksperta i umożliw bezpośrednią rezerwację kalendarza",
           "scenarioMultiSpecialistBooking": "Rezerwacja wielu specjalistów",
           "scenarioSmartConsultation": "Inteligentna konsultacja",
           "scenarioAdvisoryFlow": "Proces usług doradczych",
           "scenarioExpertConnect": "Łączenie z ekspertem",
-
           "synergyTriple4": "Pełne przyjmowanie",
           "synergyTriple4Desc": "Strukturyzowane formularze przyjmowania, inteligentne kierowanie do zespołów i automatyczne planowanie",
           "scenarioIntakeRouteBook": "Przyjmowanie → kierowanie → rezerwacja",
           "scenarioCompleteLeadFlow": "Pełny proces leadowy",
           "scenarioPatientIntake": "Proces przyjmowania pacjentów",
           "scenarioClientOnboarding": "Onboarding klienta",
-
           "synergyAll": "Asystent korporacyjny",
           "synergyAllDesc": "W pełni funkcjonalny concierge: odpowiada na pytania, zbiera dane, inteligentnie kieruje i rezerwuje spotkania",
           "scenarioEnterpriseBot": "Asystent korporacyjny",
@@ -1447,8 +1436,6 @@
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "gemini": "Google Gemini",
-          "cohere": "Cohere",
           "bedrock": "AWS Bedrock (wklej poświadczenia JSON)"
         }
       },

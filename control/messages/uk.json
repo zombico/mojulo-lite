@@ -718,7 +718,6 @@
           "scenarioContextualForms": "Контекстні форми",
           "scenarioEducateThenConvert": "Навчити, потім конвертувати",
           "scenarioSupportToLead": "Підтримка → Лід",
-
           "synergyKnowledgeAppointments": "Консультативне бронювання",
           "synergyKnowledgeAppointmentsDesc": "Навчайте користувачів про послуги/продукти, потім дозвольте їм забронювати, коли вони готові",
           "scenarioInformThenBook": "Поінформувати, потім забронювати",
@@ -726,7 +725,6 @@
           "scenarioPreQualifyBooking": "Попередня кваліфікація бронювань",
           "scenarioServiceExplainer": "Пояснення послуги → Бронювання",
           "scenarioPricingToDemo": "FAQ про ціни → Демонстрація",
-
           "synergyKnowledgeTriage": "Інтелектуальна ескалація",
           "synergyKnowledgeTriageDesc": "Самообслуговування для типових запитань, безшовна передача для складних питань",
           "scenarioAnswerOrEscalate": "Відповісти або ескалювати",
@@ -734,7 +732,6 @@
           "scenarioTieredSupport": "Багаторівнева підтримка",
           "scenarioDeflectOrRoute": "Відхилити або маршрутизувати",
           "scenarioL1Automation": "L1 автоматизація",
-
           "synergyKnowledgeOpticalRead": "Сканувати та пояснити",
           "synergyKnowledgeOpticalReadDesc": "Видобувайте дані із завантаженого зображення, потім відповідайте на додаткові запитання на основі вашої бази знань",
           "scenarioScanThenAsk": "Сканувати, потім запитати",
@@ -742,7 +739,6 @@
           "scenarioCardToPolicy": "Картка → пошук політики",
           "scenarioPrescriptionExplainer": "Пояснювач рецептів",
           "scenarioReceiptToReturns": "Чек → FAQ повернень",
-
           "synergyFormAppointments": "Прийом до бронювання",
           "synergyFormAppointmentsDesc": "Збирайте кваліфікаційну інформацію, потім пропонуйте персоналізовані слоти зустрічей",
           "scenarioIntakeSchedule": "Прийом, потім планування",
@@ -750,7 +746,6 @@
           "scenarioQualifyBook": "Кваліфікувати, потім бронювати",
           "scenarioPreVisitForm": "Форма перед візитом → Бронювання",
           "scenarioNeedsAssessment": "Оцінка потреб → Планування",
-
           "synergyFormTriage": "Розумна маршрутизація лідів",
           "synergyFormTriageDesc": "Збирайте дані користувачів, потім маршрутизуйте до ідеального члена команди або відділу",
           "scenarioCollectThenRoute": "Зібрати, потім маршрутизувати",
@@ -758,7 +753,6 @@
           "scenarioLeadDistribution": "Розподіл лідів",
           "scenarioSkillBasedRouting": "Маршрутизація за навичками",
           "scenarioTerritoryAssignment": "Призначення території",
-
           "synergyAppointmentsTriage": "Бронювання спеціаліста",
           "synergyAppointmentsTriageDesc": "Визначте правильного спеціаліста для потреб користувача, потім бронюйте безпосередньо",
           "scenarioRouteToCalendar": "Маршрутизувати до календаря",
@@ -766,35 +760,30 @@
           "scenarioSmartDelegation": "Розумне делегування",
           "scenarioExpertMatch": "Підбір експерта",
           "scenarioAvailabilityRouting": "Маршрутизація на основі доступності",
-
           "synergyTriple1": "Повна воронка продажів",
           "synergyTriple1Desc": "Повна подорож продажів: навчіть потенційних клієнтів, захопіть лідів та забронюйте кваліфіковані демонстрації",
           "scenarioFullSalesFlow": "Повний потік продажів",
           "scenarioCompleteOnboarding": "Повна адаптація",
           "scenarioNurtureToClose": "Виростити до закриття",
           "scenarioInboundSales": "Автоматизація вхідних продажів",
-
           "synergyTriple2": "Хаб підтримки",
           "synergyTriple2Desc": "База знань самообслуговування, створення тікетів та інтелектуальна ескалація до агентів",
           "scenarioSupportEscalation": "Ескалація підтримки",
           "scenarioIntelligentTicketing": "Інтелектуальне керування тікетами",
           "scenarioHelpDeskAuto": "Автоматизація служби підтримки",
           "scenarioIssueCapture": "Захоплення проблеми → Маршрутизація",
-
           "synergyTriple3": "Потік консультацій",
           "synergyTriple3Desc": "Відповідайте на запитання, підбирайте до правильного експерта та вмикайте пряме бронювання календаря",
           "scenarioMultiSpecialistBooking": "Бронювання кількох спеціалістів",
           "scenarioSmartConsultation": "Розумна консультація",
           "scenarioAdvisoryFlow": "Потік консультативних послуг",
           "scenarioExpertConnect": "З’єднання з експертом",
-
           "synergyTriple4": "Повний прийом",
           "synergyTriple4Desc": "Структуровані форми прийому, розумна маршрутизація до команд та автоматизоване планування",
           "scenarioIntakeRouteBook": "Прийом → Маршрутизація → Бронювання",
           "scenarioCompleteLeadFlow": "Повний потік лідів",
           "scenarioPatientIntake": "Потік прийому пацієнтів",
           "scenarioClientOnboarding": "Адаптація клієнтів",
-
           "synergyAll": "Корпоративний помічник",
           "synergyAllDesc": "Повнофункціональний консьєрж: відповідає на запитання, збирає дані, інтелектуально маршрутизує та бронює зустрічі",
           "scenarioEnterpriseBot": "Корпоративний помічник",
@@ -1447,8 +1436,6 @@
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "gemini": "Google Gemini",
-          "cohere": "Cohere",
           "bedrock": "AWS Bedrock (вставте JSON-облікові дані)"
         }
       },

@@ -160,7 +160,7 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
  * @param {string} formData.botName - Bot name
  * @param {string} formData.objective - Bot objective (MANDATORY)
  * @param {string} formData.firstMessage - Welcome message
- * @param {string} formData.provider - LLM provider (openai|anthropic|gemini|cohere)
+ * @param {string} formData.provider - LLM provider (openai|anthropic|bedrock)
  * @param {string} formData.apiKey - API key for selected provider
  * @param {string} formData.model - Model name
  * @param {Array} formData.suggestedPrompts - Optional suggested prompts

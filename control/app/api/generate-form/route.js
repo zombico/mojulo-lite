@@ -124,7 +124,7 @@ export async function POST(request) {
     }
 
     // Validate provider
-    const validProviders = ['gemini', 'cohere', 'openai', 'anthropic', 'bedrock'];
+    const validProviders = ['openai', 'anthropic', 'bedrock'];
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { error: `Invalid provider: ${provider}. Must be one of: ${validProviders.join(', ')}` },

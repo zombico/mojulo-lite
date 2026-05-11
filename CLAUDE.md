@@ -86,7 +86,7 @@ Every bot turn writes `content_hash` + `chain_hash` to SQLite; `/verify/:id` wal
 
 ### LLM provider abstraction
 
-[lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) supports Anthropic, OpenAI, Gemini, Cohere, Bedrock. The Anthropic adapter uses **forced tool use** (`respond` tool, schema in [lite-template/helper/response-schema.js](lite-template/helper/response-schema.js)) so envelope JSON is structurally guaranteed; other adapters still rely on the [server.js](lite-template/server.js) `extractJSON` + fallback path. See [control/ANTHROPIC_TOOL_USE_PLAN.md](control/ANTHROPIC_TOOL_USE_PLAN.md). When adding fields to the response envelope, update the schema **and** cross-check protocol cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/).
+[lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) supports Anthropic, OpenAI, and Ollama. The Anthropic adapter uses **forced tool use** (`respond` tool, schema in [lite-template/helper/response-schema.js](lite-template/helper/response-schema.js)) so envelope JSON is structurally guaranteed; other adapters still rely on the [server.js](lite-template/server.js) `extractJSON` + fallback path. See [control/ANTHROPIC_TOOL_USE_PLAN.md](control/ANTHROPIC_TOOL_USE_PLAN.md). When adding fields to the response envelope, update the schema **and** cross-check protocol cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/).
 
 ## Native dependency landmines
 

@@ -54,7 +54,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized. Please log in to generate RAG summaries.' }, { status: 401 });
     }
 
-    const { documents, customPrompt, provider = 'gemini', model, apiKey } = await request.json();
+    const { documents, customPrompt, provider = 'anthropic', model, apiKey } = await request.json();
 
     // Validate inputs
     if (!documents || !Array.isArray(documents) || documents.length === 0) {
@@ -62,7 +62,7 @@ export async function POST(request) {
     }
 
     // Validate provider
-    const validProviders = ['gemini', 'cohere', 'openai', 'anthropic', 'bedrock'];
+    const validProviders = ['openai', 'anthropic', 'bedrock'];
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { error: `Invalid provider: ${provider}. Must be one of: ${validProviders.join(', ')}` },

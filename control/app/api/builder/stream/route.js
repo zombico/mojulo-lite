@@ -73,8 +73,6 @@ function getDefaultModelForProvider(provider) {
     anthropic: 'claude-sonnet-4-6',
     bedrock: 'anthropic.claude-sonnet-4-6',
     openai: 'gpt-4o',
-    gemini: 'gemini-2.5-flash',
-    cohere: 'command-a-03-2025',
   };
   return defaults[provider] || 'claude-sonnet-4-6';
 }
@@ -94,7 +92,7 @@ async function getLLMConfigForBuilder(session, userId) {
   }
 
   if (!apiKeyRecord) {
-    const fallbackOrder = ['anthropic', 'bedrock', 'openai', 'gemini', 'cohere'];
+    const fallbackOrder = ['anthropic', 'bedrock', 'openai'];
     for (const provider of fallbackOrder) {
       apiKeyRecord = apiKeys.find((k) => k.provider === provider);
       if (apiKeyRecord) break;

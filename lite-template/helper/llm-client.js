@@ -95,7 +95,7 @@ class LLMAdapter {
 
 /**
  * Defense in depth for v1: only the Anthropic adapter implements vision.
- * The wizard gates the protocol toggle so an OpenAI/Gemini/etc. bot can never
+ * The wizard gates the protocol toggle so a non-Anthropic bot can never
  * reach this code path, but a misconfigured artifact (post-deploy provider
  * swap, hand-edited config.json) shouldn't silently drop the image.
  */
@@ -311,136 +311,6 @@ class AnthropicAdapter extends LLMAdapter {
 }
 
 /**
- * Gemini adapter
- */
-class GeminiAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
-        rejectImage('Gemini', image);
-        const url = `${this.config.baseURL}${this.config.model}${this.config.endpoint}`;
-        const history = (conversationHistory || []).flatMap(item => {
-            try {
-                const parsed = JSON.parse(item.llm_response);
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'model', content: parsed.answer || parsed.response || item.llm_response }
-                ];
-            } catch (e) {
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'model', content: item.llm_response || '' }
-                ];
-            }
-        });
-        const historyString = JSON.stringify(history)
-        
-        const response = await axios.post(url, {
-            contents: [
-                {
-                    role: "model",
-                    parts: [
-                        { text: instructions }
-                    ]
-                },
-                ragContext && {
-                    role: "model",
-                    parts: [
-                        { text: ragContext }
-                    ]
-                },
-                historyString && {
-                    role: "model",
-                    parts: [
-                        { text: historyString }
-                    ]
-                },
-                {
-                    role: "user",
-                    parts: [
-                        { text: userPrompt }
-                    ]
-                }
-            ]
-        }, {
-            timeout: this.config.timeout || 300000,
-            headers: {
-                'x-goog-api-key': this.config.apiKey,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        const candidates = response.data.candidates[0]
-        const content = candidates.content.parts[0]
-        const raw = content.text;
-        const jsonString = raw.replace(/```json|```/g, '').trim();
-        
-        return {
-            response: jsonString,
-            trace: response.trace
-        };
-    }
-}
-
-/**
- * Cohere adapter
- */
-class CohereAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
-        rejectImage('Cohere', image);
-        const url = `${this.config.baseURL}${this.config.endpoint}`;
-
-        // Safely build history with error handling
-        const history = (conversationHistory || []).flatMap(item => {
-            try {
-                const parsed = JSON.parse(item.llm_response);
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'assistant', content: parsed.answer || parsed.response || item.llm_response }
-                ];
-            } catch (e) {
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'assistant', content: item.llm_response || '' }
-                ];
-            }
-        });
-
-        // Add current user prompt
-        history.push({ role: 'user', content: userPrompt });
-        const systemInstructions = {
-            role: "system",
-            content: instructions,
-        }
-        const ragInstructions = {
-            role: "system",
-            content: ragContext.length > 1 ? ragContext : "No documents found",
-        }
-        history.push(systemInstructions)
-        history.push(ragInstructions)
-        console.log(history)
-        const response = await axios.post(url, {
-            model: this.config.model,
-            max_tokens: this.config.maxTokens || 4096,
-            messages: history
-        }, {
-            timeout: this.config.timeout || 300000,
-            headers: {
-                'Authorization': `Bearer ${this.config.apiKey}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        console.log(response)
-        const content = response.data.message.content[0]
-        const raw = content.text;
-        const jsonString = raw.replace(/```json|```/g, '').trim();
-        
-        return {
-            response: jsonString,
-            trace: response.trace
-        };
-    }
-}
-
-/**
  * Factory function to create appropriate adapter
  */
 function createLLMClient(config) {
@@ -458,10 +328,6 @@ function createLLMClient(config) {
             return new OpenAIAdapter(providerConfig);
         case 'anthropic':
             return new AnthropicAdapter(providerConfig);
-        case 'gemini':
-            return new GeminiAdapter(providerConfig);
-        case 'cohere':
-            return new CohereAdapter(providerConfig);
         default:
             throw new Error(`Unsupported LLM provider: ${providerName}`);
     }

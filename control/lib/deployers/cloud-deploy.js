@@ -137,8 +137,6 @@ async function resolveLlmEnv(deployment) {
   const envVarByProvider = {
     anthropic: 'ANTHROPIC_API_KEY',
     openai: 'OPENAI_API_KEY',
-    gemini: 'GEMINI_API_KEY',
-    cohere: 'COHERE_API_KEY',
   };
   const envName = envVarByProvider[provider];
   if (!envName) {

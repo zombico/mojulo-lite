@@ -1690,14 +1690,6 @@ app.listen(PORT, async () => {
             anthropic: {
                 ...config.llm.anthropic,
                 apiKey: process.env.ANTHROPIC_API_KEY || config.llm.anthropic?.apiKey
-            },
-            gemini: {
-                ...config.llm.gemini,
-                apiKey: process.env.GEMINI_API_KEY || config.llm.gemini?.apiKey
-            },
-            cohere: {
-                ...config.llm.cohere,
-                apiKey: process.env.COHERE_API_KEY || config.llm.cohere?.apiKey
             }
         }
     };
