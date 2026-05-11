@@ -1,9 +1,10 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { Suspense, useState, useTransition } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import useSWR, { mutate } from 'swr';
+import { locales, localeNames } from '@/i18n/config';
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
@@ -14,7 +15,6 @@ const LLM_PROVIDER_IDS = new Set(LLM_PROVIDER_IDS_LIST);
 const INFRA_PROVIDER_IDS = new Set(INFRA_PROVIDER_IDS_LIST);
 
 const TAB_IDS = ['llm', 'provider', 'language'];
-const LANGUAGE_IDS = ['en'];
 
 function KeySection({ title, description, providers, keys, isLoading, defaultName, placeholderFor }) {
   const t = useTranslations('settings.mojulo');
@@ -165,7 +165,17 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
 
 function LanguageSection() {
   const t = useTranslations('settings.mojulo.language');
-  const [language, setLanguage] = useState('en');
+  const current = useLocale();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const onChange = (event) => {
+    const next = event.target.value;
+    document.cookie = `NEXT_LOCALE=${next}; path=/; max-age=31536000; samesite=lax`;
+    startTransition(() => {
+      router.refresh();
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -178,13 +188,14 @@ function LanguageSection() {
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[color:var(--text-muted)]">{t('label')}</span>
           <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            value={current}
+            onChange={onChange}
+            disabled={isPending}
             className="rounded-lg bg-[color:var(--surface-elevated)] px-3 py-2 text-sm"
           >
-            {LANGUAGE_IDS.map((id) => (
+            {locales.map((id) => (
               <option key={id} value={id}>
-                {t(`locales.${id}`)}
+                {localeNames[id] || id}
               </option>
             ))}
           </select>
