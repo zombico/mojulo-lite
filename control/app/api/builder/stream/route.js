@@ -72,7 +72,7 @@ function getDefaultModelForProvider(provider) {
   const defaults = {
     anthropic: 'claude-sonnet-4-6',
     bedrock: 'anthropic.claude-sonnet-4-6',
-    openai: 'gpt-4o',
+    openai: 'gpt-4.1',
   };
   return defaults[provider] || 'claude-sonnet-4-6';
 }

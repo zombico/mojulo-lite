@@ -22,6 +22,7 @@ import {
   preserveExistingCredentials,
 } from '@/lib/resolve-api-key';
 import { DeploymentRepository } from '@/lib/db/repositories/deployments';
+import { providerSupportsVision } from '@/lib/llm-providers';
 
 const ALLOWED_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -79,9 +80,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    if (llm.provider !== 'anthropic') {
+    if (!providerSupportsVision(llm.provider)) {
       return NextResponse.json(
-        { error: 'Optical Read preview requires the Anthropic provider in v1' },
+        { error: 'Optical Read requires a vision-capable provider' },
         { status: 400 }
       );
     }

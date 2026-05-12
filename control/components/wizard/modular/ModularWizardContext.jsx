@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { LLM_PROVIDERS } from '@/lib/llm-providers';
+import { LLM_PROVIDERS, providerSupportsVision } from '@/lib/llm-providers';
 
 const ModularWizardContext = createContext(null);
 
@@ -465,12 +465,12 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
             !state.enabledProtocols.opticalRead) {
           newErrors.protocols = 'At least one capability must be enabled';
         }
-        // Defense in depth: opticalRead requires Anthropic in v1. The
-        // ProtocolSelection card disables the toggle for other providers, but
-        // an out-of-band state set (clone of an Anthropic bot, then provider
-        // swap) could still leave it on.
-        if (state.enabledProtocols.opticalRead && state.core.provider !== 'anthropic') {
-          newErrors.protocols = 'Optical Read requires the Anthropic provider in v1';
+        // Defense in depth: opticalRead requires a vision-capable provider.
+        // The ProtocolSelection card disables the toggle for unsupported
+        // providers, but an out-of-band state set (clone of a vision bot,
+        // then provider swap) could still leave it on.
+        if (state.enabledProtocols.opticalRead && !providerSupportsVision(state.core.provider)) {
+          newErrors.protocols = 'Optical Read requires a vision-capable provider';
         }
         break;
 

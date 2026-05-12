@@ -3,11 +3,23 @@
  * Shared between ConfigForm and config-builder
  */
 
+/**
+ * Providers whose runtime adapter accepts image input on the current user
+ * turn. Optical Read and any future vision-using protocol gate themselves
+ * against this set — keep it in sync with the adapters in
+ * lite-template/helper/llm-client.js.
+ */
+export const VISION_PROVIDERS = new Set(['anthropic', 'openai']);
+
+export function providerSupportsVision(provider) {
+  return VISION_PROVIDERS.has(provider);
+}
+
 export const LLM_PROVIDERS = {
   openai: {
     name: 'OpenAI',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-    defaultModel: 'gpt-4o',
+    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini'],
+    defaultModel: 'gpt-4.1',
     baseURL: 'https://api.openai.com/v1',
     endpoint: '/responses'
   },

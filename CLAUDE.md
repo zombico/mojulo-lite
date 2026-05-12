@@ -86,7 +86,9 @@ Every bot turn writes `content_hash` + `chain_hash` to SQLite; `/verify/:id` wal
 
 ### LLM provider abstraction
 
-[lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) supports Anthropic, OpenAI, and Ollama. The Anthropic adapter uses **forced tool use** (`respond` tool, schema in [lite-template/helper/response-schema.js](lite-template/helper/response-schema.js)) so envelope JSON is structurally guaranteed; other adapters still rely on the [server.js](lite-template/server.js) `extractJSON` + fallback path. See [control/ANTHROPIC_TOOL_USE_PLAN.md](control/ANTHROPIC_TOOL_USE_PLAN.md). When adding fields to the response envelope, update the schema **and** cross-check protocol cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/).
+[lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) supports Anthropic, OpenAI, and Ollama. All adapters currently return the model's raw text and rely on [server.js](lite-template/server.js)'s `extractJSON` + fallback path to parse the response envelope — there is no structured-output guarantee on any provider yet. Forced tool use on Anthropic (and the equivalent structured-outputs path on OpenAI) is planned but not committed; see [lite-template/integration/ANTHROPIC_TOOL_USE_PLAN.md](lite-template/integration/ANTHROPIC_TOOL_USE_PLAN.md). When adding fields to the response envelope, update the extractor expectations **and** cross-check protocol cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/).
+
+Vision input is supported on Anthropic and OpenAI; the runtime adapter check lives in [llm-client.js](lite-template/helper/llm-client.js) and the wizard/preview gates use `providerSupportsVision` from [control/lib/llm-providers.js](control/lib/llm-providers.js). Ollama rejects images at the adapter level.
 
 ## Native dependency landmines
 

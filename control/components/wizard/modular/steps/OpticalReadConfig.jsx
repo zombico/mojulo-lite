@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
 import WizardStep from '../WizardStep';
 import AddOpticalReadFieldWorkflow from '../workflows/AddOpticalReadFieldWorkflow';
+import { providerSupportsVision } from '@/lib/llm-providers';
 
 export default function OpticalReadConfig({ stepConfig, isEditMode = false }) {
   const t = useTranslations('wizard.opticalRead');
@@ -17,7 +18,7 @@ export default function OpticalReadConfig({ stepConfig, isEditMode = false }) {
   const showUploadOnStart = !!formData.opticalReadShowUploadOnStart;
   const afterSubmitMessage = formData.opticalReadAfterSubmitMessage || '';
   const provider = formData.provider;
-  const providerSupported = provider === 'anthropic';
+  const providerSupported = providerSupportsVision(provider);
 
   const [showAddModal, setShowAddModal] = useState(false);
 
