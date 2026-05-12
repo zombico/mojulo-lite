@@ -7,6 +7,38 @@ import { NextResponse } from 'next/server';
 import { generateSummary } from '@/lib/llm-providers';
 import { getCurrentUser } from '@/lib/auth/service';
 import { buildFormSchemaPrompt, isLocaleSupported, DEFAULT_LOCALE } from '@/lib/form-schema-config';
+import { ApiKeyRepository } from '@/lib/db/repositories/apiKeys';
+import { DeploymentRepository } from '@/lib/db/repositories/deployments';
+import { decryptApiKey } from '@/lib/deployment-auth';
+
+async function resolveCredential({ provider, apiKey, apiKeyId, editDeploymentId }) {
+  if (apiKey && typeof apiKey === 'string' && apiKey.trim().length > 0) {
+    return apiKey;
+  }
+  if (apiKeyId) {
+    const record = await ApiKeyRepository.findById(apiKeyId);
+    if (!record) {
+      throw new Error(`Saved API key ${apiKeyId} not found`);
+    }
+    if (record.provider !== provider) {
+      throw new Error(
+        `Saved API key provider "${record.provider}" does not match selected provider "${provider}"`
+      );
+    }
+    return decryptApiKey(record.encryptedKey);
+  }
+  if (editDeploymentId) {
+    const existing = await DeploymentRepository.findById(editDeploymentId);
+    const block = existing?.config?.llm?.[provider];
+    if (!block) return null;
+    if (provider === 'bedrock') {
+      const hasCreds = block.useIamRole || (block.accessKeyId && block.secretAccessKey);
+      return hasCreds ? JSON.stringify(block) : null;
+    }
+    return block.apiKey || null;
+  }
+  return null;
+}
 
 /**
  * Base prompt - structure requirements (locale-agnostic)
@@ -113,7 +145,15 @@ export async function POST(request) {
       );
     }
 
-    const { naturalLanguageInput, provider = 'openai', model, apiKey, locale } = await request.json();
+    const {
+      naturalLanguageInput,
+      provider = 'openai',
+      model,
+      apiKey,
+      apiKeyId = null,
+      editDeploymentId = null,
+      locale,
+    } = await request.json();
 
     // Validate inputs
     if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string' || naturalLanguageInput.trim().length === 0) {
@@ -132,17 +172,30 @@ export async function POST(request) {
       );
     }
 
-    // Validate API key/credentials based on provider
+    // Credentials may come three ways from the wizard: fresh paste (apiKey),
+    // saved-key reference (apiKeyId — opaque id, plaintext stays server-side),
+    // or edit-mode reuse (editDeploymentId — read the existing deployment's
+    // stored config). Resolve here so the rest of the route deals with a
+    // plaintext key/JSON-creds string regardless of the path the user took.
+    let resolvedApiKey;
+    try {
+      resolvedApiKey = await resolveCredential({ provider, apiKey, apiKeyId, editDeploymentId });
+    } catch (resolveError) {
+      return NextResponse.json(
+        { error: resolveError.message },
+        { status: 400 }
+      );
+    }
+
     if (provider === 'bedrock') {
-      // Bedrock uses JSON credentials
-      if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+      if (!resolvedApiKey) {
         return NextResponse.json(
           { error: 'AWS credentials are required for Bedrock.' },
           { status: 400 }
         );
       }
       try {
-        const creds = JSON.parse(apiKey);
+        const creds = JSON.parse(resolvedApiKey);
         if (!creds.useIamRole && (!creds.accessKeyId || !creds.secretAccessKey)) {
           return NextResponse.json(
             { error: 'AWS Access Key ID and Secret Access Key are required (or enable IAM Role).' },
@@ -155,14 +208,11 @@ export async function POST(request) {
           { status: 400 }
         );
       }
-    } else {
-      // Standard API key validation for other providers
-      if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
-        return NextResponse.json(
-          { error: 'API key is required. Please provide your API key for the selected provider.' },
-          { status: 400 }
-        );
-      }
+    } else if (!resolvedApiKey) {
+      return NextResponse.json(
+        { error: 'API key is required. Please provide your API key for the selected provider.' },
+        { status: 400 }
+      );
     }
 
     // Resolve locale (fallback to default if not provided or invalid)
@@ -177,7 +227,7 @@ export async function POST(request) {
     const response = await generateSummary(
       provider,
       naturalLanguageInput,
-      apiKey,
+      resolvedApiKey,
       formPrompt,
       model
     );

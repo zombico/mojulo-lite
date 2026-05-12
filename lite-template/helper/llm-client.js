@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { json } = require('express');
+const { ENVELOPE_SCHEMA, toStrictEnvelopeSchema } = require('./envelope-schema');
 
 /**
  * Resolves environment variable references in config values
@@ -171,8 +172,21 @@ class OllamaAdapter extends LLMAdapter {
  * content array — input_image first (as a base64 data URL), input_text second.
  * Mirrors the Anthropic adapter's vision path so the same protocol cartridge
  * works on both providers. image=null short-circuits to the string-content shape.
+ *
+ * Envelope reliability: structured outputs against the strict-mode envelope
+ * schema (text.format = json_schema, strict: true). The model cannot return
+ * prose-not-JSON; the prose-to-fallback path in server.js becomes structurally
+ * unreachable for this provider. Refusals surface via the dedicated refusal
+ * channel; max_output_tokens truncation throws explicitly.
  */
 class OpenAIAdapter extends LLMAdapter {
+    constructor(config) {
+        super(config);
+        // Build once per adapter — strict schema is byte-stable; rebuilding
+        // per-call would just churn allocations on the hot path.
+        this.strictSchema = toStrictEnvelopeSchema();
+    }
+
     async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
         const url = `${this.config.baseURL}${this.config.endpoint}`;
 
@@ -210,9 +224,21 @@ class OpenAIAdapter extends LLMAdapter {
             currentTurn
         ];
 
+        // text.format lives outside `input`, so adding it does not perturb
+        // the cacheable input prefix. The schema-compile cache is per-schema
+        // and warmed by the first call after a redeploy — expect a small
+        // cold-start latency bump, not a steady-state regression.
         const response = await axios.post(url, {
             model: this.config.model,
-            input
+            input,
+            text: {
+                format: {
+                    type: 'json_schema',
+                    name: 'envelope',
+                    schema: this.strictSchema,
+                    strict: true,
+                },
+            },
         }, {
             timeout: this.config.timeout || 300000,
             headers: {
@@ -227,9 +253,20 @@ class OpenAIAdapter extends LLMAdapter {
         const inputTokens = usage?.input_tokens ?? usage?.prompt_tokens ?? 0;
         console.log(`[LLM CACHE ${this.config.model}] input=${inputTokens} cached=${cachedTokens}`);
 
-        const content = response?.data?.output?.[0]?.content?.[0]?.text;
+        if (response.data.incomplete_details?.reason === 'max_output_tokens') {
+            throw new Error('OpenAI hit max_output_tokens before completing structured output');
+        }
+
+        const block = response?.data?.output?.[0]?.content?.[0];
+        if (block?.type === 'refusal') {
+            throw new Error(`OpenAI refused: ${block.refusal}`);
+        }
+        if (!block || typeof block.text !== 'string') {
+            throw new Error('OpenAI response contained no output_text block');
+        }
+
         return {
-            response: content,
+            response: block.text,
             trace: response.trace
         };
     }
@@ -242,6 +279,11 @@ class OpenAIAdapter extends LLMAdapter {
  * turn is rewritten as a multipart content array — image block first, text
  * second — which is what claude-3+ vision expects. Other call paths are
  * unaffected; image=null short-circuits to the original string-content shape.
+ *
+ * Envelope reliability: forced tool use against ENVELOPE_SCHEMA. The model
+ * must call respond() with input matching the canonical envelope shape, which
+ * makes the prose-not-JSON failure path (and the form-state-loss it triggers
+ * in server.js's fallback) structurally impossible on this provider.
  */
 class AnthropicAdapter extends LLMAdapter {
     async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
@@ -299,9 +341,25 @@ class AnthropicAdapter extends LLMAdapter {
             cache_control: { type: "ephemeral", ttl: "5m" }
         }
 
+        // `tools` is listed first in the payload so the cache prefix covers
+        // the schema; Anthropic caches by prefix, so reordering would invalidate
+        // the existing system+RAG breakpoints. After this change the cache
+        // layout is: [tools, system[0]=instructions, system[1]=RAG], with one
+        // breakpoint left over for future use (e.g. conversation history).
         const response = await axios.post(url, {
             model: this.config.model,
             max_tokens: this.config.maxTokens || 4096,
+            tools: [{
+                name: 'respond',
+                description:
+                    'Send your reply to the user as a structured protocol envelope. ' +
+                    'The `answer` field carries the user-facing message. Protocol-specific ' +
+                    'state nests under `form` / `triage` / `appointment` / `extraction` — ' +
+                    'include only the protocol object that applies to your reply.',
+                input_schema: ENVELOPE_SCHEMA,
+                cache_control: { type: 'ephemeral', ttl: '5m' }
+            }],
+            tool_choice: { type: 'tool', name: 'respond' },
             system: [
                 systemInstructions,
                 ragInstructions
@@ -316,9 +374,21 @@ class AnthropicAdapter extends LLMAdapter {
             }
         });
 
-        const content = response.data.content[0]
-        const raw = content.text;
-        const jsonString = raw.replace(/```json|```/g, '').trim();
+        const usage = response?.data?.usage;
+        const cachedTokens = usage?.cache_read_input_tokens ?? 0;
+        const inputTokens = usage?.input_tokens ?? 0;
+        console.log(`[LLM CACHE ${this.config.model}] input=${inputTokens} cached=${cachedTokens}`);
+
+        const block = response.data.content.find(
+            (c) => c.type === 'tool_use' && c.name === 'respond'
+        );
+        if (response.data.stop_reason === 'max_tokens' && !block) {
+            throw new Error('Anthropic hit max_tokens before completing tool_use');
+        }
+        if (!block) {
+            throw new Error('Anthropic response contained no respond() tool_use block');
+        }
+        const jsonString = JSON.stringify(block.input);
 
         return {
             response: jsonString,
