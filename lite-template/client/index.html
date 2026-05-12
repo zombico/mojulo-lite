@@ -119,6 +119,52 @@
         // conversation can consume it.
         let pendingHandoffHash = null;
 
+        // Translate legacy flat-shape envelopes into the canonical nested shape
+        // (form/triage/appointment/extraction). Pre-unflatten persisted rows
+        // and any provider that regresses on cartridge instructions still flow
+        // through here unchanged. New-shape envelopes are detected by any
+        // protocol key holding a NON-NULL OBJECT (not just truthy) — legacy
+        // shapes used `triage: true` as a flag, so a bare truthy check would
+        // misidentify them as already-nested and skip translation.
+        function normalizeEnvelope(r) {
+            if (!r || typeof r !== 'object') return r;
+            const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+            if (isObj(r.form) || isObj(r.triage) || isObj(r.appointment) || isObj(r.extraction)) return r;
+
+            const out = {
+                answer: r.answer,
+                suggestions: r.suggestions ?? r.formSuggestions ?? [],
+            };
+            if (r.formTracker || r.fieldsRemaining != null || r.isComplete != null) {
+                out.form = {
+                    fields: r.formTracker ?? {},
+                    remaining: r.fieldsRemaining,
+                    complete: r.isComplete === true || r.isComplete === 'true',
+                };
+            }
+            if (r.triage && r.deploymentId) {
+                out.triage = {
+                    deploymentId: r.deploymentId,
+                    starterPrompt: r.starterPrompt,
+                };
+            }
+            if (r.showCalendarLaunchButton != null || r.calendarId) {
+                out.appointment = {
+                    showLaunchButton: r.showCalendarLaunchButton === true || r.showCalendarLaunchButton === 'true',
+                    calendarId: r.calendarId,
+                };
+            }
+            if (r.extractedFields || r.extractionConfidence || r.showUploadButton != null) {
+                out.extraction = {
+                    fields: r.extractedFields ?? {},
+                    confidence: r.extractionConfidence,
+                    notes: r.extractionNotes,
+                    showUploadButton: r.showUploadButton === true || r.showUploadButton === 'true',
+                };
+            }
+            return out;
+        }
+
         const messagesDiv = document.getElementById('messages');
         const chatContainer = document.querySelector('.chat-container');
         const headerContainerDiv = document.getElementById('header-container');
@@ -1426,6 +1472,10 @@
                     throw new Error('Invalid response from server');
                 }
 
+                // Normalize at the read boundary. Everything below assumes the
+                // canonical nested shape (form/triage/appointment/extraction).
+                data.response = normalizeEnvelope(data.response);
+
                 conversationId = data.conversationId;
                 if (typeof data.chainHash === 'string') {
                     currentChainHash = data.chainHash;
@@ -1459,35 +1509,32 @@
                     });
                     await addLog('rag', ragInfo, conversationId);
                 }
-                // Update machine state
-                if (data.response.turn !== undefined) {
-                    turn = data.response.turn + 1;
-                    machineState = data.response;  // Keep the entire response object
-                    machineState.turn = turn;  // Update turn for next iteration
-                }
-
-
+                // Update machine state. Runtime now counts turns locally — the
+                // envelope no longer carries `turn`. Increment after each /chat
+                // success so the next request sends the correct turn number.
+                machineState = data.response;
+                turn = turn + 1;
 
                 // Update form progress bar
                 updateFormProgress();
 
                 // Check if form collection is complete
-                console.log('Checking isComplete:', data.response.isComplete, 'Type:', typeof data.response.isComplete);
-                if (data.response.isComplete === true || data.response.isComplete === 'true') {
+                const formComplete = data.response.form?.complete === true;
+                console.log('Checking form.complete:', formComplete);
+                if (formComplete) {
                     console.log('Form collection is complete!');
                     handleFormComplete();
                 } else {
                     console.log('Form not yet complete');
                 }
 
-                // Prepare metadata, manually modify turn view here bc it got changed in state above
                 const modelApiInfo = data.trace?.model && data.trace?.url
                     ? `${data.trace.model} | ${data.trace.url}`
                     : data.trace?.model || data.trace?.url || 'N/A';
 
                 const metadata = {
                     'Conversation ID': conversationId,
-                    'Turn': data.response.turn !== undefined ? data.response.turn - 1 : turn - 1,
+                    'Turn': turn - 1,
                     'Timestamp': new Date().toLocaleString(),
                     'Hash': data.hashMsg || 'N/A',
                     'Model / API URL': modelApiInfo
@@ -1497,70 +1544,59 @@
 
                 // Helper to show post-message content (triage card, suggestions, form fields)
                 const showPostMessageContent = () => {
-                    // Display triage card if triage is enabled in response
-                    console.log('Triage check - triage:', data.response.triage, 'starterPrompt:', data.response.starterPrompt);
-                    if (data.response.triage && data.response.starterPrompt) {
-                        let triageLink = data.response.link;
+                    // Display triage card iff the protocol matched a route. The
+                    // model emits a `triage` object only when it found a match,
+                    // so the truthy check on the object IS the match signal.
+                    const triage = data.response.triage;
+                    if (triage && triage.starterPrompt) {
+                        let triageLink = null;
                         let directedBotName = null;
-                        console.log('Triage enabled - initial link:', triageLink, 'deploymentId:', data.response.deploymentId);
-                        console.log('botContext.triageRoutes:', botContext.triageRoutes);
-                        // If deploymentId is provided, look up URL from triageRoutes
-                        if (data.response.deploymentId && botContext.triageRoutes) {
-                            console.log('Looking up route for deploymentId:', data.response.deploymentId);
-                            const route = botContext.triageRoutes.find(r => r.deploymentId === data.response.deploymentId);
-                            console.log('Route lookup result:', route);
+                        if (triage.deploymentId && botContext.triageRoutes) {
+                            const route = botContext.triageRoutes.find(r => r.deploymentId === triage.deploymentId);
                             if (route) {
                                 triageLink = route.url;
                                 directedBotName = route.name;
-                                console.log('Found route - url:', triageLink, 'name:', directedBotName);
                             } else {
-                                console.log('No matching route found for deploymentId:', data.response.deploymentId);
-                                console.log('Available deploymentIds:', botContext.triageRoutes.map(r => r.deploymentId));
+                                console.log('No matching route for deploymentId:', triage.deploymentId);
                             }
-                        } else {
-                            console.log('Skipping route lookup - deploymentId:', data.response.deploymentId, 'triageRoutes exists:', !!botContext.triageRoutes);
                         }
-                        console.log('Final triageLink:', triageLink);
                         if (triageLink) {
-                            const triageCard = createTriageCard(triageLink, data.response.starterPrompt, directedBotName, data.response.deploymentId);
+                            const triageCard = createTriageCard(triageLink, triage.starterPrompt, directedBotName, triage.deploymentId);
                             messagesDiv.lastChild.querySelector('.message-content').appendChild(triageCard);
-                        } else {
-                            console.log('Triage card NOT created - triageLink is falsy');
                         }
-                    } else {
-                        console.log('Triage card skipped - triage or starterPrompt missing');
                     }
 
-                    // Process form suggestions after streaming completes
-                    if (data.response.formSuggestions && data.response.formSuggestions.length > 0) {
-                        console.log('Received formSuggestions from response:', data.response.formSuggestions);
+                    // Form-gathering UI: cartridge populates `suggestions` with
+                    // form field IDs the UI should reveal this turn (formerly
+                    // `formSuggestions`, now collapsed into the universal
+                    // `suggestions` array when form-gathering is active).
+                    const formActive = !!data.response.form;
+                    const suggestions = data.response.suggestions || [];
+
+                    if (formActive && suggestions.length > 0) {
                         messageInputForm.classList.add('vanish');
-                        // Process form suggestions and generate form elements
-                        processFormSuggestions(data.response.formSuggestions);
-                    } else {
-                        console.log('No formSuggestions in response');
+                        processFormSuggestions(suggestions);
                     }
 
-                    // Auto-display suggestions if they exist in machineState
-                    // But skip if formSuggestions are present (form mode active)
-                    const hasFormSuggestions = data.response.formSuggestions && data.response.formSuggestions.length > 0;
-                    if (machineState.suggestions && machineState.suggestions.length > 0 && !hasFormSuggestions) {
-                        displaySuggestionsInChat(machineState.suggestions);
+                    // Generic suggestion chips when form-gathering is NOT active.
+                    if (!formActive && suggestions.length > 0) {
+                        displaySuggestionsInChat(suggestions);
                     }
 
-                    // Show calendar launch button if enabled in config and response
-                    if (botContext.isCalendar && data.response.showCalendarLaunchButton === "true") {
-                        const calendarCard = createCalendarCard(data.response.calendarId);
+                    // Show calendar launch button if enabled in config and the
+                    // appointments protocol matched a calendar this turn.
+                    if (botContext.isCalendar && data.response.appointment?.showLaunchButton) {
+                        const calendarCard = createCalendarCard(data.response.appointment.calendarId);
                         if (calendarCard) {
                             messagesDiv.lastChild.querySelector('.message-content').appendChild(calendarCard);
                         }
                     }
 
                     // Optical Read: surface the upload card whenever the model
-                    // signals it. The cartridge instructs the model to set
-                    // showUploadButton on first turn and any turn where a new
-                    // upload is welcome.
-                    if (botContext.isOpticalRead && data.response.showUploadButton === 'true') {
+                    // signals it. The cartridge sets extraction.showUploadButton
+                    // true on the first turn and on any turn where a new upload
+                    // is welcome.
+                    if (botContext.isOpticalRead && data.response.extraction?.showUploadButton) {
                         const uploadCard = createUploadCard();
                         if (uploadCard) {
                             messagesDiv.lastChild.querySelector('.message-content').appendChild(uploadCard);
@@ -2020,7 +2056,8 @@
             // surface answer text is when extraction came back fully empty
             // (image unreadable / wrong artifact type), and we slot it as a
             // tiny note above the (empty) form so the user gets feedback.
-            const extracted = data.extractedFields || {};
+            const extraction = data.extraction || {};
+            const extracted = extraction.fields || {};
             const allEmpty = Object.values(extracted).every((v) => !v);
             const note = allEmpty && data.answer ? data.answer : null;
 
@@ -2036,8 +2073,8 @@
                 messageContent.appendChild(fieldsCard);
             }
             const confidenceBlock = renderExtractionConfidence(
-                data.extractionConfidence,
-                data.extractionNotes
+                extraction.confidence,
+                extraction.notes
             );
             if (confidenceBlock) {
                 messageContent.appendChild(confidenceBlock);

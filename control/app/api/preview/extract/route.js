@@ -9,8 +9,8 @@
  *   POST { prompt, opticalReadFields, llm, mime, base64,
  *          enabledProtocols?, protocolData?, objective?,
  *          conversationHistory?, apiKeyId?, editDeploymentId? }
- *   →    { answer, extractedFields, conversationId: 'preview',
- *          turn, chainHash: 'preview', trace }
+ *   →    { answer, extraction: { fields, confidence, notes, showUploadButton },
+ *          conversationId: 'preview', chainHash: 'preview', trace }
  */
 
 import { NextResponse } from 'next/server';
@@ -64,7 +64,6 @@ export async function POST(request) {
       editDeploymentId = null,
       mime,
       base64,
-      turn = 0,
       fileName,
     } = body;
 
@@ -155,7 +154,7 @@ export async function POST(request) {
     const fieldList = JSON.stringify(opticalReadFields, null, 2);
     const userPrompt =
       'Extract the configured fields from this image. ' +
-      'Return one entry per idName in extractedFields, empty string when missing.\n\n' +
+      'Return one entry per idName under extraction.fields, empty string when missing.\n\n' +
       `Field list:\n${fieldList}`;
 
     const llmClient = createLLMClient({ llm: resolvedLlm });
@@ -174,35 +173,46 @@ export async function POST(request) {
       console.error('[preview/extract] JSON extraction failed:', err.message);
       parsed = {
         answer: 'Could not read the image. Please try a clearer upload.',
-        extractedFields: {},
-        showUploadButton: 'true',
+        extraction: { fields: {}, showUploadButton: true },
       };
     }
+
+    // Read the new nested shape first; fall back to legacy flat fields so any
+    // provider that hasn't followed the cartridge's nested instruction still
+    // parses cleanly. Mirrors the backward-compat read in the bot's /api/extract.
+    const rawFields = parsed.extraction?.fields ?? parsed.extractedFields ?? {};
+    const rawConfidence = parsed.extraction?.confidence ?? parsed.extractionConfidence;
+    const rawNotes = parsed.extraction?.notes ?? parsed.extractionNotes;
+    const rawShowUpload = parsed.extraction?.showUploadButton ?? parsed.showUploadButton;
 
     // Defense in depth: only retain configured idNames.
     const allowedIds = new Set(opticalReadFields.map((f) => f.idName));
     const cleanedExtracted = {};
     for (const id of allowedIds) {
-      const v = parsed.extractedFields?.[id];
+      const v = rawFields?.[id];
       cleanedExtracted[id] = typeof v === 'string' ? v : '';
     }
 
     // Confidence signal — narrow to the enum, fall back to 'medium' on
     // anything off-script. Same shape as the bot's /api/extract response.
     const ALLOWED_CONFIDENCE = new Set(['high', 'medium', 'low']);
-    const confRaw = (parsed.extractionConfidence || '').toString().trim().toLowerCase();
+    const confRaw = (rawConfidence || '').toString().trim().toLowerCase();
     const extractionConfidence = ALLOWED_CONFIDENCE.has(confRaw) ? confRaw : 'medium';
-    const extractionNotes = typeof parsed.extractionNotes === 'string' ? parsed.extractionNotes : '';
+    const extractionNotes = typeof rawNotes === 'string' ? rawNotes : '';
 
     void fileName; // accepted for parity with /api/extract; not persisted in preview
 
+    const showUploadButton = rawShowUpload === true || rawShowUpload === 'true';
+
     return NextResponse.json({
       answer: typeof parsed.answer === 'string' ? parsed.answer : '',
-      extractedFields: cleanedExtracted,
-      extractionConfidence,
-      extractionNotes,
+      extraction: {
+        fields: cleanedExtracted,
+        confidence: extractionConfidence,
+        notes: extractionNotes,
+        showUploadButton,
+      },
       conversationId: 'preview',
-      turn: (turn || 0) + 1,
       chainHash: 'preview',
       trace: result.trace || {},
     });

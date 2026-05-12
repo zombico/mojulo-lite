@@ -49,15 +49,15 @@ async function loadLiteHelpers() {
   return liteHelpers;
 }
 
-function fallbackResponse(rawText, turn) {
+function fallbackResponse(rawText) {
   return {
     answer: rawText || 'I apologize, but I encountered an error processing my response.',
-    formTracker: {},
     suggestions: [],
-    formSuggestions: [],
-    fieldsRemaining: 0,
-    isComplete: false,
-    turn: (turn || 0) + 1,
+    form: {
+      fields: {},
+      remaining: 0,
+      complete: false,
+    },
   };
 }
 
@@ -73,7 +73,6 @@ export async function POST(request) {
       llm,
       apiKeyId = null,
       editDeploymentId = null,
-      turn = 0,
       embeddingsStorageKey = null,
     } = body;
 
@@ -145,10 +144,9 @@ export async function POST(request) {
     let satiJson;
     try {
       satiJson = extractJSON(result.response);
-      satiJson.turn = (turn || 0) + 1;
     } catch (e) {
       console.error('[preview/chat] JSON extraction failed:', e.message);
-      satiJson = fallbackResponse(result.response, turn);
+      satiJson = fallbackResponse(result.response);
     }
 
     return NextResponse.json({
