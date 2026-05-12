@@ -110,7 +110,7 @@ The bot image (`ghcr.io/zombico/mojulo-bot:X`) bakes in:
 
 - `Dockerfile` — Debian slim Node 20 + native deps (better-sqlite3, onnxruntime-node).
 - `server.js`, `package.json`, `client/`, `middleware/`, `integration/`.
-- `helper/` — `llm-client.js` (6-provider abstraction), `vector-rag.js` (cosine over baked embeddings.json), `embedder-local.js` (multilingual-e5-small ONNX, in-process query embedding), `prompt-assembler.js`, `form-submission.js`.
+- `helper/` — `llm-client.js` (3-provider abstraction: Anthropic, OpenAI, Ollama), `envelope-schema.js` (canonical response shape, mirrored to control plane), `vector-rag.js` (cosine over baked embeddings.json), `embedder-local.js` (multilingual-e5-small ONNX, in-process query embedding), `prompt-assembler.js`, `form-submission.js`.
 - `models/Xenova/multilingual-e5-small/` — q8 ONNX + tokenizer (~113MB, fetched by `scripts/fetch-embed-model.mjs` during the GHCR build).
 
 In **offline-build mode** (`MOJULO_OFFLINE_BUILD=1`) all of the above ship inside the ZIP and `docker-compose.yml` builds locally from the bundled Dockerfile.
@@ -218,8 +218,44 @@ In **offline-build mode** (`MOJULO_OFFLINE_BUILD=1`) all of the above ship insid
    │                        │                                         │
    │◀───────────────────────┤                                         │
    │  { answer, suggestions,│                                         │
-   │    formTracker?, ... } │                                         │
+   │    + ONE OF:           │                                         │
+   │      form?   triage?   │                                         │
+   │      appointment?      │                                         │
+   │      extraction? }     │                                         │
 ```
+
+---
+
+## 4a. Envelope Contract (Model → Runtime → Client)
+
+Every model reply lands as the same shape: `answer` + optional `suggestions` + at most one protocol object (`form` / `triage` / `appointment` / `extraction`). That shape is defined once as a JSON schema and is enforced at the provider API boundary, not coached for in the prompt.
+
+```
+                ENVELOPE_SCHEMA  ◀─── canonical source
+                (lite-template/helper/envelope-schema.js)
+                          │
+                          ├──► toStrictEnvelopeSchema()       (OpenAI strict mode)
+                          │       text.format: json_schema, strict: true
+                          │
+                          ├──► input_schema (canonical)        (Anthropic tool use)
+                          │       tool_choice: { type:'tool', name:'respond' }
+                          │
+                          └──► (none)                          (Ollama)
+                                  extractJSON + fallback synthesis in server.js
+                                  is the only path that still tolerates prose
+
+mirrored to: control/lib/envelope-schema.js  (kept in sync by hand —
+              two npm packages, no shared layer)
+```
+
+What this means in practice:
+
+- **For Anthropic and OpenAI the prose-not-JSON failure mode is structurally impossible.** Schema-invalid output is rejected by the provider, not by the bot. `extractJSON` in [server.js](lite-template/server.js) is reachable only on Ollama.
+- **Adding an envelope field is a two-file change.** Update [lite-template/helper/envelope-schema.js](lite-template/helper/envelope-schema.js) (canonical) and [control/lib/envelope-schema.js](control/lib/envelope-schema.js) (mirror), then update the protocol cartridge in [control/lib/composer/protocols/](control/lib/composer/protocols/) that emits the new key. The `toStrictEnvelopeSchema()` derivative is regenerated automatically — same module.
+- **Each protocol owns one top-level key.** No cross-cutting fields. `form` is form-gathering's namespace, `extraction` is optical-read's, etc. The composer's [response-builder.js](control/lib/composer/response-builder.js) only adds a protocol's nested object to the response template when that protocol is enabled.
+- **Control-plane form generation uses the same primitive.** [generateStructured()](control/lib/llm-providers.js) routes form-schema generation through OpenAI strict json_schema / Anthropic forced tool use against [form-structure-schema.js](control/lib/form-structure-schema.js). Same enforcement pattern, different schema.
+
+The earlier "RESPOND ONLY IN VALID JSON" prose still appears in [response-builder.js](control/lib/composer/response-builder.js) as guidance, but on two of three providers it is now structurally redundant.
 
 ---
 
@@ -439,7 +475,12 @@ Key files:
 | [.github/workflows/publish-bot-image.yml](.github/workflows/publish-bot-image.yml) | Builds + publishes `ghcr.io/zombico/mojulo-bot:X` |
 | [lite-template/server.js:~1340-1420](lite-template/server.js) | Runtime bootstrap (LLM init, instructions cache, VectorRAG init + warmup) |
 | [lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) | Provider abstraction (Anthropic, OpenAI, Ollama + adapters) |
-| [lite-template/helper/llm-client.js:208-272](lite-template/helper/llm-client.js#L208-L272) | Anthropic adapter (prompt caching) |
+| [lite-template/helper/llm-client.js:182-273](lite-template/helper/llm-client.js#L182-L273) | OpenAI adapter (Responses API, `text.format: json_schema` strict, prompt caching automatic ≥1024 tok) |
+| [lite-template/helper/llm-client.js:288-398](lite-template/helper/llm-client.js#L288-L398) | Anthropic adapter (forced tool use against `ENVELOPE_SCHEMA`, ephemeral prompt cache breakpoints) |
+| [lite-template/helper/envelope-schema.js](lite-template/helper/envelope-schema.js) | Canonical envelope JSON schema + `toStrictEnvelopeSchema()` derivative; mirrored at [control/lib/envelope-schema.js](control/lib/envelope-schema.js) |
+| [control/lib/form-structure-schema.js](control/lib/form-structure-schema.js) | Canonical form-structure schema + strict-mode derivative; consumed by `generateStructured()` on all three control-plane providers |
+| [control/lib/llm-providers.js](control/lib/llm-providers.js) | Control-plane provider table, `MODEL_TIERS`, `getDefaultModelForTask()`, `generateSummary()`, `generateStructured()` (OpenAI json_schema / Anthropic forced tool use / Bedrock toolConfig) |
+| [control/lib/composer/response-builder.js](control/lib/composer/response-builder.js) | Composes the in-prompt response-format hint per enabled protocol; structurally redundant on Anthropic/OpenAI now that schema enforcement lives at the API boundary, still guidance for Ollama |
 | [lite-template/helper/vector-rag.js](lite-template/helper/vector-rag.js) | Cosine retrieval over baked `config/embeddings.json`; renders triage-route chunks with `deploymentId` inline |
 | [lite-template/helper/prompt-assembler.js](lite-template/helper/prompt-assembler.js) | Pure: vector retrieval + LLM generate (no rewrite ladder, no locale detection) |
 | [lite-template/helper/embedder-local.js](lite-template/helper/embedder-local.js) | In-process query embedding via `@huggingface/transformers` + multilingual-e5-small q8 ONNX. `env.allowRemoteModels = false` — fully offline at runtime |

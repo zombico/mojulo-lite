@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/service';
 import { downloadToBuffer } from '@/lib/storage';
 import { parseDocument } from '@/lib/document-parser';
-import { generateSummary } from '@/lib/llm-providers';
+import { generateSummary, getDefaultModelForTask } from '@/lib/llm-providers';
 import { checkRateLimit, RateLimitPresets } from '@/lib/rate-limiter';
 
 /**
@@ -103,6 +103,10 @@ export async function POST(request) {
       }
     }
 
+    // RAG summarization is single-shot free-text — drop to the summary tier
+    // when the wizard didn't pin a model. User overrides win.
+    const resolvedModel = model || getDefaultModelForTask(provider, 'summary');
+
     // Step 1: Parse all documents and generate individual summaries
     const individualSummaries = {};
     const errors = [];
@@ -132,7 +136,7 @@ Keep the summary high-level, factual, and cohesive.`;
         const text = await downloadAndParseDocument(storagePath, fileName);
 
         console.log(`Generating summary for: ${fileName}`);
-        const docSummary = await generateSummary(provider, text, apiKey, summaryPrompt, model);
+        const docSummary = await generateSummary(provider, text, apiKey, summaryPrompt, resolvedModel);
 
         individualSummaries[fileName] = docSummary;
       } catch (error) {
@@ -154,7 +158,7 @@ Keep the summary high-level, factual, and cohesive.`;
         console.log('Applying custom prompt to single document summary...');
         try {
           const customizedPrompt = `${finalSummary}\n\nIMPORTANT: ${customPrompt}`;
-          finalSummary = await generateSummary(provider, '', apiKey, customizedPrompt, model);
+          finalSummary = await generateSummary(provider, '', apiKey, customizedPrompt, resolvedModel);
         } catch (customError) {
           console.error('Error applying custom prompt:', customError);
           errors.push(`Custom prompt application: ${customError.message}`);
@@ -198,7 +202,7 @@ ${consolidatedSummariesText}`;
 
     let finalSummary;
     try {
-      finalSummary = await generateSummary(provider, '', apiKey, consolidationPrompt, model);
+      finalSummary = await generateSummary(provider, '', apiKey, consolidationPrompt, resolvedModel);
     } catch (consolidationError) {
       console.error('Error during consolidation:', consolidationError);
       errors.push(`Consolidation step: ${consolidationError.message}`);

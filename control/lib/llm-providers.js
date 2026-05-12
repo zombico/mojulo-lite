@@ -55,6 +55,48 @@ export const LLM_PROVIDERS = {
 };
 
 /**
+ * Per-task model tiers. The "default" API key (isDefault flag on api_keys)
+ * picks a provider; this map picks the right model within that provider for
+ * the workload at hand. User-facing semantics of "default" are unchanged.
+ *
+ *   reasoning   — agentic loops with tool use (chat builder)
+ *   structured  — single-shot calls bounded by a JSON schema (form gen)
+ *   summary     — single-shot free-text generation (RAG / bot summary)
+ *
+ * Bedrock uses base model IDs without the geographic prefix — buildBedrockModelId
+ * adds the prefix at the wire.
+ */
+export const MODEL_TIERS = {
+  openai: {
+    reasoning: 'gpt-4.1',
+    structured: 'gpt-4.1-mini',
+    summary: 'gpt-4.1-mini',
+  },
+  anthropic: {
+    reasoning: 'claude-sonnet-4-6',
+    structured: 'claude-haiku-4-5',
+    summary: 'claude-haiku-4-5',
+  },
+  bedrock: {
+    reasoning: 'anthropic.claude-sonnet-4-6',
+    structured: 'anthropic.claude-haiku-4-5',
+    summary: 'anthropic.claude-haiku-4-5',
+  },
+};
+
+/**
+ * Pick the default model for a (provider, task) pair. Falls back to the
+ * provider's flat `defaultModel` if the tier is missing — never throws.
+ *
+ * @param {string} provider — openai | anthropic | bedrock
+ * @param {string} task     — reasoning | structured | summary
+ * @returns {string | undefined}
+ */
+export function getDefaultModelForTask(provider, task) {
+  return MODEL_TIERS[provider]?.[task] || LLM_PROVIDERS[provider]?.defaultModel;
+}
+
+/**
  * Get default Bedrock region from environment or fallback
  * @returns {string} Default AWS region for Bedrock
  */

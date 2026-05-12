@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { generateStructured } from '@/lib/llm-providers';
+import { generateStructured, getDefaultModelForTask } from '@/lib/llm-providers';
 import { FORM_STRUCTURE_SCHEMA, toStrictFormStructureSchema } from '@/lib/form-structure-schema';
 import { getCurrentUser } from '@/lib/auth/service';
 import { buildFormSchemaPrompt, isLocaleSupported, DEFAULT_LOCALE } from '@/lib/form-schema-config';
@@ -222,13 +222,17 @@ export async function POST(request) {
       ? toStrictFormStructureSchema()
       : FORM_STRUCTURE_SCHEMA;
 
+    // Form generation is schema-constrained — drop to the structured tier
+    // when the wizard didn't pin a specific model. User overrides win.
+    const resolvedModel = model || getDefaultModelForTask(provider, 'structured');
+
     const formStructure = await generateStructured(
       provider,
       naturalLanguageInput,
       resolvedApiKey,
       formPrompt,
       schema,
-      model
+      resolvedModel
     );
 
     // Strict-mode-induced nulls would otherwise reach the wizard editor and
