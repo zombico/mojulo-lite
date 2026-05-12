@@ -138,7 +138,7 @@ Knowledge protocol adds **no** response attributes — it shapes how `answer` sh
 
 ### Why composed, not handwritten
 
-The alternative — a static "full" response template the LLM is told to "ignore fields you don't need" — works for two protocols and falls apart at four. The LLM either fills in fields it shouldn't (emitting `formTracker` on a triage-only bot) or hallucinates the format when given an unfamiliar combination. Composing only the active fields makes the schema match the bot's actual capabilities, which is also what the [Anthropic adapter's forced tool-use schema](../control/ANTHROPIC_TOOL_USE_PLAN.md) ([response-schema.js](../lite-template/helper/response-schema.js)) needs to mirror — when you add a field to one, you cross-check the other.
+The alternative — a static "full" response template the LLM is told to "ignore fields you don't need" — works for two protocols and falls apart at four. The LLM either fills in fields it shouldn't (emitting `formTracker` on a triage-only bot) or hallucinates the format when given an unfamiliar combination. Composing only the active fields makes the schema match the bot's actual capabilities, which is also what the structured-output paths in the LLM client — Anthropic's forced tool use (`tool_choice: { type: 'tool', name: 'respond' }`, `input_schema = ENVELOPE_SCHEMA`) and OpenAI's Responses-API `text.format: json_schema` strict mode — need to mirror. The canonical schema lives at [envelope-schema.js](../lite-template/helper/envelope-schema.js) and is duplicated to [control/lib/envelope-schema.js](../control/lib/envelope-schema.js); when you add a field, you cross-check both files and the response template here.
 
 ---
 
@@ -173,7 +173,7 @@ The shape codifies a recipe — a new capability, end to end, is:
 2. Add an entry to `PROTOCOL_FILES` and `PROTOCOL_ORDER` in [composer.js](../control/lib/composer/composer.js).
 3. If the protocol needs per-deploy config: write a `build<Name>Section()` that strips the input to fields the LLM needs and returns either a header + JSON section or `''` on missing/invalid input. Mirror the form/calendar/triage discipline — strip aggressively, never leak URLs or secrets into the prompt.
 4. If the protocol needs new response fields: add a `<NAME>_ATTRIBUTES` group in [response-builder.js](../control/lib/composer/response-builder.js) and a conditional `Object.assign` in `buildResponseFormatSection`.
-5. Cross-check [response-schema.js](../lite-template/helper/response-schema.js) — the Anthropic forced tool-use path enforces structure separately, and a missing field there means the model returns shapes the bot can't parse.
+5. Cross-check [envelope-schema.js](../lite-template/helper/envelope-schema.js) (and its control-plane mirror at [control/lib/envelope-schema.js](../control/lib/envelope-schema.js)) — the Anthropic forced tool-use path and the OpenAI strict `json_schema` path both enforce this shape, and a missing field there means the model returns shapes the bot can't parse.
 6. Wire the toggle into both builders: a wizard step (or a section of an existing step) and a chat-builder tool. Both write to the same `enabledProtocols.<name>` key and the same `protocolData.<name>` bucket.
 
 What you do **not** need to touch: the deployer, the bot runtime, the prompt assembler, the response parser. Past `composeInstructions`, nothing branches on which protocols are on — the file is the contract, and a new file with a new toggle is enough.
@@ -196,4 +196,4 @@ What you do **not** need to touch: the deployer, the bot runtime, the prompt ass
 | [control/lib/deployers/docker.js](../control/lib/deployers/docker.js) §step 3 | Calls `composeInstructions` (or uses cached `_composedInstructions`); writes `config/instructions.txt` into the artifact |
 | [lite-template/server.js](../lite-template/server.js) §boot | Reads `config/instructions.txt` once at startup into `cachedInstructions` |
 | [lite-template/helper/prompt-assembler.js](../lite-template/helper/prompt-assembler.js) | Injects the cached instructions alongside RAG context and conversation history per turn |
-| [lite-template/helper/response-schema.js](../lite-template/helper/response-schema.js) | Anthropic forced-tool-use schema — must mirror the response template `response-builder.js` produces |
+| [lite-template/helper/envelope-schema.js](../lite-template/helper/envelope-schema.js) | Canonical envelope schema enforced at the wire by Anthropic forced tool use and OpenAI strict `json_schema` — must mirror the response template `response-builder.js` produces; duplicated to [control/lib/envelope-schema.js](../control/lib/envelope-schema.js) |

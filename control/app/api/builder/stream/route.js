@@ -27,7 +27,7 @@ import { parseModularDeploymentConfig } from '@/lib/config-builder';
 import { auditLog } from '@/lib/audit-logger-new';
 import { checkRateLimit, RateLimitPresets } from '@/lib/rate-limiter';
 import { parseDocument } from '@/lib/document-parser';
-import { buildBedrockModelId } from '@/lib/llm-providers';
+import { buildBedrockModelId, getDefaultModelForTask } from '@/lib/llm-providers';
 import { uploadFile } from '@/lib/storage';
 import { decryptApiKey } from '@/lib/deployment-auth';
 
@@ -68,15 +68,6 @@ function sendEvent(controller, encoder, type, data) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
 }
 
-function getDefaultModelForProvider(provider) {
-  const defaults = {
-    anthropic: 'claude-sonnet-4-6',
-    bedrock: 'anthropic.claude-sonnet-4-6',
-    openai: 'gpt-4.1',
-  };
-  return defaults[provider] || 'claude-sonnet-4-6';
-}
-
 async function getLLMConfigForBuilder(session, userId) {
   const { defaultProvider, defaultApiKeyId, defaultModel } =
     session.preloadedContext || {};
@@ -108,7 +99,7 @@ async function getLLMConfigForBuilder(session, userId) {
   return {
     provider: apiKeyRecord.provider,
     apiKey: decryptApiKey(apiKeyRecord.encryptedKey),
-    model: defaultModel || getDefaultModelForProvider(apiKeyRecord.provider),
+    model: defaultModel || getDefaultModelForTask(apiKeyRecord.provider, 'reasoning'),
   };
 }
 
@@ -124,7 +115,7 @@ async function buildPreloadedContext(userId) {
   const defaultKey = apiKeys.find((k) => k.isDefault) || apiKeys[0];
   if (defaultKey) {
     defaultProvider = defaultKey.provider;
-    defaultModel = getDefaultModelForProvider(defaultKey.provider);
+    defaultModel = getDefaultModelForTask(defaultKey.provider, 'reasoning');
     defaultApiKeyId = defaultKey.id;
   } else {
     defaultProvider = 'anthropic';

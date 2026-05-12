@@ -421,42 +421,45 @@ app.post('/chat', chatLimiter, async (req, res) => {
         console.log('STREAM - LLM Response:', result.response);
         console.log('STREAM - Response length:', result.response?.length);
 
-        // Try to extract JSON, fallback to raw text if extraction fails
+        // Try to extract JSON, fallback to a synthesized envelope if extraction fails.
+        // Runtime counts turns; the envelope no longer carries `turn`.
+        const computedTurn = turn + 1;
         let satiJson;
         try {
             satiJson = extractJSON(result.response);
-            // Ensure turn is set
-            satiJson.turn = turn + 1;
         } catch (error) {
             console.error('JSON extraction failed, using fallback response structure:', error.message);
 
-            // Create a fallback JSON structure that follows the protocol
-            // This handles conversational responses that don't follow the expected JSON format
+            // Conversational responses that don't follow the expected JSON format
+            // land here. We synthesize the canonical nested envelope and preserve
+            // any prior form state so the user doesn't lose progress.
             const fallbackAnswer = result.response || "I apologize, but I encountered an error processing my response.";
 
-            // Get the last formTracker state if available from history
-            let lastFormTracker = {};
+            // Recover the prior form.fields from the last turn's machine_state.
+            // Read the new shape first, fall back to the legacy flat `formTracker`
+            // for rows persisted before the unflatten migration.
+            let lastFormFields = {};
             if (conversationHistory && conversationHistory.length > 0) {
                 const lastTurn = conversationHistory[conversationHistory.length - 1];
                 try {
                     const lastState = JSON.parse(lastTurn.machine_state || '{}');
-                    lastFormTracker = lastState.formTracker || {};
+                    lastFormFields = lastState.form?.fields ?? lastState.formTracker ?? {};
                 } catch (e) {
-                    console.log('Could not parse last formTracker state');
+                    console.log('Could not parse last form state');
                 }
             }
 
             satiJson = {
                 answer: fallbackAnswer,
-                formTracker: lastFormTracker, // Preserve existing state
-                suggestions: [], // No suggestions for fallback responses
-                formSuggestions: [], // No form suggestions
-                fieldsRemaining: 0,
-                isComplete: false, // Always false for fallback responses
-                turn: turn + 1 // Properly append turn
+                suggestions: [],
+                form: {
+                    fields: lastFormFields,
+                    remaining: 0,
+                    complete: false,
+                },
             };
 
-            console.log('Fallback response created with turn:', satiJson.turn);
+            console.log('Fallback response created');
         }
 
         const trace = result.trace;
@@ -466,7 +469,7 @@ app.post('/chat', chatLimiter, async (req, res) => {
 
         // Generate hashes
         const contentHash = hashTurnContent(
-            satiJson.turn,
+            computedTurn,
             prompt,
             result.response,
             JSON.stringify(satiJson)
@@ -481,7 +484,7 @@ app.post('/chat', chatLimiter, async (req, res) => {
 
         insertTurn.run(
             conversationId,
-            satiJson.turn,
+            computedTurn,
             prompt,
             null,
             result.response,
@@ -511,7 +514,8 @@ app.post('/chat', chatLimiter, async (req, res) => {
 // happens next (edit, submit, abandon) is downstream and chained separately.
 //
 // Input  : { conversationId?, fileName, mime, base64 }
-// Output : { answer, extractedFields, conversationId, turn, chainHash }
+// Output : { answer, extraction: { fields, confidence, notes, showUploadButton },
+//            conversationId, chainHash }
 //
 // Hashing: content_hash includes sha256(imageBytes), so the chain is
 // tamper-evident over the source artifact, not just the prose response. The
@@ -558,7 +562,7 @@ app.post('/api/extract', extractLimiter, extractJsonParser, async (req, res) => 
         const fieldList = JSON.stringify(opticalReadFields, null, 2);
         const userPrompt =
             `Extract the configured fields from this image. ` +
-            `Return one entry per idName in extractedFields, empty string when missing.\n\n` +
+            `Return one entry per idName under extraction.fields, empty string when missing.\n\n` +
             `Field list:\n${fieldList}`;
 
         const conversationHistory = getConversationHistory(conversationId);
@@ -572,7 +576,7 @@ app.post('/api/extract', extractLimiter, extractJsonParser, async (req, res) => 
         llmRequestsTotal.inc({ status: 'success' });
 
         // Parse the response. extractJSON handles fenced blocks; fall back to a
-        // best-effort empty envelope if it can't.
+        // best-effort empty envelope (canonical nested shape) if it can't.
         let parsed;
         try {
             parsed = extractJSON(result.response);
@@ -580,17 +584,24 @@ app.post('/api/extract', extractLimiter, extractJsonParser, async (req, res) => 
             console.error('Optical Read JSON parse failed:', e.message);
             parsed = {
                 answer: 'Could not read the image. Please try a clearer upload.',
-                extractedFields: {},
-                showUploadButton: 'true',
+                extraction: { fields: {}, showUploadButton: true },
             };
         }
+
+        // Read the new nested shape first; fall back to legacy flat fields so
+        // any provider that hasn't followed the cartridge's nested instruction
+        // still parses cleanly. Backward-compat read at one place.
+        const rawFields = parsed.extraction?.fields ?? parsed.extractedFields ?? {};
+        const rawConfidence = parsed.extraction?.confidence ?? parsed.extractionConfidence;
+        const rawNotes = parsed.extraction?.notes ?? parsed.extractionNotes;
+        const rawShowUpload = parsed.extraction?.showUploadButton ?? parsed.showUploadButton;
 
         // Defense in depth: only retain idNames that the artifact actually
         // configured. Stops a hallucinated key from leaking into Turn 2.
         const allowedIds = new Set(opticalReadFields.map((f) => f.idName));
         const cleanedExtracted = {};
         for (const id of allowedIds) {
-            const v = parsed.extractedFields?.[id];
+            const v = rawFields?.[id];
             cleanedExtracted[id] = typeof v === 'string' ? v : '';
         }
 
@@ -598,28 +609,34 @@ app.post('/api/extract', extractLimiter, extractJsonParser, async (req, res) => 
         // anything else as 'medium' (the model occasionally answers "okay" or
         // "good" instead of one of the enum values).
         const ALLOWED_CONFIDENCE = new Set(['high', 'medium', 'low']);
-        const confRaw = (parsed.extractionConfidence || '').toString().trim().toLowerCase();
+        const confRaw = (rawConfidence || '').toString().trim().toLowerCase();
         const extractionConfidence = ALLOWED_CONFIDENCE.has(confRaw) ? confRaw : 'medium';
-        const extractionNotes = typeof parsed.extractionNotes === 'string' ? parsed.extractionNotes : '';
+        const extractionNotes = typeof rawNotes === 'string' ? rawNotes : '';
 
         const turn = (getLastTurnNumber(conversationId) ?? 0) + 1;
 
         // Hash inputs include the image's sha256 so verify covers the source
-        // bytes, not just the model output. machineState carries the full
-        // structured response; full_prompt holds the assembled text the model
-        // saw.
+        // bytes, not just the model output. machineState carries the canonical
+        // nested envelope plus optical-read provenance metadata; full_prompt
+        // holds the assembled text the model saw.
         const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
+        const showUploadButton = rawShowUpload === true || rawShowUpload === 'true';
+        const envelope = {
+            answer: typeof parsed.answer === 'string' ? parsed.answer : '',
+            extraction: {
+                fields: cleanedExtracted,
+                confidence: extractionConfidence,
+                notes: extractionNotes,
+                showUploadButton,
+            },
+        };
         const machineState = JSON.stringify({
-            ...parsed,
-            extractedFields: cleanedExtracted,
-            extractionConfidence,
-            extractionNotes,
+            ...envelope,
             source: 'optical_read',
             imageHash,
             imageMime: mime,
             imageBytes: imageBuffer.length,
             fileName: typeof fileName === 'string' ? fileName : null,
-            turn,
         });
         // Sentinel for user_prompt: the chain hashes "<imageHash>" so a
         // tampered image breaks verification even when the prose response is
@@ -648,12 +665,9 @@ app.post('/api/extract', extractLimiter, extractJsonParser, async (req, res) => 
         );
 
         res.json({
-            answer: typeof parsed.answer === 'string' ? parsed.answer : '',
-            extractedFields: cleanedExtracted,
-            extractionConfidence,
-            extractionNotes,
+            answer: envelope.answer,
+            extraction: envelope.extraction,
             conversationId,
-            turn,
             chainHash,
             trace: result.trace,
         });
@@ -1066,12 +1080,19 @@ app.get('/api/conversation-metadata', validateApiKey, (req, res) => {
             ${whereClause}
         `).get(...params).count;
 
-        // Count form completes (conversations with at least one turn where isComplete = true)
+        // Count form completes (conversations with at least one turn where the
+        // form-gathering protocol marked completion). Reads the new nested
+        // shape first, falls back to the legacy flat field for rows persisted
+        // before the envelope unflatten migration. Self-healing as new turns
+        // accumulate.
         const formCompletes = db.prepare(`
             SELECT COUNT(DISTINCT conversation_id) as count
             FROM turns
             ${whereClause}
-            ${whereConditions.length > 0 ? 'AND' : 'WHERE'} json_extract(machine_state, '$.isComplete') = 1
+            ${whereConditions.length > 0 ? 'AND' : 'WHERE'} COALESCE(
+                json_extract(machine_state, '$.form.complete'),
+                json_extract(machine_state, '$.isComplete')
+            ) = 1
         `).get(...params).count;
 
         // Count total messages (turns = user messages). Exclude handoff event

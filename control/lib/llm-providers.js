@@ -55,6 +55,48 @@ export const LLM_PROVIDERS = {
 };
 
 /**
+ * Per-task model tiers. The "default" API key (isDefault flag on api_keys)
+ * picks a provider; this map picks the right model within that provider for
+ * the workload at hand. User-facing semantics of "default" are unchanged.
+ *
+ *   reasoning   — agentic loops with tool use (chat builder)
+ *   structured  — single-shot calls bounded by a JSON schema (form gen)
+ *   summary     — single-shot free-text generation (RAG / bot summary)
+ *
+ * Bedrock uses base model IDs without the geographic prefix — buildBedrockModelId
+ * adds the prefix at the wire.
+ */
+export const MODEL_TIERS = {
+  openai: {
+    reasoning: 'gpt-4.1',
+    structured: 'gpt-4.1-mini',
+    summary: 'gpt-4.1-mini',
+  },
+  anthropic: {
+    reasoning: 'claude-sonnet-4-6',
+    structured: 'claude-haiku-4-5',
+    summary: 'claude-haiku-4-5',
+  },
+  bedrock: {
+    reasoning: 'anthropic.claude-sonnet-4-6',
+    structured: 'anthropic.claude-haiku-4-5',
+    summary: 'anthropic.claude-haiku-4-5',
+  },
+};
+
+/**
+ * Pick the default model for a (provider, task) pair. Falls back to the
+ * provider's flat `defaultModel` if the tier is missing — never throws.
+ *
+ * @param {string} provider — openai | anthropic | bedrock
+ * @param {string} task     — reasoning | structured | summary
+ * @returns {string | undefined}
+ */
+export function getDefaultModelForTask(provider, task) {
+  return MODEL_TIERS[provider]?.[task] || LLM_PROVIDERS[provider]?.defaultModel;
+}
+
+/**
  * Get default Bedrock region from environment or fallback
  * @returns {string} Default AWS region for Bedrock
  */
@@ -302,5 +344,216 @@ async function generateSummaryWithBedrock(content, credentials, systemInstructio
       throw new Error('Bedrock rate limit exceeded. Please try again in a few moments.');
     }
     throw new Error(`Bedrock API error: ${error.message}`);
+  }
+}
+
+/**
+ * Generate a structured object using specified LLM provider.
+ *
+ * Unlike generateSummary (free-text return), this routes each provider
+ * through its native structured-output primitive against a caller-supplied
+ * JSON schema and returns a parsed object. The model cannot return prose
+ * or malformed JSON — schema validity is enforced at the API contract.
+ *
+ *   openai    — Chat Completions response_format: json_schema (strict)
+ *   anthropic — tool_choice forcing a specific tool whose input_schema = schema
+ *   bedrock   — Converse toolConfig with toolChoice forcing the same shape
+ *
+ * @param {string} provider          One of: openai, anthropic, bedrock
+ * @param {string} content           User-role content (the NL request)
+ * @param {string} apiKey            API key or JSON-encoded Bedrock credentials
+ * @param {string} systemInstruction System prompt
+ * @param {object} schema            JSON schema describing the expected object
+ * @param {string} [model]           Optional model override
+ * @returns {Promise<object>} Parsed object conforming to `schema`
+ */
+export async function generateStructured(provider, content, apiKey, systemInstruction, schema, model = null) {
+  const providerConfig = LLM_PROVIDERS[provider];
+  if (!providerConfig) {
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
+  const selectedModel = model || providerConfig.defaultModel;
+
+  switch (provider) {
+    case 'openai':
+      return await generateStructuredWithOpenAI(content, apiKey, systemInstruction, selectedModel, providerConfig, schema);
+
+    case 'anthropic':
+      return await generateStructuredWithAnthropic(content, apiKey, systemInstruction, selectedModel, providerConfig, schema);
+
+    case 'bedrock': {
+      let credentials;
+      try {
+        credentials = JSON.parse(apiKey);
+      } catch (e) {
+        throw new Error('Invalid Bedrock credentials format. Please reconfigure your AWS credentials.');
+      }
+      if (!credentials.region) {
+        credentials.region = 'us-east-1';
+      }
+      return await generateStructuredWithBedrock(content, credentials, systemInstruction, selectedModel, schema);
+    }
+
+    default:
+      throw new Error(`Provider ${provider} not implemented`);
+  }
+}
+
+/**
+ * Generate a structured object via OpenAI Chat Completions response_format.
+ * Caller is responsible for passing a strict-mode-compatible schema.
+ */
+async function generateStructuredWithOpenAI(content, apiKey, systemInstruction, model, config, schema) {
+  const url = `${config.baseURL}/chat/completions`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemInstruction },
+        { role: 'user',   content },
+      ],
+      max_tokens: 4096,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'form_structure', schema, strict: true },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const choice = data.choices?.[0];
+
+  if (choice?.finish_reason === 'length') {
+    throw new Error('OpenAI hit max_tokens before completing structured output');
+  }
+  if (choice?.message?.refusal) {
+    throw new Error(`OpenAI refused: ${choice.message.refusal}`);
+  }
+
+  const text = choice?.message?.content;
+  if (!text || typeof text !== 'string') {
+    throw new Error('OpenAI response contained no content');
+  }
+  return JSON.parse(text);
+}
+
+/**
+ * Generate a structured object via Anthropic forced tool use. Schema is
+ * consumed verbatim — Anthropic's tool input_schema validator accepts the
+ * canonical (non-strict) shape.
+ */
+async function generateStructuredWithAnthropic(content, apiKey, systemInstruction, model, config, schema) {
+  const url = `${config.baseURL}${config.endpoint}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 4096,
+      tools: [{
+        name: 'generate_form',
+        description: 'Return the generated form structure as a structured object.',
+        input_schema: schema,
+      }],
+      tool_choice: { type: 'tool', name: 'generate_form' },
+      system: systemInstruction,
+      messages: [{ role: 'user', content }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Anthropic API error: ${errorData.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const block = data.content?.find((c) => c.type === 'tool_use' && c.name === 'generate_form');
+
+  if (data.stop_reason === 'max_tokens' && !block) {
+    throw new Error('Anthropic hit max_tokens before completing tool_use');
+  }
+  if (!block) {
+    throw new Error('Anthropic response contained no generate_form tool_use block');
+  }
+  return block.input;
+}
+
+/**
+ * Generate a structured object via Bedrock Converse tool use. Mirrors the
+ * error-mapping behavior of generateSummaryWithBedrock so credential and
+ * model-access failures surface the same way across both code paths.
+ */
+async function generateStructuredWithBedrock(content, credentials, systemInstruction, model, schema) {
+  const { BedrockRuntimeClient, ConverseCommand } = await import('@aws-sdk/client-bedrock-runtime');
+
+  const clientConfig = { region: credentials.region };
+  if (!credentials.useIamRole && credentials.accessKeyId) {
+    clientConfig.credentials = {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+    };
+  }
+
+  const client = new BedrockRuntimeClient(clientConfig);
+  const fullModelId = buildBedrockModelId(model, credentials.region);
+
+  const command = new ConverseCommand({
+    modelId: fullModelId,
+    system: [{ text: systemInstruction }],
+    messages: [{ role: 'user', content: [{ text: content }] }],
+    inferenceConfig: { maxTokens: 4096 },
+    toolConfig: {
+      tools: [{
+        toolSpec: {
+          name: 'generate_form',
+          description: 'Return the generated form structure as a structured object.',
+          inputSchema: { json: schema },
+        },
+      }],
+      toolChoice: { tool: { name: 'generate_form' } },
+    },
+  });
+
+  try {
+    const result = await client.send(command);
+
+    if (result.stopReason === 'max_tokens') {
+      throw new Error('Bedrock hit max_tokens before completing tool use');
+    }
+    const block = result.output?.message?.content?.find((c) => c.toolUse?.name === 'generate_form');
+    if (!block) {
+      throw new Error('Bedrock response contained no generate_form toolUse block');
+    }
+    return block.toolUse.input;
+  } catch (error) {
+    if (error.name === 'AccessDeniedException') {
+      throw new Error(`Bedrock access denied: ${error.message}. Check your AWS credentials and model access permissions.`);
+    }
+    if (error.name === 'ValidationException') {
+      throw new Error(`Bedrock validation error: ${error.message}. Model ID: ${fullModelId}`);
+    }
+    if (error.name === 'ResourceNotFoundException') {
+      throw new Error(`Bedrock model not found: ${fullModelId}. Ensure the model is available in region ${credentials.region}.`);
+    }
+    if (error.name === 'ThrottlingException') {
+      throw new Error('Bedrock rate limit exceeded. Please try again in a few moments.');
+    }
+    throw error;
   }
 }

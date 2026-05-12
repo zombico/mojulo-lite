@@ -4,86 +4,110 @@
  */
 
 import { NextResponse } from 'next/server';
-import { generateSummary } from '@/lib/llm-providers';
+import { generateStructured, getDefaultModelForTask } from '@/lib/llm-providers';
+import { FORM_STRUCTURE_SCHEMA, toStrictFormStructureSchema } from '@/lib/form-structure-schema';
 import { getCurrentUser } from '@/lib/auth/service';
 import { buildFormSchemaPrompt, isLocaleSupported, DEFAULT_LOCALE } from '@/lib/form-schema-config';
+import { ApiKeyRepository } from '@/lib/db/repositories/apiKeys';
+import { DeploymentRepository } from '@/lib/db/repositories/deployments';
+import { decryptApiKey } from '@/lib/deployment-auth';
 
 /**
- * Base prompt - structure requirements (locale-agnostic)
+ * Recursively delete keys whose value is `null`. Used after the OpenAI
+ * structured-output call: strict mode forces every optional key into the
+ * payload as explicit `null`, but downstream consumers (the wizard editor,
+ * the form-gathering cartridge) expect the canonical shape where unset
+ * optional keys are simply absent. Mutates `value` in place.
  */
-const BASE_FORM_PROMPT = `You are a form structure generator. Your task is to convert natural language descriptions of data collection requirements into a structured JSON format.
-
-**IMPORTANT JSON STRUCTURE REQUIREMENTS:**
-1. The output MUST be valid JSON that matches this exact schema
-2. The form MUST have a "sections" array
-3. Each section MUST have: "id", "label", and "fields" array
-4. Each field MUST have: "id", "label", "type", and "required" boolean
-5. If conditional branching is needed, include a top-level "branches" array and use "condition" on fields/sections
-
-**SUPPORTED FIELD TYPES:**
-- "text" - Single line text input
-- "email" - Email input with validation
-- "tel" - Phone number input
-- "url" - URL input
-- "date" - Date picker
-- "number" - Numeric input
-- "dropdown" - Select from options
-- "checkbox" - Boolean checkbox
-- "textarea" - Multi-line text input
-- "radio" - Select one from options
-
-**FIELD ATTRIBUTES:**
-- id: camelCase unique identifier (e.g., "fullName", "emailAddress")
-- label: Human-readable display text (e.g., "Full Name", "Email Address")
-- type: One of the supported types above
-- required: true or false
-- placeholder: (optional) Placeholder text
-- pattern: (optional) Regex pattern for validation
-- patternError: (optional) Error message for pattern validation
-- autocomplete: (optional) Browser autofill hint (e.g., "email", "tel", "postal-code")
-- inputMode: (optional) Mobile keyboard type ("numeric", "tel", "email", "decimal", "url")
-- pii: (optional) true if field contains personally identifiable information
-- sensitive: (optional) true for highly sensitive fields (SSN, passwords)
-- helpText: (optional) Helper text displayed below the field
-- maxLength: (optional) Maximum character length
-- rows: (optional, for textarea) Number of rows
-- min/max: (optional, for number) Min/max values
-- options: (required for dropdown/radio) Array of {value, label} objects
-- condition: (optional) Branch condition for conditional visibility
-
-**BRANCH-BASED CONDITIONAL VISIBILITY:**
-Branches are named flags that get activated by the AI during conversation. Fields/sections reference branches to control visibility.
-
-Top-level branches array (define all branch names used):
-{
-  "branches": ["isHighMileage", "isCommercialUse", "hasTradeIn"],
-  "sections": [...]
+function stripNullValues(value) {
+  if (Array.isArray(value)) {
+    for (const item of value) stripNullValues(item);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const key of Object.keys(value)) {
+      if (value[key] === null) {
+        delete value[key];
+      } else {
+        stripNullValues(value[key]);
+      }
+    }
+  }
 }
 
-Single Branch Condition (show when branch is active):
-{ "branch": "isHighMileage" }
+async function resolveCredential({ provider, apiKey, apiKeyId, editDeploymentId }) {
+  if (apiKey && typeof apiKey === 'string' && apiKey.trim().length > 0) {
+    return apiKey;
+  }
+  if (apiKeyId) {
+    const record = await ApiKeyRepository.findById(apiKeyId);
+    if (!record) {
+      throw new Error(`Saved API key ${apiKeyId} not found`);
+    }
+    if (record.provider !== provider) {
+      throw new Error(
+        `Saved API key provider "${record.provider}" does not match selected provider "${provider}"`
+      );
+    }
+    return decryptApiKey(record.encryptedKey);
+  }
+  if (editDeploymentId) {
+    const existing = await DeploymentRepository.findById(editDeploymentId);
+    const block = existing?.config?.llm?.[provider];
+    if (!block) return null;
+    if (provider === 'bedrock') {
+      const hasCreds = block.useIamRole || (block.accessKeyId && block.secretAccessKey);
+      return hasCreds ? JSON.stringify(block) : null;
+    }
+    return block.apiKey || null;
+  }
+  return null;
+}
 
-Negated Branch Condition (show when branch is NOT active):
-{ "branch": "isHighMileage", "not": true }
+/**
+ * Base prompt — semantic guidance only. The structural shape (sections /
+ * fields / type enum / condition variants) is enforced by the JSON schema
+ * passed to the provider's structured-output mechanism in llm-providers.js.
+ * Keep this prompt focused on judgment calls the schema can't make: when to
+ * group into sections, when to introduce a branch, how to name things.
+ */
+const BASE_FORM_PROMPT = `You are a form structure generator. Convert natural language descriptions of data collection requirements into a structured form.
 
-Multiple Branches with AND logic (all must be active):
-{ "logic": "and", "branches": ["isHighMileage", "isCommercialUse"] }
+**FIELD NAMING:**
+- id: camelCase unique identifier (e.g., "fullName", "emailAddress")
+- label: Human-readable display text (e.g., "Full Name", "Email Address")
 
-Multiple Branches with OR logic (any must be active):
-{ "logic": "or", "branches": ["isHighMileage", "hasTradeIn"] }
+**FIELD TYPE CHOICE:**
+Pick the most specific type that fits. Prefer "email" / "tel" / "url" / "date" / "number" over generic "text" when the data is structured. Use "dropdown" for closed choices with a known list; "radio" for short closed choices the user benefits from seeing all at once; "checkbox" for booleans; "textarea" for free-form long-form input.
 
-When to Add Branches:
-- User mentions "if", "when", "only for", "only if", "in case of" → create a branch
+**OPTIONAL FIELD ATTRIBUTES:**
+- placeholder: Hint text shown in empty inputs
+- pattern + patternError: Regex validation and its user-facing error
+- autocomplete: Browser autofill hint (e.g., "email", "tel", "postal-code")
+- inputMode: Mobile keyboard hint
+- pii: true if the field collects personally identifiable information
+- sensitive: true for highly sensitive fields (SSN, passwords)
+- helpText: Helper text under the field
+- maxLength, rows, min, max: Per-type input constraints
+- options: REQUIRED for "dropdown" and "radio" — array of {value, label}
+
+**BRANCH-BASED CONDITIONAL VISIBILITY:**
+Branches are named flags activated by the conversational AI at runtime. Fields and sections reference branches via "condition" to control visibility. Define every branch name in the top-level "branches" array.
+
+Condition shapes:
+- { "branch": "isHighMileage" }                              — visible when active
+- { "branch": "isHighMileage", "not": true }                 — visible when NOT active
+- { "logic": "and", "branches": ["isHighMileage", "isCommercialUse"] }
+- { "logic": "or",  "branches": ["isHighMileage", "hasTradeIn"] }
+
+When to add a branch:
+- User mentions "if", "when", "only for", "only if", "in case of"
 - Scenarios that depend on conversational context
 - Use descriptive camelCase names: "isHighMileage", "hasExistingPolicy", "needsFinancing"
 
-**SECTION GROUPING LOGIC:**
-- Group related fields into logical sections
-- Keep sections focused (3-10 fields per section)
-- Sections can have conditions to show/hide entire groups
-
-**OUTPUT FORMAT:**
-Return ONLY the JSON object. Do NOT include markdown code blocks, explanations, or any other text.`;
+**SECTION GROUPING:**
+- Group related fields into logical sections (3–10 fields per section)
+- Sections can carry their own "condition" to show/hide an entire group`;
 
 /**
  * Build the complete prompt with locale-specific patterns
@@ -113,7 +137,15 @@ export async function POST(request) {
       );
     }
 
-    const { naturalLanguageInput, provider = 'openai', model, apiKey, locale } = await request.json();
+    const {
+      naturalLanguageInput,
+      provider = 'openai',
+      model,
+      apiKey,
+      apiKeyId = null,
+      editDeploymentId = null,
+      locale,
+    } = await request.json();
 
     // Validate inputs
     if (!naturalLanguageInput || typeof naturalLanguageInput !== 'string' || naturalLanguageInput.trim().length === 0) {
@@ -132,17 +164,30 @@ export async function POST(request) {
       );
     }
 
-    // Validate API key/credentials based on provider
+    // Credentials may come three ways from the wizard: fresh paste (apiKey),
+    // saved-key reference (apiKeyId — opaque id, plaintext stays server-side),
+    // or edit-mode reuse (editDeploymentId — read the existing deployment's
+    // stored config). Resolve here so the rest of the route deals with a
+    // plaintext key/JSON-creds string regardless of the path the user took.
+    let resolvedApiKey;
+    try {
+      resolvedApiKey = await resolveCredential({ provider, apiKey, apiKeyId, editDeploymentId });
+    } catch (resolveError) {
+      return NextResponse.json(
+        { error: resolveError.message },
+        { status: 400 }
+      );
+    }
+
     if (provider === 'bedrock') {
-      // Bedrock uses JSON credentials
-      if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+      if (!resolvedApiKey) {
         return NextResponse.json(
           { error: 'AWS credentials are required for Bedrock.' },
           { status: 400 }
         );
       }
       try {
-        const creds = JSON.parse(apiKey);
+        const creds = JSON.parse(resolvedApiKey);
         if (!creds.useIamRole && (!creds.accessKeyId || !creds.secretAccessKey)) {
           return NextResponse.json(
             { error: 'AWS Access Key ID and Secret Access Key are required (or enable IAM Role).' },
@@ -155,14 +200,11 @@ export async function POST(request) {
           { status: 400 }
         );
       }
-    } else {
-      // Standard API key validation for other providers
-      if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
-        return NextResponse.json(
-          { error: 'API key is required. Please provide your API key for the selected provider.' },
-          { status: 400 }
-        );
-      }
+    } else if (!resolvedApiKey) {
+      return NextResponse.json(
+        { error: 'API key is required. Please provide your API key for the selected provider.' },
+        { status: 400 }
+      );
     }
 
     // Resolve locale (fallback to default if not provided or invalid)
@@ -173,38 +215,31 @@ export async function POST(request) {
     // Build locale-aware prompt
     const formPrompt = buildFormGenerationPrompt(resolvedLocale);
 
-    // Generate form structure using the LLM provider abstraction
-    const response = await generateSummary(
+    // OpenAI strict mode requires every property in `required`, so its
+    // schema variant ships explicit `null` for unset optional keys. Other
+    // providers' validators accept the canonical schema as-is.
+    const schema = provider === 'openai'
+      ? toStrictFormStructureSchema()
+      : FORM_STRUCTURE_SCHEMA;
+
+    // Form generation is schema-constrained — drop to the structured tier
+    // when the wizard didn't pin a specific model. User overrides win.
+    const resolvedModel = model || getDefaultModelForTask(provider, 'structured');
+
+    const formStructure = await generateStructured(
       provider,
       naturalLanguageInput,
-      apiKey,
+      resolvedApiKey,
       formPrompt,
-      model
+      schema,
+      resolvedModel
     );
 
-    // Parse the JSON response
-    let formStructure;
-    try {
-      // Try to extract JSON from markdown code blocks if present
-      const jsonMatch = response.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-      const jsonString = jsonMatch ? jsonMatch[1] : response;
-
-      formStructure = JSON.parse(jsonString.trim());
-    } catch (parseError) {
-      console.error('Failed to parse LLM response as JSON:', parseError);
-      console.error('Response was:', response);
-      return NextResponse.json(
-        { error: 'Failed to parse form structure. The AI did not return valid JSON. Please try again.' },
-        { status: 500 }
-      );
-    }
-
-    // Validate the structure
-    if (!Array.isArray(formStructure.sections) || formStructure.sections.length === 0) {
-      return NextResponse.json(
-        { error: 'Generated form structure is missing sections array' },
-        { status: 500 }
-      );
+    // Strict-mode-induced nulls would otherwise reach the wizard editor and
+    // the form-gathering cartridge; normalize to the canonical "absent key"
+    // shape so downstream consumers see one wire format across providers.
+    if (provider === 'openai') {
+      stripNullValues(formStructure);
     }
 
     // Return the generated form structure

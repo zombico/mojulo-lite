@@ -173,6 +173,24 @@ A few non-obvious details:
 
 ---
 
+## Model tier selection
+
+The main agentic loop (the `POST /v1/messages` call that drives tool orchestration) runs at the **reasoning** tier — the highest-capability model in the configured provider. Several tool handlers issue their own LLM calls for per-tool work and pick a cheaper tier appropriate to the workload, so document summarization and federation metadata aren't billed at reasoning-tier rates.
+
+Tier resolution lives in [getLLMConfigFromSession(session, userId, task)](../control/lib/builder/tool-executors.js#L36), backed by [MODEL_TIERS](../control/lib/llm-providers.js) and [getDefaultModelForTask](../control/lib/llm-providers.js). On Anthropic, for example, that resolves to Sonnet for `reasoning` and Haiku for `structured`/`summary`.
+
+| Call site                                       | Tier         | Why                                              |
+|-------------------------------------------------|--------------|--------------------------------------------------|
+| Main builder loop ([route.js](../control/app/api/builder/stream/route.js)) | `reasoning`  | Agentic tool-use orchestration                   |
+| `process_documents` → domain digest             | `summary`    | Free-text per-document summarization             |
+| `compose_identity`                              | `structured` | Returns a JSON identity object                   |
+| `generate_form_schema` handler                  | `structured` | JSON bounded by `FORM_STRUCTURE_SCHEMA`          |
+| `generate_bot_summary`                          | `summary`    | Free-text federation metadata                    |
+
+The same tier system covers other control-plane LLM call sites — `generate-form/route.js` (structured) and `generate-rag/route.js` (summary) — see the LLM-provider section of [CLAUDE.md](../CLAUDE.md) for the project-wide picture. Wizard user-overrides still win: tier resolution only fires when no explicit model is passed in the session/preloaded context. The bot runtime stays single-model per artifact — tiers are control-plane only.
+
+---
+
 ## Streaming events
 
 The route emits ~20 custom event types on top of Claude's SSE — defined in [EventTypes](../control/app/api/builder/stream/route.js#L40). The UI consumes these to drive specific affordances:

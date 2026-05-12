@@ -35,7 +35,16 @@ export default function FormGatheringConfig({ stepConfig }) {
       return;
     }
 
-    if (!formData.apiKey) {
+    // A saved-key pick clears apiKey in favor of an opaque apiKeyId; edit
+    // mode advertises an existing on-file credential via hasStoredApiKey +
+    // editDeploymentId. Any one of the three is enough — the route resolves
+    // the plaintext server-side.
+    const hasCredential = !!(
+      formData.apiKey ||
+      formData.apiKeyId ||
+      (formData.hasStoredApiKey && formData.editDeploymentId)
+    );
+    if (!hasCredential) {
       setFormError(t('errorNoApiKey'));
       return;
     }
@@ -52,6 +61,8 @@ export default function FormGatheringConfig({ stepConfig }) {
           provider: formData.provider,
           model: formData.model,
           apiKey: formData.apiKey,
+          apiKeyId: formData.apiKeyId || null,
+          editDeploymentId: formData.editDeploymentId || null,
           locale: formData.formLocale || DEFAULT_LOCALE
         })
       });

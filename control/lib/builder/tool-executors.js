@@ -17,18 +17,26 @@ import { BuilderSessionRepository, SESSION_STATUS } from '@/lib/db/repositories/
 import { DocumentRepository } from '@/lib/db/repositories/documents.js';
 import { ApiKeyRepository } from '@/lib/db/repositories/apiKeys.js';
 import { decryptApiKey } from '@/lib/deployment-auth.js';
+import { getDefaultModelForTask } from '@/lib/llm-providers.js';
 import { saveBuilderConfig } from './executor.js';
 import { buildArtifact } from '@/lib/deployers/build.js';
 
 /**
  * Get LLM configuration from session's preloaded context
- * Uses builder config settings with fallback to provider auto-selection
+ * Uses builder config settings with fallback to provider auto-selection.
+ *
+ * The `task` parameter selects the per-provider model tier (reasoning /
+ * structured / summary). Callers pass the tier appropriate for their
+ * workload so the form generator and summary calls aren't billed at the
+ * reasoning-tier rate.
+ *
  * @param {Object} session - Builder session with preloadedContext
  * @param {string} userId - User ID for API key lookup
- * @returns {Promise<{ provider: string, apiKey: string, model: string | null }>}
+ * @param {string} [task='reasoning'] - Task tier: reasoning | structured | summary
+ * @returns {Promise<{ provider: string, apiKey: string, model: string }>}
  */
-async function getLLMConfigFromSession(session, userId) {
-  const { defaultProvider, defaultApiKeyId, defaultModel } = session.preloadedContext || {};
+async function getLLMConfigFromSession(session, userId, task = 'reasoning') {
+  const { defaultProvider, defaultApiKeyId } = session.preloadedContext || {};
 
   // Get API keys for user
   const apiKeys = await ApiKeyRepository.findByUserId(userId);
@@ -61,7 +69,7 @@ async function getLLMConfigFromSession(session, userId) {
   return {
     provider: apiKeyRecord.provider,
     apiKey: decryptApiKey(apiKeyRecord.encryptedKey),
-    model: defaultModel || null,
+    model: getDefaultModelForTask(apiKeyRecord.provider, task),
   };
 }
 
@@ -127,9 +135,10 @@ function getStaticPromptsForIntent(intent) {
  */
 async function generateContextualIdentity(domainDigest, userMessage, intent, organizationName, session, userId) {
   // Get LLM config from session (supports Anthropic, Bedrock, etc.)
+  // Structured tier: response is a JSON object parsed via jsonMatch.
   let llmConfig;
   try {
-    llmConfig = await getLLMConfigFromSession(session, userId);
+    llmConfig = await getLLMConfigFromSession(session, userId, 'structured');
   } catch (err) {
     console.log('[Builder] No API key available for identity generation:', err.message);
     return null;
@@ -457,7 +466,8 @@ async function processDocumentsVector(documents, documentIds, session, userId) {
   // Falls back to a chunk-slice surrogate if every summary call fails so
   // the build can still progress.
   const { generateSummary } = await import('@/lib/llm-providers.js');
-  const llmConfig = await getLLMConfigFromSession(session, userId);
+  // Summary tier: free-text per-document summarization for the domain digest.
+  const llmConfig = await getLLMConfigFromSession(session, userId, 'summary');
   const { provider, apiKey, model } = llmConfig;
 
   const summaryPrompt = `Analyze this document and provide a comprehensive summary that:
@@ -732,7 +742,8 @@ const builderToolHandlers = {
     const { session, userId } = context;
 
     // Get LLM config from session (supports Anthropic, Bedrock, etc.)
-    const llmConfig = await getLLMConfigFromSession(session, userId);
+    // Structured tier: model returns a JSON schema parsed downstream.
+    const llmConfig = await getLLMConfigFromSession(session, userId, 'structured');
     const { provider, apiKey, model } = llmConfig;
 
     const { generateSummary } = await import('@/lib/llm-providers.js');
@@ -1206,7 +1217,8 @@ The afterSubmitMessage should be friendly, contextual to the form purpose, and i
     const { session, userId } = context;
 
     // Get LLM config from session (supports Anthropic, Bedrock, etc.)
-    const llmConfig = await getLLMConfigFromSession(session, userId);
+    // Summary tier: prose generation for multi-bot orchestration metadata.
+    const llmConfig = await getLLMConfigFromSession(session, userId, 'summary');
     const { provider, apiKey, model } = llmConfig;
 
     const { generateSummary } = await import('@/lib/llm-providers.js');

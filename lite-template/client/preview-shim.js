@@ -181,24 +181,23 @@
     }
 
     // Mirror the bot's bookkeeping so a subsequent /chat (if any) sees this
-    // extraction in conversationHistory, and the turn counter advances.
+    // extraction in conversationHistory, and the turn counter advances. The
+    // llm_response is stored as the canonical nested envelope shape so history
+    // replay (which parses .answer) works identically across both endpoints.
     const sentinel = `[optical_read image]`;
     HISTORY.push({
       user_prompt: sentinel,
       llm_response: JSON.stringify({
         answer: json.answer,
-        extractedFields: json.extractedFields,
+        extraction: json.extraction,
       }),
     });
     TURN += 1;
 
     return jsonResponse({
       answer: json.answer,
-      extractedFields: json.extractedFields,
-      extractionConfidence: json.extractionConfidence,
-      extractionNotes: json.extractionNotes,
+      extraction: json.extraction,
       conversationId: json.conversationId || 'preview',
-      turn: json.turn,
       chainHash: json.chainHash || 'preview',
       trace: json.trace || {},
     });
