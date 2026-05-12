@@ -51,6 +51,19 @@ export const LLM_PROVIDERS = {
       { id: 'ap-southeast-1', name: 'Asia Pacific (Singapore)', geoPrefix: 'apac' },
     ],
     authModes: ['credentials', 'iam-role'],
+  },
+  ollama: {
+    name: 'Ollama (local)',
+    // Opinionated short list: both models are tool-capable in Ollama and have
+    // strong instruction-following for the envelope JSON shape. Plain mistral
+    // (7B, non-tool-capable) is intentionally omitted — users who want it can
+    // still pick a tool-capable model and pull it with `ollama pull <model>`.
+    models: ['qwen3', 'mistral-nemo'],
+    defaultModel: 'qwen3',
+    // The bot container reaches the host's Ollama via host.docker.internal on
+    // Mac/Windows. Linux users need extra_hosts in docker-compose.yml or a LAN
+    // IP — surfaced in the wizard helper text rather than auto-detected.
+    defaultHost: 'http://host.docker.internal:11434',
   }
 };
 

@@ -184,6 +184,10 @@ const createInitialState = () => ({
     provider: 'anthropic',
     model: LLM_PROVIDERS.anthropic.defaultModel,
     apiKey: '',
+    // Ollama lane: host URL. Empty string means "fall back to the provider
+    // entry's defaultHost when the artifact is built" — kept out of apiKey
+    // so the credential-encryption path never touches it.
+    ollamaHost: '',
     apiKeyId: null,
     // Edit mode only: GET endpoint reports a stored credential exists for
     // the selected provider. Lets the wizard mark the credential step
@@ -328,7 +332,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
       const newState = { ...prev };
 
       // Map updates to appropriate state sections
-      const coreFields = ['provider', 'model', 'apiKey', 'apiKeyId', 'hasStoredApiKey', 'botName', 'objective', 'botSummary'];
+      const coreFields = ['provider', 'model', 'apiKey', 'ollamaHost', 'apiKeyId', 'hasStoredApiKey', 'botName', 'objective', 'botSummary'];
       const identityFields = ['firstMessage', 'chatDisplayName', 'placeholder', 'suggestedPrompts'];
       const knowledgeFields = ['skipRag', 'documents', 'embeddings'];
       const formFields = ['formLocale', 'formStructureInput', 'generatedFormJson', 'formCompletionWebhook', 'afterSubmitChatMessage', 'formSendHome', 'enableFormCollection', 'termsAndConditions'];
@@ -436,7 +440,11 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         // the browser — the deploy route resolves it server-side. In edit
         // mode, hasStoredApiKey signals an existing on-file credential the
         // PATCH route will preserve if no new one is supplied.
-        if (state.core.apiKeyId || state.core.hasStoredApiKey) {
+        if (state.core.provider === 'ollama') {
+          // Ollama is credential-less; the host URL is the only transport
+          // input and it falls back to defaultHost in buildLLMConfig if
+          // left blank. Nothing to validate at the wizard layer.
+        } else if (state.core.apiKeyId || state.core.hasStoredApiKey) {
           // Saved key picked or existing key on file — no fresh paste needed.
         } else if (state.core.provider === 'bedrock') {
           if (!state.core.apiKey) {

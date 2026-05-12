@@ -13,8 +13,10 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
   const handleProviderChange = (provider) => {
     // Switching providers invalidates any prior credential reference: the
     // saved-key id was bound to the old provider, and the on-file flag was
-    // computed against it. Force a fresh credential choice.
-    updateFormData({ provider, apiKey: '', apiKeyId: null, hasStoredApiKey: false });
+    // computed against it. Force a fresh credential choice. ollamaHost is
+    // also cleared so a stale host doesn't linger when switching to a
+    // non-Ollama provider and back.
+    updateFormData({ provider, apiKey: '', apiKeyId: null, hasStoredApiKey: false, ollamaHost: '' });
     clearError('provider');
   };
 
@@ -31,6 +33,10 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
   const handleApiKeyIdChange = (apiKeyId) => {
     updateFormData({ apiKeyId });
     clearError('apiKey');
+  };
+
+  const handleOllamaHostChange = (ollamaHost) => {
+    updateFormData({ ollamaHost });
   };
 
   const handleBotNameChange = (e) => {
@@ -104,8 +110,10 @@ export default function CoreSetup({ stepConfig, isEditMode = false }) {
             apiKey={formData.apiKey}
             apiKeyId={formData.apiKeyId}
             hasStoredApiKey={formData.hasStoredApiKey}
+            ollamaHost={formData.ollamaHost}
             onApiKeyChange={handleApiKeyChange}
             onApiKeyIdChange={handleApiKeyIdChange}
+            onOllamaHostChange={handleOllamaHostChange}
             error={errors.apiKey}
           />
         )}

@@ -111,6 +111,12 @@ export function preserveExistingCredentials(newConfig, oldConfig) {
       newBlock.secretAccessKey = oldBlock.secretAccessKey;
       newBlock.region = newBlock.region || oldBlock.region;
     }
+  } else if (provider === 'ollama') {
+    // Ollama carries host instead of a credential. Edit mode that doesn't
+    // re-submit a host should keep the previously stored one.
+    if (!newBlock.host) {
+      newBlock.host = oldBlock.host || '';
+    }
   } else if (!newBlock.apiKey) {
     newBlock.apiKey = oldBlock.apiKey || '';
   }

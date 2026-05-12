@@ -9,8 +9,10 @@ export default function APIKeySelector({
   apiKey,
   apiKeyId,
   hasStoredApiKey = false,
+  ollamaHost = '',
   onApiKeyChange,
   onApiKeyIdChange,
+  onOllamaHostChange,
   error,
 }) {
   const t = useTranslations('wizard.resources');
@@ -129,6 +131,42 @@ export default function APIKeySelector({
     onApiKeyIdChange?.(null);
     onApiKeyChange(e.target.value);
   };
+
+  // Render Ollama-specific UI: a single host URL field, no credentials,
+  // no saved-keys panel. The host is optional in the wizard — buildLLMConfig
+  // falls back to LLM_PROVIDERS.ollama.defaultHost when this is blank.
+  if (provider === 'ollama') {
+    const placeholder = LLM_PROVIDERS.ollama?.defaultHost || 'http://host.docker.internal:11434';
+    return (
+      <div className="space-y-3">
+        <div className="p-3 bg-teal-900/20 border border-teal-800 rounded-md">
+          <p className="text-xs text-teal-300">
+            {t('ollamaNoCredsNeeded')}
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="ollamaHost" className="block text-sm font-medium text-gray-300 mb-1">
+            {t('ollamaHost')}
+          </label>
+          <input
+            id="ollamaHost"
+            type="text"
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            value={ollamaHost || ''}
+            onChange={(e) => onOllamaHostChange?.(e.target.value)}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            placeholder={placeholder}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            {t('ollamaHostHelper')}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Render Bedrock-specific UI
   if (provider === 'bedrock') {

@@ -38,7 +38,11 @@ function safeParseFormJson(json) {
  *                             plaintext.
  */
 export function buildPreviewConfig(formData, enabledProtocols) {
-  const hasCredential = Boolean(
+  // Ollama is credential-less — provider + model are sufficient to boot
+  // the preview. The host falls back to LLM_PROVIDERS.ollama.defaultHost in
+  // buildLLMConfig when ollamaHost is blank.
+  const isOllama = formData?.provider === 'ollama';
+  const hasCredential = isOllama || Boolean(
     formData?.apiKey ||
       formData?.apiKeyId ||
       (formData?.hasStoredApiKey && formData?.editDeploymentId),
@@ -49,6 +53,7 @@ export function buildPreviewConfig(formData, enabledProtocols) {
 
   const llm = buildLLMConfig(formData.provider, formData.apiKey || '', formData.model, {
     maxTokens: 2048,
+    ollamaHost: formData.ollamaHost,
   });
 
   const formStructure = enabledProtocols.formGathering

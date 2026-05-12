@@ -892,7 +892,10 @@
       "awsUsingIamRoleStatus": "Используется IAM Role",
       "awsCredentialsConfigured": "Учётные данные AWS настроены",
       "awsLoadingCredentials": "Загрузка сохранённых учётных данных...",
-      "awsOrUseSaved": "Или используйте сохранённые учётные данные AWS:"
+      "awsOrUseSaved": "Или используйте сохранённые учётные данные AWS:",
+      "ollamaNoCredsNeeded": "Ollama работает с вашим собственным эндпоинтом — API-ключ не требуется.",
+      "ollamaHost": "URL хоста Ollama",
+      "ollamaHostHelper": "Оставьте пустым, чтобы использовать значение по умолчанию (http://host.docker.internal:11434). В Linux добавьте extra_hosts в docker-compose.yml или используйте LAN IP вашего хоста. Облачные развёртывания требуют публично доступного эндпоинта Ollama."
     },
     "knowledge": {
       "loadingDocuments": "Загрузка документов...",

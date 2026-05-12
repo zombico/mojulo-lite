@@ -892,7 +892,10 @@
       "awsUsingIamRoleStatus": "正在使用 IAM 角色",
       "awsCredentialsConfigured": "已配置 AWS 凭证",
       "awsLoadingCredentials": "加载已保存的凭证中...",
-      "awsOrUseSaved": "或使用已保存的 AWS 凭证："
+      "awsOrUseSaved": "或使用已保存的 AWS 凭证：",
+      "ollamaNoCredsNeeded": "Ollama 使用你自己的端点运行——无需 API 密钥。",
+      "ollamaHost": "Ollama 主机 URL",
+      "ollamaHostHelper": "留空以使用默认值（http://host.docker.internal:11434）。在 Linux 上，请在 docker-compose.yml 中添加 extra_hosts，或使用你主机的局域网 IP。云端部署需要可公开访问的 Ollama 端点。"
     },
     "knowledge": {
       "loadingDocuments": "加载文档中...",
