@@ -94,15 +94,15 @@ class LLMAdapter {
 }
 
 /**
- * Defense in depth for v1: only the Anthropic adapter implements vision.
- * The wizard gates the protocol toggle so an OpenAI/Gemini/etc. bot can never
- * reach this code path, but a misconfigured artifact (post-deploy provider
- * swap, hand-edited config.json) shouldn't silently drop the image.
+ * Defense in depth: Ollama doesn't implement vision in this codebase. The
+ * wizard gates the protocol toggle for unsupported providers, but a
+ * misconfigured artifact (post-deploy provider swap, hand-edited config.json)
+ * shouldn't silently drop the image.
  */
 function rejectImage(adapterName, image) {
     if (image) {
         throw new Error(
-            `${adapterName} adapter does not support vision input. Optical Read requires the Anthropic provider in v1.`
+            `${adapterName} adapter does not support vision input. Optical Read requires a vision-capable provider.`
         );
     }
 }
@@ -159,48 +159,60 @@ class OllamaAdapter extends LLMAdapter {
 }
 
 /**
- * OpenAI adapter
+ * OpenAI adapter (Responses API)
+ *
+ * Prompt caching on OpenAI is automatic for prompts ≥1024 tokens on supported
+ * models — there's no `cache_control` equivalent. We maximize hit rate by
+ * keeping the developer-role prefix (instructions + RAG) byte-stable across
+ * turns and emitting prior turns as discrete alternating-role messages rather
+ * than a single mutating user blob.
+ *
+ * Optical Read: when `image` is set, the current user turn becomes a multipart
+ * content array — input_image first (as a base64 data URL), input_text second.
+ * Mirrors the Anthropic adapter's vision path so the same protocol cartridge
+ * works on both providers. image=null short-circuits to the string-content shape.
  */
 class OpenAIAdapter extends LLMAdapter {
     async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
-        rejectImage('OpenAI', image);
         const url = `${this.config.baseURL}${this.config.endpoint}`;
+
         const history = (conversationHistory || []).flatMap(item => {
             try {
                 const parsed = JSON.parse(item.llm_response);
+                const assistantContent = parsed.answer || parsed.response || item.llm_response;
                 return [
                     { role: 'user', content: item.user_prompt },
-                    { role: 'assistant', content: parsed.answer || parsed.response || item.llm_response }
+                    { role: 'assistant', content: assistantContent }
                 ];
             } catch (e) {
+                console.error('Failed to parse conversation history item:', e.message);
                 return [
                     { role: 'user', content: item.user_prompt },
                     { role: 'assistant', content: item.llm_response || '' }
                 ];
             }
         });
-        const historyString = JSON.stringify(history)
-        
+
+        const currentTurn = (image && image.base64 && image.mime)
+            ? {
+                role: 'user',
+                content: [
+                    { type: 'input_image', image_url: `data:${image.mime};base64,${image.base64}` },
+                    { type: 'input_text', text: userPrompt }
+                ]
+            }
+            : { role: 'user', content: userPrompt };
+
+        const input = [
+            { role: 'developer', content: instructions },
+            { role: 'developer', content: ragContext?.length > 1 ? ragContext : 'No documents found' },
+            ...history,
+            currentTurn
+        ];
+
         const response = await axios.post(url, {
             model: this.config.model,
-            input: [
-                {
-                    role: "developer",
-                    content: instructions
-                },
-                {
-                    role: "developer",
-                    content: ragContext
-                },
-                {
-                    role: "user",
-                    content: historyString
-                },
-                {
-                    role: "user",
-                    content: userPrompt
-                }
-            ]
+            input
         }, {
             timeout: this.config.timeout || 300000,
             headers: {
@@ -210,7 +222,12 @@ class OpenAIAdapter extends LLMAdapter {
             }
         });
 
-        const content = response?.data?.output[0]?.content[0]?.text
+        const usage = response?.data?.usage;
+        const cachedTokens = usage?.prompt_tokens_details?.cached_tokens ?? 0;
+        const inputTokens = usage?.input_tokens ?? usage?.prompt_tokens ?? 0;
+        console.log(`[LLM CACHE ${this.config.model}] input=${inputTokens} cached=${cachedTokens}`);
+
+        const content = response?.data?.output?.[0]?.content?.[0]?.text;
         return {
             response: content,
             trace: response.trace
@@ -311,136 +328,6 @@ class AnthropicAdapter extends LLMAdapter {
 }
 
 /**
- * Gemini adapter
- */
-class GeminiAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
-        rejectImage('Gemini', image);
-        const url = `${this.config.baseURL}${this.config.model}${this.config.endpoint}`;
-        const history = (conversationHistory || []).flatMap(item => {
-            try {
-                const parsed = JSON.parse(item.llm_response);
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'model', content: parsed.answer || parsed.response || item.llm_response }
-                ];
-            } catch (e) {
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'model', content: item.llm_response || '' }
-                ];
-            }
-        });
-        const historyString = JSON.stringify(history)
-        
-        const response = await axios.post(url, {
-            contents: [
-                {
-                    role: "model",
-                    parts: [
-                        { text: instructions }
-                    ]
-                },
-                ragContext && {
-                    role: "model",
-                    parts: [
-                        { text: ragContext }
-                    ]
-                },
-                historyString && {
-                    role: "model",
-                    parts: [
-                        { text: historyString }
-                    ]
-                },
-                {
-                    role: "user",
-                    parts: [
-                        { text: userPrompt }
-                    ]
-                }
-            ]
-        }, {
-            timeout: this.config.timeout || 300000,
-            headers: {
-                'x-goog-api-key': this.config.apiKey,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        const candidates = response.data.candidates[0]
-        const content = candidates.content.parts[0]
-        const raw = content.text;
-        const jsonString = raw.replace(/```json|```/g, '').trim();
-        
-        return {
-            response: jsonString,
-            trace: response.trace
-        };
-    }
-}
-
-/**
- * Cohere adapter
- */
-class CohereAdapter extends LLMAdapter {
-    async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
-        rejectImage('Cohere', image);
-        const url = `${this.config.baseURL}${this.config.endpoint}`;
-
-        // Safely build history with error handling
-        const history = (conversationHistory || []).flatMap(item => {
-            try {
-                const parsed = JSON.parse(item.llm_response);
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'assistant', content: parsed.answer || parsed.response || item.llm_response }
-                ];
-            } catch (e) {
-                return [
-                    { role: 'user', content: item.user_prompt },
-                    { role: 'assistant', content: item.llm_response || '' }
-                ];
-            }
-        });
-
-        // Add current user prompt
-        history.push({ role: 'user', content: userPrompt });
-        const systemInstructions = {
-            role: "system",
-            content: instructions,
-        }
-        const ragInstructions = {
-            role: "system",
-            content: ragContext.length > 1 ? ragContext : "No documents found",
-        }
-        history.push(systemInstructions)
-        history.push(ragInstructions)
-        console.log(history)
-        const response = await axios.post(url, {
-            model: this.config.model,
-            max_tokens: this.config.maxTokens || 4096,
-            messages: history
-        }, {
-            timeout: this.config.timeout || 300000,
-            headers: {
-                'Authorization': `Bearer ${this.config.apiKey}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        console.log(response)
-        const content = response.data.message.content[0]
-        const raw = content.text;
-        const jsonString = raw.replace(/```json|```/g, '').trim();
-        
-        return {
-            response: jsonString,
-            trace: response.trace
-        };
-    }
-}
-
-/**
  * Factory function to create appropriate adapter
  */
 function createLLMClient(config) {
@@ -458,10 +345,6 @@ function createLLMClient(config) {
             return new OpenAIAdapter(providerConfig);
         case 'anthropic':
             return new AnthropicAdapter(providerConfig);
-        case 'gemini':
-            return new GeminiAdapter(providerConfig);
-        case 'cohere':
-            return new CohereAdapter(providerConfig);
         default:
             throw new Error(`Unsupported LLM provider: ${providerName}`);
     }

@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
+import { providerSupportsVision } from '@/lib/llm-providers';
 
 const PROTOCOL_ICONS = {
   knowledge: (
@@ -63,10 +64,11 @@ function useProtocolCards(t, { provider } = {}) {
       title: t('opticalRead'),
       description: t('opticalReadDescription'),
       icon: PROTOCOL_ICONS.opticalRead,
-      // v1: vision adapter is Anthropic-only. Disabling the card here keeps
-      // users from picking a combo the runtime can't honor; the wizard step
-      // also re-checks so direct toggles via state can't bypass.
-      disabled: provider && provider !== 'anthropic',
+      // Disable the card for providers whose runtime adapter doesn't accept
+      // image input. The wizard step and validator re-check, so direct toggles
+      // via state can't bypass this. Keep VISION_PROVIDERS aligned with the
+      // adapters in lite-template/helper/llm-client.js.
+      disabled: provider && !providerSupportsVision(provider),
       disabledReason: t('opticalReadProviderGate'),
     },
   ];

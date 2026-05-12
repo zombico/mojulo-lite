@@ -20,7 +20,7 @@ npm run dev
 
 Then open http://localhost:3001:
 
-1. Visit **Settings** and add your LLM provider API key (Anthropic, OpenAI, Gemini, Cohere, or Bedrock). This key powers the conversational builder AND gets baked into every bot you compile.
+1. Visit **Settings** and add your LLM provider API key (Anthropic, OpenAI, or Bedrock). This key powers the conversational builder AND gets baked into every bot you compile.
 2. Open **Chat builder** or **Wizard** and describe the bot you want.
 3. When it's done, grab the `.zip` from **My bots**.
 4. Unzip, edit `.env` (paste your LLM key), run `docker compose up`. Bot lives on `http://localhost:3000`.

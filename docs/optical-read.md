@@ -90,7 +90,7 @@ The card is shown when both `botContext.isOpticalRead` and `data.response.showUp
 ## V1 scope and gating
 
 - **Single image, single LLM call.** Multi-image deferred.
-- **Anthropic-only at launch.** Wizard's protocol card is disabled for non-Anthropic providers with the message *"Optical Read requires a vision-capable provider. Anthropic supported in v1; OpenAI and Gemini coming soon."* The runtime adapter for non-Anthropic providers throws on image input as defense in depth (post-deploy provider swap or hand-edited config can't silently drop the image).
+- **Anthropic-only at launch.** Wizard's protocol card is disabled for non-Anthropic providers with the message *"Optical Read requires a vision-capable provider. Anthropic supported in v1; OpenAI coming soon."* The runtime adapter for non-Anthropic providers throws on image input as defense in depth (post-deploy provider swap or hand-edited config can't silently drop the image).
 - **5MB image cap, PNG/JPEG/WebP only.**
 - **Field config shape:** `{ idName, label, hint }`. No regex/coercion in v1 — the model returns strings, the user edits if needed.
 - **No re-extract loop.** Re-upload is the way; it produces a new Turn 1 in the same conversation.

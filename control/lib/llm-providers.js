@@ -3,11 +3,23 @@
  * Shared between ConfigForm and config-builder
  */
 
+/**
+ * Providers whose runtime adapter accepts image input on the current user
+ * turn. Optical Read and any future vision-using protocol gate themselves
+ * against this set — keep it in sync with the adapters in
+ * lite-template/helper/llm-client.js.
+ */
+export const VISION_PROVIDERS = new Set(['anthropic', 'openai']);
+
+export function providerSupportsVision(provider) {
+  return VISION_PROVIDERS.has(provider);
+}
+
 export const LLM_PROVIDERS = {
   openai: {
     name: 'OpenAI',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-    defaultModel: 'gpt-4o',
+    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini'],
+    defaultModel: 'gpt-4.1',
     baseURL: 'https://api.openai.com/v1',
     endpoint: '/responses'
   },
@@ -17,20 +29,6 @@ export const LLM_PROVIDERS = {
     defaultModel: 'claude-sonnet-4-6',
     baseURL: 'https://api.anthropic.com/v1',
     endpoint: '/messages'
-  },
-  gemini: {
-    name: 'Google Gemini',
-    models: ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-    defaultModel: 'gemini-2.5-flash',
-    baseURL: 'https://generativelanguage.googleapis.com/v1beta/models/',
-    endpoint: ':generateContent'
-  },
-  cohere: {
-    name: 'Cohere',
-    models: ['command-a-03-2025', 'command-r-plus', 'command-r'],
-    defaultModel: 'command-a-03-2025',
-    baseURL: 'https://api.cohere.ai/',
-    endpoint: 'v2/chat'
   },
   bedrock: {
     name: 'AWS Bedrock (Claude)',
@@ -117,7 +115,7 @@ export function stripBedrockModelPrefix(modelId) {
 
 /**
  * Generate summary using specified LLM provider
- * @param {string} provider - The LLM provider (cohere, gemini, openai, anthropic)
+ * @param {string} provider - The LLM provider (openai, anthropic, bedrock)
  * @param {string} content - The content to summarize
  * @param {string} apiKey - The API key for the provider
  * @param {string} customPrompt - Optional custom prompt
@@ -147,12 +145,6 @@ Keep the summary clear, structured, and focused on what information is available
   const systemInstruction = customPrompt || defaultPrompt;
 
   switch (provider) {
-    case 'cohere':
-      return await generateSummaryWithCohere(content, apiKey, systemInstruction, selectedModel, providerConfig);
-
-    case 'gemini':
-      return await generateSummaryWithGemini(content, apiKey, systemInstruction, selectedModel, providerConfig);
-
     case 'openai':
       return await generateSummaryWithOpenAI(content, apiKey, systemInstruction, selectedModel, providerConfig);
 
@@ -176,85 +168,6 @@ Keep the summary clear, structured, and focused on what information is available
     default:
       throw new Error(`Provider ${provider} not implemented`);
   }
-}
-
-/**
- * Generate summary using Cohere API
- */
-async function generateSummaryWithCohere(content, apiKey, systemInstruction, model, config) {
-  const url = `${config.baseURL}${config.endpoint}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: model,
-      max_tokens: 4096,
-      messages: [
-        {
-          role: 'user',
-          content: content
-        },
-        {
-          role: 'system',
-          content: systemInstruction
-        }
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Cohere API error: ${errorData.message || response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.message?.content?.[0]?.text || data.text || 'No summary generated';
-}
-
-/**
- * Generate summary using Gemini API
- */
-async function generateSummaryWithGemini(content, apiKey, systemInstruction, model, config) {
-  const url = `${config.baseURL}${model}${config.endpoint}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'x-goog-api-key': apiKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: 'model',
-          parts: [{ text: systemInstruction }]
-        },
-        {
-          role: 'user',
-          parts: [{ text: content }]
-        }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
-  }
-
-  const data = await response.json();
-  const candidates = data.candidates?.[0];
-  const text = candidates?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new Error('No summary generated from Gemini');
-  }
-
-  return text;
 }
 
 /**

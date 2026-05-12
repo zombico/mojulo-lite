@@ -349,7 +349,7 @@
       "triageRoutingDescription": "Stuur gebruikers door naar gespecialiseerde bots of menselijke ondersteuning op basis van hun behoeften",
       "opticalRead": "Optical Read",
       "opticalReadDescription": "Extraheer gestructureerde data uit een geüploade afbeelding met een visueel capabele LLM",
-      "opticalReadProviderGate": "Optical Read vereist een visueel capabele provider. Anthropic ondersteund in v1; OpenAI en Gemini komen binnenkort.",
+      "opticalReadProviderGate": "Optical Read vereist een visueel capabele provider. Anthropic en OpenAI worden ondersteund.",
       "exampleFaq": "FAQ-chatbots",
       "exampleDocumentation": "Documentatie-assistenten",
       "exampleProductSupport": "Productondersteuning",
@@ -718,7 +718,6 @@
           "scenarioContextualForms": "Contextuele formulieren",
           "scenarioEducateThenConvert": "Informeren dan converteren",
           "scenarioSupportToLead": "Support → Lead",
-
           "synergyKnowledgeAppointments": "Adviserend boeken",
           "synergyKnowledgeAppointmentsDesc": "Informeer gebruikers over diensten/producten en laat ze boeken wanneer ze er klaar voor zijn",
           "scenarioInformThenBook": "Informeren dan boeken",
@@ -726,7 +725,6 @@
           "scenarioPreQualifyBooking": "Boekingen voorkwalificeren",
           "scenarioServiceExplainer": "Diensttoelichting → boeken",
           "scenarioPricingToDemo": "Prijs-FAQ → demo",
-
           "synergyKnowledgeTriage": "Intelligente escalatie",
           "synergyKnowledgeTriageDesc": "Self-service-antwoorden voor veelvoorkomende vragen, naadloze overdracht voor complexe zaken",
           "scenarioAnswerOrEscalate": "Beantwoorden of escaleren",
@@ -734,7 +732,6 @@
           "scenarioTieredSupport": "Gelaagde ondersteuning",
           "scenarioDeflectOrRoute": "Afleiden of routeren",
           "scenarioL1Automation": "L1-automatisering",
-
           "synergyKnowledgeOpticalRead": "Scannen & uitleggen",
           "synergyKnowledgeOpticalReadDesc": "Extraheer data uit een geüploade afbeelding en beantwoord vervolgvragen op basis van je kennisbank",
           "scenarioScanThenAsk": "Scannen dan vragen",
@@ -742,7 +739,6 @@
           "scenarioCardToPolicy": "Kaart → beleidsopzoeking",
           "scenarioPrescriptionExplainer": "Recepttoelichting",
           "scenarioReceiptToReturns": "Bon → retouren-FAQ",
-
           "synergyFormAppointments": "Intake naar boeking",
           "synergyFormAppointmentsDesc": "Verzamel kwalificerende informatie, bied vervolgens gepersonaliseerde afspraakslots",
           "scenarioIntakeSchedule": "Intake dan plannen",
@@ -750,7 +746,6 @@
           "scenarioQualifyBook": "Kwalificeren dan boeken",
           "scenarioPreVisitForm": "Pre-bezoek-formulier → boeken",
           "scenarioNeedsAssessment": "Behoeftebepaling → plannen",
-
           "synergyFormTriage": "Slimme leadroutering",
           "synergyFormTriageDesc": "Verzamel gebruikersgegevens, route vervolgens naar het juiste teamlid of de juiste afdeling",
           "scenarioCollectThenRoute": "Verzamelen dan routeren",
@@ -758,7 +753,6 @@
           "scenarioLeadDistribution": "Leaddistributie",
           "scenarioSkillBasedRouting": "Vaardigheidsgebaseerde routering",
           "scenarioTerritoryAssignment": "Gebiedstoewijzing",
-
           "synergyAppointmentsTriage": "Specialistboeking",
           "synergyAppointmentsTriageDesc": "Identificeer de juiste specialist voor de behoeften van de gebruiker, boek vervolgens direct",
           "scenarioRouteToCalendar": "Routeren naar agenda",
@@ -766,35 +760,30 @@
           "scenarioSmartDelegation": "Slimme delegatie",
           "scenarioExpertMatch": "Expert matchen",
           "scenarioAvailabilityRouting": "Beschikbaarheidsgebaseerde routering",
-
           "synergyTriple1": "Volledige sales-funnel",
           "synergyTriple1Desc": "Complete salestraject: informeer prospects, leg leads vast en boek gekwalificeerde demo's",
           "scenarioFullSalesFlow": "Complete salesflow",
           "scenarioCompleteOnboarding": "Complete onboarding",
           "scenarioNurtureToClose": "Nurturen tot afsluiten",
           "scenarioInboundSales": "Inbound-salesautomatisering",
-
           "synergyTriple2": "Support-hub",
           "synergyTriple2Desc": "Self-service-kennisbank, ticketaanmaak en intelligente escalatie naar medewerkers",
           "scenarioSupportEscalation": "Support-escalatie",
           "scenarioIntelligentTicketing": "Intelligente ticketing",
           "scenarioHelpDeskAuto": "Helpdesk-automatisering",
           "scenarioIssueCapture": "Probleem vastleggen → routeren",
-
           "synergyTriple3": "Consultatieflow",
           "synergyTriple3Desc": "Beantwoord vragen, match met de juiste expert en maak directe agenda-boeking mogelijk",
           "scenarioMultiSpecialistBooking": "Multi-specialistboeking",
           "scenarioSmartConsultation": "Slimme consultatie",
           "scenarioAdvisoryFlow": "Adviesserviceflow",
           "scenarioExpertConnect": "Expert connect",
-
           "synergyTriple4": "Complete intake",
           "synergyTriple4Desc": "Gestructureerde intakeformulieren, slimme routering naar teams en geautomatiseerde planning",
           "scenarioIntakeRouteBook": "Intake → routeren → boeken",
           "scenarioCompleteLeadFlow": "Complete leadflow",
           "scenarioPatientIntake": "Patiëntintakeflow",
           "scenarioClientOnboarding": "Cliëntonboarding",
-
           "synergyAll": "Enterprise-assistent",
           "synergyAllDesc": "Volledig uitgeruste conciërge: vragen beantwoorden, data verzamelen, intelligent routeren en afspraken boeken",
           "scenarioEnterpriseBot": "Enterprise-assistent",
@@ -970,7 +959,7 @@
       "hintPlaceholder": "DD/MM/JJJJ, voorkant rijbewijs",
       "hintHelper": "Optioneel: prime locatie of formaat. De hint is de load-bearing tuning primitive.",
       "noFieldsYet": "Voeg ten minste één extractieveld toe om Optical Read in te schakelen.",
-      "providerNotSupported": "Optical Read vereist een visueel capabele provider. Anthropic ondersteund in v1; OpenAI en Gemini komen binnenkort.",
+      "providerNotSupported": "Optical Read vereist een visueel capabele provider. Anthropic en OpenAI worden ondersteund.",
       "intro": "Benoem de slots die je wilt laten extraheren. Het model lost ze op tegen zijn eigen visuele prior — de optionele hint primet locatie of formaat.",
       "showUploadOnStart": "Toon uploadknop als starterprompt",
       "showUploadOnStartHelper": "Toont een uploadkaart naast de eerste-berichtsuggesties van de bot. Slaat de conversatie-warm-up over — de gebruiker kan meteen uploaden.",
@@ -1447,8 +1436,6 @@
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "gemini": "Google Gemini",
-          "cohere": "Cohere",
           "bedrock": "AWS Bedrock (plak JSON-credentials)"
         }
       },

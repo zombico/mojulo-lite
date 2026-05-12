@@ -349,7 +349,7 @@
       "triageRoutingDescription": "Indirizza gli utenti a bot specializzati o supporto umano in base alle loro necessità",
       "opticalRead": "Optical Read",
       "opticalReadDescription": "Estrai dati strutturati da un'immagine caricata usando un LLM con capacità visive",
-      "opticalReadProviderGate": "Optical Read richiede un provider con capacità visive. Anthropic supportato in v1; OpenAI e Gemini in arrivo.",
+      "opticalReadProviderGate": "Optical Read richiede un provider con capacità visive. Anthropic e OpenAI sono supportati.",
       "exampleFaq": "Chatbot FAQ",
       "exampleDocumentation": "Assistenti per documentazione",
       "exampleProductSupport": "Supporto prodotti",
@@ -718,7 +718,6 @@
           "scenarioContextualForms": "Form contestuali",
           "scenarioEducateThenConvert": "Educa poi converti",
           "scenarioSupportToLead": "Supporto → Lead",
-
           "synergyKnowledgeAppointments": "Prenotazione consulenziale",
           "synergyKnowledgeAppointmentsDesc": "Educa gli utenti su servizi/prodotti, poi lascia che prenotino quando sono pronti",
           "scenarioInformThenBook": "Informa poi prenota",
@@ -726,7 +725,6 @@
           "scenarioPreQualifyBooking": "Pre-qualifica prenotazioni",
           "scenarioServiceExplainer": "Spiegatore servizi → Prenota",
           "scenarioPricingToDemo": "FAQ prezzi → Demo",
-
           "synergyKnowledgeTriage": "Escalation intelligente",
           "synergyKnowledgeTriageDesc": "Risposte self-service per domande comuni, handoff fluido per problemi complessi",
           "scenarioAnswerOrEscalate": "Rispondi o fai escalation",
@@ -734,7 +732,6 @@
           "scenarioTieredSupport": "Supporto a livelli",
           "scenarioDeflectOrRoute": "Devia o indirizza",
           "scenarioL1Automation": "Automazione L1",
-
           "synergyKnowledgeOpticalRead": "Scansiona e spiega",
           "synergyKnowledgeOpticalReadDesc": "Estrai dati da un'immagine caricata, poi rispondi a domande di follow-up basate sulla tua knowledge base",
           "scenarioScanThenAsk": "Scansiona poi chiedi",
@@ -742,7 +739,6 @@
           "scenarioCardToPolicy": "Tessera → ricerca polizza",
           "scenarioPrescriptionExplainer": "Spiegatore prescrizione",
           "scenarioReceiptToReturns": "Ricevuta → FAQ resi",
-
           "synergyFormAppointments": "Acquisizione fino alla prenotazione",
           "synergyFormAppointmentsDesc": "Raccogli informazioni di qualificazione, poi offri slot di appuntamento personalizzati",
           "scenarioIntakeSchedule": "Acquisisci poi pianifica",
@@ -750,7 +746,6 @@
           "scenarioQualifyBook": "Qualifica poi prenota",
           "scenarioPreVisitForm": "Form pre-visita → Prenota",
           "scenarioNeedsAssessment": "Valutazione bisogni → Pianifica",
-
           "synergyFormTriage": "Routing lead intelligente",
           "synergyFormTriageDesc": "Raccogli dettagli utente, poi indirizza al membro del team o reparto perfetto",
           "scenarioCollectThenRoute": "Raccogli poi indirizza",
@@ -758,7 +753,6 @@
           "scenarioLeadDistribution": "Distribuzione lead",
           "scenarioSkillBasedRouting": "Routing basato sulle competenze",
           "scenarioTerritoryAssignment": "Assegnazione territorio",
-
           "synergyAppointmentsTriage": "Prenotazione specialista",
           "synergyAppointmentsTriageDesc": "Identifica lo specialista giusto per le esigenze dell'utente, poi prenota direttamente",
           "scenarioRouteToCalendar": "Indirizza al calendario",
@@ -766,35 +760,30 @@
           "scenarioSmartDelegation": "Delega intelligente",
           "scenarioExpertMatch": "Abbinamento esperto",
           "scenarioAvailabilityRouting": "Routing basato sulla disponibilità",
-
           "synergyTriple1": "Funnel di vendita completo",
           "synergyTriple1Desc": "Percorso di vendita completo: educa prospect, cattura lead e prenota demo qualificate",
           "scenarioFullSalesFlow": "Flusso di vendita completo",
           "scenarioCompleteOnboarding": "Onboarding completo",
           "scenarioNurtureToClose": "Nutri fino alla chiusura",
           "scenarioInboundSales": "Automazione vendite inbound",
-
           "synergyTriple2": "Hub di supporto",
           "synergyTriple2Desc": "Knowledge base self-service, creazione ticket ed escalation intelligente agli agenti",
           "scenarioSupportEscalation": "Escalation supporto",
           "scenarioIntelligentTicketing": "Ticketing intelligente",
           "scenarioHelpDeskAuto": "Automazione help desk",
           "scenarioIssueCapture": "Acquisizione problema → Routing",
-
           "synergyTriple3": "Flusso di consulenza",
           "synergyTriple3Desc": "Rispondi a domande, abbina all'esperto giusto e abilita la prenotazione diretta su calendario",
           "scenarioMultiSpecialistBooking": "Prenotazione multi-specialista",
           "scenarioSmartConsultation": "Consulenza intelligente",
           "scenarioAdvisoryFlow": "Flusso servizio consulenza",
           "scenarioExpertConnect": "Connetti con esperto",
-
           "synergyTriple4": "Acquisizione completa",
           "synergyTriple4Desc": "Form di acquisizione strutturati, routing intelligente ai team e pianificazione automatizzata",
           "scenarioIntakeRouteBook": "Acquisisci → Indirizza → Prenota",
           "scenarioCompleteLeadFlow": "Flusso lead completo",
           "scenarioPatientIntake": "Flusso acquisizione paziente",
           "scenarioClientOnboarding": "Onboarding cliente",
-
           "synergyAll": "Assistente enterprise",
           "synergyAllDesc": "Concierge completo: rispondi a domande, raccogli dati, indirizza intelligentemente e prenota appuntamenti",
           "scenarioEnterpriseBot": "Assistente enterprise",
@@ -970,7 +959,7 @@
       "hintPlaceholder": "MM/GG/AAAA, fronte della patente",
       "hintHelper": "Opzionale: indirizza posizione o formato. Il suggerimento è la primitiva di tuning portante.",
       "noFieldsYet": "Aggiungi almeno un campo di estrazione per abilitare Optical Read.",
-      "providerNotSupported": "Optical Read richiede un provider con capacità visive. Anthropic supportato in v1; OpenAI e Gemini in arrivo.",
+      "providerNotSupported": "Optical Read richiede un provider con capacità visive. Anthropic e OpenAI sono supportati.",
       "intro": "Dai un nome agli slot che vuoi estrarre. Il modello li risolve rispetto al proprio prior visivo — il suggerimento opzionale indirizza posizione o formato.",
       "showUploadOnStart": "Mostra pulsante di upload come prompt di avvio",
       "showUploadOnStartHelper": "Renderizza una card di upload accanto ai suggerimenti del primo messaggio del bot. Salta il riscaldamento conversazionale — l'utente può caricare immediatamente.",
@@ -1447,8 +1436,6 @@
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "gemini": "Google Gemini",
-          "cohere": "Cohere",
           "bedrock": "AWS Bedrock (incolla le credenziali JSON)"
         }
       },

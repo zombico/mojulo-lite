@@ -8,7 +8,7 @@ import { locales, localeNames } from '@/i18n/config';
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
-const LLM_PROVIDER_IDS_LIST = ['anthropic', 'openai', 'gemini', 'cohere', 'bedrock'];
+const LLM_PROVIDER_IDS_LIST = ['anthropic', 'openai', 'bedrock'];
 const INFRA_PROVIDER_IDS_LIST = ['fly'];
 
 const LLM_PROVIDER_IDS = new Set(LLM_PROVIDER_IDS_LIST);

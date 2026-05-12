@@ -349,7 +349,7 @@
       "triageRoutingDescription": "필요에 따라 사용자를 전문 봇 또는 사람 지원으로 라우팅",
       "opticalRead": "광학 판독",
       "opticalReadDescription": "비전 지원 LLM을 사용하여 업로드된 이미지에서 구조화된 데이터 추출",
-      "opticalReadProviderGate": "광학 판독은 비전 지원 제공자가 필요합니다. v1에서는 Anthropic이 지원되며, OpenAI와 Gemini는 곧 지원될 예정입니다.",
+      "opticalReadProviderGate": "광학 판독은 비전 지원 제공자가 필요합니다. Anthropic과 OpenAI가 지원됩니다.",
       "exampleFaq": "FAQ 챗봇",
       "exampleDocumentation": "문서 어시스턴트",
       "exampleProductSupport": "제품 지원",
@@ -718,7 +718,6 @@
           "scenarioContextualForms": "맥락에 맞는 양식",
           "scenarioEducateThenConvert": "교육 후 전환",
           "scenarioSupportToLead": "지원 → 리드",
-
           "synergyKnowledgeAppointments": "상담형 예약",
           "synergyKnowledgeAppointmentsDesc": "서비스/제품에 대해 사용자를 교육한 후 준비되었을 때 예약하도록 허용",
           "scenarioInformThenBook": "정보 제공 후 예약",
@@ -726,7 +725,6 @@
           "scenarioPreQualifyBooking": "사전 자격 확인 예약",
           "scenarioServiceExplainer": "서비스 설명 → 예약",
           "scenarioPricingToDemo": "가격 FAQ → 데모",
-
           "synergyKnowledgeTriage": "지능형 에스컬레이션",
           "synergyKnowledgeTriageDesc": "일반적인 질문에 대한 셀프 서비스 답변, 복잡한 문제는 매끄럽게 핸드오프",
           "scenarioAnswerOrEscalate": "답변 또는 에스컬레이션",
@@ -734,7 +732,6 @@
           "scenarioTieredSupport": "단계별 지원",
           "scenarioDeflectOrRoute": "전환 또는 라우팅",
           "scenarioL1Automation": "L1 자동화",
-
           "synergyKnowledgeOpticalRead": "스캔 및 설명",
           "synergyKnowledgeOpticalReadDesc": "업로드된 이미지에서 데이터를 추출한 후 지식 베이스에 기반한 후속 질문에 답변",
           "scenarioScanThenAsk": "스캔 후 질문",
@@ -742,7 +739,6 @@
           "scenarioCardToPolicy": "카드 → 정책 조회",
           "scenarioPrescriptionExplainer": "처방전 설명자",
           "scenarioReceiptToReturns": "영수증 → 반품 FAQ",
-
           "synergyFormAppointments": "접수에서 예약",
           "synergyFormAppointmentsDesc": "자격 정보를 수집한 후 개인화된 예약 시간 제공",
           "scenarioIntakeSchedule": "접수 후 일정",
@@ -750,7 +746,6 @@
           "scenarioQualifyBook": "자격 확인 후 예약",
           "scenarioPreVisitForm": "방문 전 양식 → 예약",
           "scenarioNeedsAssessment": "필요 평가 → 일정",
-
           "synergyFormTriage": "스마트 리드 라우팅",
           "synergyFormTriageDesc": "사용자 세부 정보를 수집한 후 적합한 팀원 또는 부서로 라우팅",
           "scenarioCollectThenRoute": "수집 후 라우팅",
@@ -758,7 +753,6 @@
           "scenarioLeadDistribution": "리드 배포",
           "scenarioSkillBasedRouting": "기술 기반 라우팅",
           "scenarioTerritoryAssignment": "영역 할당",
-
           "synergyAppointmentsTriage": "전문가 예약",
           "synergyAppointmentsTriageDesc": "사용자 필요에 맞는 전문가를 식별한 후 직접 예약",
           "scenarioRouteToCalendar": "캘린더로 라우팅",
@@ -766,35 +760,30 @@
           "scenarioSmartDelegation": "스마트 위임",
           "scenarioExpertMatch": "전문가 매칭",
           "scenarioAvailabilityRouting": "가용성 기반 라우팅",
-
           "synergyTriple1": "전체 영업 퍼널",
           "synergyTriple1Desc": "완전한 영업 여정: 잠재 고객 교육, 리드 캡처, 자격 있는 데모 예약",
           "scenarioFullSalesFlow": "완전한 영업 흐름",
           "scenarioCompleteOnboarding": "완전한 온보딩",
           "scenarioNurtureToClose": "육성 후 마감",
           "scenarioInboundSales": "인바운드 영업 자동화",
-
           "synergyTriple2": "지원 허브",
           "synergyTriple2Desc": "셀프 서비스 지식 베이스, 티켓 생성, 상담원으로 지능형 에스컬레이션",
           "scenarioSupportEscalation": "지원 에스컬레이션",
           "scenarioIntelligentTicketing": "지능형 티켓팅",
           "scenarioHelpDeskAuto": "헬프 데스크 자동화",
           "scenarioIssueCapture": "문제 캡처 → 라우팅",
-
           "synergyTriple3": "상담 흐름",
           "synergyTriple3Desc": "질문에 답변하고, 적절한 전문가와 매칭하며, 직접 캘린더 예약 활성화",
           "scenarioMultiSpecialistBooking": "다중 전문가 예약",
           "scenarioSmartConsultation": "스마트 상담",
           "scenarioAdvisoryFlow": "자문 서비스 흐름",
           "scenarioExpertConnect": "전문가 연결",
-
           "synergyTriple4": "완전한 접수",
           "synergyTriple4Desc": "구조화된 접수 양식, 팀으로 스마트 라우팅, 자동화된 일정 관리",
           "scenarioIntakeRouteBook": "접수 → 라우팅 → 예약",
           "scenarioCompleteLeadFlow": "완전한 리드 흐름",
           "scenarioPatientIntake": "환자 접수 흐름",
           "scenarioClientOnboarding": "고객 온보딩",
-
           "synergyAll": "엔터프라이즈 어시스턴트",
           "synergyAllDesc": "풀 기능 컨시어지: 질문 답변, 데이터 수집, 지능형 라우팅, 예약",
           "scenarioEnterpriseBot": "엔터프라이즈 어시스턴트",
@@ -970,7 +959,7 @@
       "hintPlaceholder": "MM/DD/YYYY, 면허증 앞면",
       "hintHelper": "선택 사항: 위치나 형식을 안내. 힌트는 핵심 튜닝 요소입니다.",
       "noFieldsYet": "광학 판독을 활성화하려면 추출 필드를 하나 이상 추가하세요.",
-      "providerNotSupported": "광학 판독은 비전 지원 제공자가 필요합니다. v1에서는 Anthropic이 지원되며, OpenAI와 Gemini는 곧 지원될 예정입니다.",
+      "providerNotSupported": "광학 판독은 비전 지원 제공자가 필요합니다. Anthropic과 OpenAI가 지원됩니다.",
       "intro": "추출하려는 슬롯의 이름을 지정하세요. 모델이 자체 시각적 사전 지식으로 이를 해석하며, 선택적 힌트가 위치나 형식을 안내합니다.",
       "showUploadOnStart": "업로드 버튼을 시작 프롬프트로 표시",
       "showUploadOnStartHelper": "봇의 첫 메시지 제안과 함께 업로드 카드를 렌더링합니다. 대화형 워밍업을 건너뛰고 사용자가 즉시 업로드할 수 있습니다.",
@@ -1447,8 +1436,6 @@
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "gemini": "Google Gemini",
-          "cohere": "Cohere",
           "bedrock": "AWS Bedrock (JSON 자격 증명 붙여넣기)"
         }
       },

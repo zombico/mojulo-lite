@@ -47,7 +47,7 @@ async function getLLMConfigFromSession(session, userId) {
 
   // Final fallback: anthropic > bedrock > others
   if (!apiKeyRecord) {
-    const fallbackOrder = ['anthropic', 'bedrock', 'openai', 'gemini', 'cohere'];
+    const fallbackOrder = ['anthropic', 'bedrock', 'openai'];
     for (const provider of fallbackOrder) {
       apiKeyRecord = apiKeys.find((k) => k.provider === provider);
       if (apiKeyRecord) break;

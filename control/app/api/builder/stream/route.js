@@ -72,9 +72,7 @@ function getDefaultModelForProvider(provider) {
   const defaults = {
     anthropic: 'claude-sonnet-4-6',
     bedrock: 'anthropic.claude-sonnet-4-6',
-    openai: 'gpt-4o',
-    gemini: 'gemini-2.5-flash',
-    cohere: 'command-a-03-2025',
+    openai: 'gpt-4.1',
   };
   return defaults[provider] || 'claude-sonnet-4-6';
 }
@@ -94,7 +92,7 @@ async function getLLMConfigForBuilder(session, userId) {
   }
 
   if (!apiKeyRecord) {
-    const fallbackOrder = ['anthropic', 'bedrock', 'openai', 'gemini', 'cohere'];
+    const fallbackOrder = ['anthropic', 'bedrock', 'openai'];
     for (const provider of fallbackOrder) {
       apiKeyRecord = apiKeys.find((k) => k.provider === provider);
       if (apiKeyRecord) break;
@@ -547,9 +545,20 @@ async function streamModularWithTools(
     );
   }
 
+  if (provider === 'openai') {
+    return streamModularWithOpenAITools(
+      systemPrompt,
+      messages,
+      executionContext,
+      controller,
+      encoder,
+      llmConfig
+    );
+  }
+
   if (provider !== 'anthropic') {
     throw new Error(
-      `Lite chat builder streaming supports Anthropic or Bedrock. Got: ${provider}.`
+      `Lite chat builder streaming supports Anthropic, OpenAI, or Bedrock. Got: ${provider}.`
     );
   }
 
@@ -928,6 +937,287 @@ async function streamModularWithBedrockTools(
           toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
           result: result.result,
         });
+      } else {
+        sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'concerned' });
+        sendEvent(controller, encoder, EventTypes.TOOL_FAILED, {
+          tool: toolUse.name,
+          toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+          error: result.error,
+        });
+      }
+
+      toolResultContents.push({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: result.success
+          ? JSON.stringify(result.result, null, 2)
+          : `Error: ${result.error}`,
+        is_error: !result.success,
+      });
+    }
+
+    currentMessages.push({
+      role: 'assistant',
+      content: [
+        ...(currentText ? [{ type: 'text', text: currentText }] : []),
+        ...toolUseBlocks.map((tu) => ({
+          type: 'tool_use',
+          id: tu.id,
+          name: tu.name,
+          input: tu.input,
+        })),
+      ],
+    });
+
+    currentMessages.push({ role: 'user', content: toolResultContents });
+
+    toolUseBlocks = [];
+  }
+
+  return { fullResponse, toolResults };
+}
+
+/**
+ * OpenAI orchestrator for the chat builder.
+ *
+ * Mirrors the Anthropic path: agentic tool-use loop, same SSE event vocabulary,
+ * same `currentMessages` shape (Anthropic-flavored — converted at the wire only).
+ * Uses OpenAI's Responses API (`/v1/responses`) with `stream: true`. Tool schemas
+ * are reused as-is — `BUILDER_TOOLS[].input_schema` is already valid JSON Schema
+ * and slots directly into OpenAI's `parameters` field.
+ *
+ * Prompt caching is automatic on OpenAI for prompts ≥1024 tokens; we keep
+ * `instructions` byte-stable across turns to maximize hit rate.
+ */
+async function streamModularWithOpenAITools(
+  systemPrompt,
+  messages,
+  executionContext,
+  controller,
+  encoder,
+  llmConfig
+) {
+  const { apiKey, model } = llmConfig;
+
+  const openaiTools = BUILDER_TOOLS.map((tool) => ({
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema,
+  }));
+
+  // Convert the persisted Anthropic-shaped history into OpenAI Responses-API
+  // input items. function_call / function_call_output are top-level items
+  // (no role); the call_id round-trips Anthropic's tool_use.id.
+  const convertMessagesToOpenAI = (msgs) => {
+    const input = [];
+    for (const msg of msgs) {
+      if (typeof msg.content === 'string') {
+        input.push({ role: msg.role, content: msg.content });
+        continue;
+      }
+      if (msg.role === 'assistant') {
+        const textBlocks = msg.content.filter((b) => b.type === 'text');
+        const toolUseBlocks = msg.content.filter((b) => b.type === 'tool_use');
+        if (textBlocks.length > 0) {
+          input.push({
+            role: 'assistant',
+            content: textBlocks.map((b) => b.text).join(''),
+          });
+        }
+        for (const tu of toolUseBlocks) {
+          input.push({
+            type: 'function_call',
+            call_id: tu.id,
+            name: tu.name,
+            arguments: JSON.stringify(tu.input || {}),
+          });
+        }
+      } else if (msg.role === 'user') {
+        const toolResults = msg.content.filter((b) => b.type === 'tool_result');
+        for (const tr of toolResults) {
+          input.push({
+            type: 'function_call_output',
+            call_id: tr.tool_use_id,
+            output: String(tr.content),
+          });
+        }
+        const textBlocks = msg.content.filter((b) => b.type === 'text');
+        if (textBlocks.length > 0) {
+          input.push({
+            role: 'user',
+            content: textBlocks.map((b) => b.text).join(''),
+          });
+        }
+      }
+    }
+    return input;
+  };
+
+  const toolResults = [];
+  let currentMessages = [...messages];
+  let iterations = 0;
+  let fullResponse = '';
+
+  while (iterations < MAX_TOOL_ITERATIONS) {
+    iterations++;
+    if (iterations > 1) {
+      await new Promise((r) => setTimeout(r, TOOL_LOOP_DELAY_MS));
+    }
+
+    const openaiInput = convertMessagesToOpenAI(currentMessages);
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: model || 'gpt-4.1',
+        instructions: systemPrompt,
+        input: openaiInput,
+        tools: openaiTools,
+        tool_choice: 'auto',
+        stream: true,
+        max_output_tokens: MAX_TOKENS,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        `OpenAI API error: ${errorData.error?.message || response.statusText}`
+      );
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentText = '';
+    let toolUseBlocks = [];
+    // Map: OpenAI item_id → accumulating {id: call_id, name, input}
+    const toolUsesByItemId = new Map();
+    let sentSpeakingState = false;
+    let streamError = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const event = JSON.parse(data);
+          if (event.type === 'response.output_item.added') {
+            const item = event.item;
+            if (item?.type === 'function_call') {
+              toolUsesByItemId.set(item.id, {
+                id: item.call_id,
+                name: item.name,
+                input: '',
+              });
+            }
+          } else if (event.type === 'response.function_call_arguments.delta') {
+            const tu = toolUsesByItemId.get(event.item_id);
+            if (tu) tu.input += event.delta || '';
+          } else if (event.type === 'response.function_call_arguments.done') {
+            const tu = toolUsesByItemId.get(event.item_id);
+            if (tu) {
+              try {
+                tu.input = JSON.parse(tu.input || '{}');
+              } catch {
+                tu.input = {};
+              }
+              toolUseBlocks.push(tu);
+              toolUsesByItemId.delete(event.item_id);
+            }
+          } else if (event.type === 'response.output_text.delta') {
+            if (!sentSpeakingState) {
+              sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, {
+                state: 'speaking',
+              });
+              sentSpeakingState = true;
+            }
+            const delta = event.delta || '';
+            currentText += delta;
+            sendEvent(controller, encoder, EventTypes.TEXT, { text: delta });
+          } else if (event.type === 'response.error' || event.type === 'error') {
+            streamError = event.error?.message || event.message || 'OpenAI stream error';
+          }
+        } catch {
+          // ignore JSON parse errors on individual events
+        }
+      }
+    }
+
+    if (streamError) {
+      throw new Error(`OpenAI streaming error: ${streamError}`);
+    }
+
+    fullResponse += currentText;
+
+    if (toolUseBlocks.length === 0) {
+      return { fullResponse, toolResults };
+    }
+
+    const toolResultContents = [];
+    for (const toolUse of toolUseBlocks) {
+      sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'thinking' });
+      sendEvent(controller, encoder, EventTypes.TOOL_STARTED, {
+        tool: toolUse.name,
+        toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+        input: toolUse.input,
+      });
+
+      const updatedSession = await BuilderSessionRepository.findById(
+        executionContext.session.id
+      );
+      executionContext.session = updatedSession;
+
+      const result = await executeBuilderTool(toolUse.name, toolUse.input, executionContext);
+      toolResults.push({
+        tool: toolUse.name,
+        toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+        success: result.success,
+        result: result.success ? result.result : undefined,
+        error: result.error,
+      });
+
+      if (result.success) {
+        sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'success' });
+        sendEvent(controller, encoder, EventTypes.TOOL_COMPLETED, {
+          tool: toolUse.name,
+          toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+          result: result.result,
+        });
+
+        if (toolUse.name === 'infer_intent') {
+          sendEvent(controller, encoder, EventTypes.INFERENCE_COMPLETE, {
+            intent: result.result.intent,
+            confidence: result.result.confidence,
+          });
+        } else if (toolUse.name === 'recommend_protocols') {
+          sendEvent(controller, encoder, EventTypes.PROTOCOLS_RECOMMENDED, {
+            protocols: result.result.protocols,
+          });
+        } else if (toolUse.name === 'compose_identity') {
+          sendEvent(controller, encoder, EventTypes.IDENTITY_COMPOSED, {
+            identity: result.result.identity,
+          });
+        } else if (toolUse.name === 'set_suggested_prompts') {
+          sendEvent(controller, encoder, EventTypes.PROMPTS_SET, {
+            identity: result.result.identity,
+          });
+        } else if (toolUse.name === 'generate_bot_summary') {
+          sendEvent(controller, encoder, EventTypes.BOT_SUMMARY_GENERATED, {
+            botSummary: result.result.botSummary,
+          });
+        }
       } else {
         sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'concerned' });
         sendEvent(controller, encoder, EventTypes.TOOL_FAILED, {

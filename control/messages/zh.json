@@ -349,7 +349,7 @@
       "triageRoutingDescription": "根据用户需求将其路由到专用机器人或人工支持",
       "opticalRead": "光学读取",
       "opticalReadDescription": "使用具备视觉能力的 LLM 从上传的图片中提取结构化数据",
-      "opticalReadProviderGate": "光学读取需要具备视觉能力的提供方。v1 版本支持 Anthropic；OpenAI 和 Gemini 即将推出。",
+      "opticalReadProviderGate": "光学读取需要具备视觉能力的提供方。已支持 Anthropic 和 OpenAI。",
       "exampleFaq": "FAQ 聊天机器人",
       "exampleDocumentation": "文档助手",
       "exampleProductSupport": "产品支持",
@@ -718,7 +718,6 @@
           "scenarioContextualForms": "情境化表单",
           "scenarioEducateThenConvert": "先教育再转化",
           "scenarioSupportToLead": "支持 → 线索",
-
           "synergyKnowledgeAppointments": "咨询式预订",
           "synergyKnowledgeAppointmentsDesc": "向用户介绍服务/产品，待其准备好后再进行预订",
           "scenarioInformThenBook": "先介绍再预订",
@@ -726,7 +725,6 @@
           "scenarioPreQualifyBooking": "预约前资格审核",
           "scenarioServiceExplainer": "服务说明 → 预订",
           "scenarioPricingToDemo": "价格常见问题 → 演示",
-
           "synergyKnowledgeTriage": "智能升级",
           "synergyKnowledgeTriageDesc": "常见问题自助回答，复杂问题无缝交接",
           "scenarioAnswerOrEscalate": "回答或升级",
@@ -734,7 +732,6 @@
           "scenarioTieredSupport": "分级支持",
           "scenarioDeflectOrRoute": "回避或路由",
           "scenarioL1Automation": "L1 自动化",
-
           "synergyKnowledgeOpticalRead": "扫描并讲解",
           "synergyKnowledgeOpticalReadDesc": "从上传的图片中提取数据，然后基于你的知识库回答后续问题",
           "scenarioScanThenAsk": "先扫描再询问",
@@ -742,7 +739,6 @@
           "scenarioCardToPolicy": "卡片 → 政策查询",
           "scenarioPrescriptionExplainer": "处方讲解",
           "scenarioReceiptToReturns": "收据 → 退货常见问题",
-
           "synergyFormAppointments": "登记到预订",
           "synergyFormAppointmentsDesc": "收集资格信息，然后提供个性化的预约时间段",
           "scenarioIntakeSchedule": "先登记再排期",
@@ -750,7 +746,6 @@
           "scenarioQualifyBook": "先审核再预订",
           "scenarioPreVisitForm": "就诊前表单 → 预约",
           "scenarioNeedsAssessment": "需求评估 → 排期",
-
           "synergyFormTriage": "智能线索路由",
           "synergyFormTriageDesc": "收集用户信息，然后路由到合适的团队成员或部门",
           "scenarioCollectThenRoute": "先收集再路由",
@@ -758,7 +753,6 @@
           "scenarioLeadDistribution": "线索分发",
           "scenarioSkillBasedRouting": "基于技能的路由",
           "scenarioTerritoryAssignment": "区域分配",
-
           "synergyAppointmentsTriage": "专家预订",
           "synergyAppointmentsTriageDesc": "为用户的需求匹配合适的专家，并直接预订",
           "scenarioRouteToCalendar": "路由到日历",
@@ -766,35 +760,30 @@
           "scenarioSmartDelegation": "智能委派",
           "scenarioExpertMatch": "专家匹配",
           "scenarioAvailabilityRouting": "基于可用性的路由",
-
           "synergyTriple1": "完整销售漏斗",
           "synergyTriple1Desc": "完整的销售旅程：向潜客提供信息、捕获线索并预订合格的演示",
           "scenarioFullSalesFlow": "完整销售流程",
           "scenarioCompleteOnboarding": "完整入门引导",
           "scenarioNurtureToClose": "培育到成交",
           "scenarioInboundSales": "入站销售自动化",
-
           "synergyTriple2": "支持中心",
           "synergyTriple2Desc": "自助知识库、工单创建以及智能升级到坐席",
           "scenarioSupportEscalation": "支持升级",
           "scenarioIntelligentTicketing": "智能工单",
           "scenarioHelpDeskAuto": "服务台自动化",
           "scenarioIssueCapture": "问题采集 → 路由",
-
           "synergyTriple3": "咨询流程",
           "synergyTriple3Desc": "回答问题、匹配合适的专家，并支持直接通过日历预订",
           "scenarioMultiSpecialistBooking": "多专家预订",
           "scenarioSmartConsultation": "智能咨询",
           "scenarioAdvisoryFlow": "顾问服务流程",
           "scenarioExpertConnect": "专家连接",
-
           "synergyTriple4": "完整登记",
           "synergyTriple4Desc": "结构化登记表单、智能路由到团队以及自动化排期",
           "scenarioIntakeRouteBook": "登记 → 路由 → 预订",
           "scenarioCompleteLeadFlow": "完整线索流程",
           "scenarioPatientIntake": "患者登记流程",
           "scenarioClientOnboarding": "客户入门引导",
-
           "synergyAll": "企业级助手",
           "synergyAllDesc": "全功能礼宾：回答问题、收集数据、智能路由并预订预约",
           "scenarioEnterpriseBot": "企业级助手",
@@ -970,7 +959,7 @@
       "hintPlaceholder": "MM/DD/YYYY，驾照正面",
       "hintHelper": "可选：提示位置或格式。提示是关键的调优原语。",
       "noFieldsYet": "至少添加一个提取字段以启用光学读取。",
-      "providerNotSupported": "光学读取需要具备视觉能力的提供方。v1 版本支持 Anthropic；OpenAI 和 Gemini 即将推出。",
+      "providerNotSupported": "光学读取需要具备视觉能力的提供方。已支持 Anthropic 和 OpenAI。",
       "intro": "命名你想提取的字段。模型会基于其自身的视觉先验进行解析——可选的提示用于提示位置或格式。",
       "showUploadOnStart": "将上传按钮显示为启动提示",
       "showUploadOnStartHelper": "在机器人的首条消息建议旁渲染上传卡片。跳过对话热身——用户可立即上传。",
@@ -1447,8 +1436,6 @@
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "gemini": "Google Gemini",
-          "cohere": "Cohere",
           "bedrock": "AWS Bedrock（粘贴 JSON 凭证）"
         }
       },

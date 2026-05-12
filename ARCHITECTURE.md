@@ -438,7 +438,7 @@ Key files:
 | [control/app/api/vectorize-rag/route.js](control/app/api/vectorize-rag/route.js) | Wizard-side embedding endpoint (also called by chat builder via tool) |
 | [.github/workflows/publish-bot-image.yml](.github/workflows/publish-bot-image.yml) | Builds + publishes `ghcr.io/zombico/mojulo-bot:X` |
 | [lite-template/server.js:~1340-1420](lite-template/server.js) | Runtime bootstrap (LLM init, instructions cache, VectorRAG init + warmup) |
-| [lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) | Provider abstraction (Anthropic, OpenAI, Gemini, Cohere, Bedrock + adapters) |
+| [lite-template/helper/llm-client.js](lite-template/helper/llm-client.js) | Provider abstraction (Anthropic, OpenAI, Ollama + adapters) |
 | [lite-template/helper/llm-client.js:208-272](lite-template/helper/llm-client.js#L208-L272) | Anthropic adapter (prompt caching) |
 | [lite-template/helper/vector-rag.js](lite-template/helper/vector-rag.js) | Cosine retrieval over baked `config/embeddings.json`; renders triage-route chunks with `deploymentId` inline |
 | [lite-template/helper/prompt-assembler.js](lite-template/helper/prompt-assembler.js) | Pure: vector retrieval + LLM generate (no rewrite ladder, no locale detection) |
