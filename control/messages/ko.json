@@ -2194,5 +2194,14 @@
       "openBot": "봇 열기",
       "viewInBotSpace": "봇 스페이스에서 보기"
     }
+  },
+  "login": {
+    "subtitle": "계속하려면 로그인하세요",
+    "username": "사용자 이름",
+    "password": "비밀번호",
+    "signIn": "로그인",
+    "signingIn": "로그인 중…",
+    "signOut": "로그아웃",
+    "invalid": "잘못된 사용자 이름 또는 비밀번호입니다"
   }
 }

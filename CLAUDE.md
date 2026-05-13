@@ -110,7 +110,7 @@ Vision input is supported on Anthropic and OpenAI; the runtime adapter check liv
 
 ## Status reminders baked into the project
 
-- The control plane has **no auth**. It is single-user, self-hosted. Don't expose it to the public internet, and don't add features that assume multi-tenancy.
+- The control plane is **single-user, self-hosted**, with an **opt-in HTTP login** (see [control/middleware.js](control/middleware.js), [control/lib/auth/session.js](control/lib/auth/session.js)). Set `CONTROL_PLANE_USER` + `CONTROL_PLANE_PASSWORD` in env to enable; sessions are HMAC-signed with the password itself. The login is a last-line-of-defense affordance — don't expose the control plane to the public internet, and don't add features that assume multi-tenancy.
 - Versioning is `0.x`. Artifact format and bot image are pinned per-control-plane-version. When the artifact shape changes, the pinned [BOT_IMAGE](control/.env.example) tag in `.env.example` and the `docker.js` constant must move together.
 
 ## Coding Standards

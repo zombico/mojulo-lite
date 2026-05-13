@@ -2194,5 +2194,14 @@
       "openBot": "ボットを開く",
       "viewInBotSpace": "ボットスペースで表示"
     }
+  },
+  "login": {
+    "subtitle": "続行するにはサインインしてください",
+    "username": "ユーザー名",
+    "password": "パスワード",
+    "signIn": "サインイン",
+    "signingIn": "サインイン中...",
+    "signOut": "サインアウト",
+    "invalid": "ユーザー名またはパスワードが正しくありません"
   }
 }

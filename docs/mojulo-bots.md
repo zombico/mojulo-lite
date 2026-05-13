@@ -35,7 +35,7 @@ See: [protocol-composition.md](protocol-composition.md), [vector-rag.md](vector-
 
 ## What is the Control Plane?
 
-A wizard builder and observability dashboard for Mojulo Bots. It runs locally or on your own private cloud, single-user, no auth — it is the operator's tool, not a tenant-facing service.
+A wizard builder and observability dashboard for Mojulo Bots. It runs locally or on your own private cloud, single-user, with an opt-in login as a last-line-of-defense affordance — it is the operator's tool, not a tenant-facing service.
 
 The Control Plane has two jobs:
 

@@ -31,7 +31,7 @@ This is a solo-maintained project. Expect best-effort acknowledgement within a f
 
 mojulo-lite has two components with different security postures:
 
-- **Control plane** ([control/](control/)) — single-user, self-hosted, **no built-in authentication**. Intended to run on `localhost` or behind a network boundary the operator controls.
+- **Control plane** ([control/](control/)) — single-user, self-hosted. Ships with an **opt-in HTTP login** (set `CONTROL_PLANE_USER` / `CONTROL_PLANE_PASSWORD`; sessions are HMAC-signed with the password itself, so rotating the password invalidates outstanding sessions). The login is a last-line-of-defense affordance, not a substitute for network isolation: the control plane is still intended to run on `localhost` or behind a network boundary the operator controls.
 - **Bot runtime** ([lite-template/](lite-template/)) — designed to be exposed to end users. Conversation data stays in the bot's local SQLite and never leaves it.
 
 These two postures shape what's in and out of scope below.
@@ -52,12 +52,12 @@ Reports about the following are welcome and treated as security issues:
 
 These are known design constraints, not vulnerabilities:
 
-- **Control plane exposed to the public internet.** The control plane has no authentication by design. It is meant to run locally or behind operator-controlled access (VPN, SSH tunnel, Tailscale, reverse proxy with auth, etc.). Reachability of port 3001 from the internet is the operator's responsibility, not a project bug.
+- **Control plane exposed to the public internet.** The built-in login is a last-line-of-defense affordance and is not designed to withstand internet-facing traffic on its own (no MFA, no lockout, no audit trail of failed attempts). The control plane is meant to run locally or behind operator-controlled access (VPN, SSH tunnel, Tailscale, reverse proxy with stronger auth, etc.). Reachability of port 3001 from the internet is the operator's responsibility, not a project bug.
 - **Local filesystem attacks.** Issues that require an attacker to already have read or write access to the host's filesystem (e.g. reading `control/data/mojulo-lite.db` directly, reading `.env` files) are out of scope. The threat model assumes the host is trusted.
 - **Denial of service against a single self-hosted instance.** Resource-exhaustion attacks against the control plane or a single bot are not treated as security issues.
 - **Issues in third-party LLM providers.** Bugs or policy issues in Anthropic or OpenAI APIs should be reported to those vendors.
 - **LLM hallucination, jailbreak, or prompt-injection content quality** that does not cross a security boundary (e.g. does not exfiltrate other documents, does not bypass the chain). These are product-quality issues — open a regular GitHub issue.
-- **Lack of rate limiting** at the control plane, since it is single-user.
+- **Lack of rate limiting** at the control plane, since it is single-user. This includes the login endpoint — if you need brute-force resistance, front the control plane with a reverse proxy that rate-limits.
 - **Missing security headers** on the control plane UI, for the same reason.
 
 ### Sensitive areas — extra care appreciated

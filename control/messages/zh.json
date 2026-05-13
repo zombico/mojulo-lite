@@ -2194,5 +2194,14 @@
       "openBot": "打开机器人",
       "viewInBotSpace": "在机器人空间中查看"
     }
+  },
+  "login": {
+    "subtitle": "登录以继续",
+    "username": "用户名",
+    "password": "密码",
+    "signIn": "登录",
+    "signingIn": "登录中…",
+    "signOut": "退出登录",
+    "invalid": "用户名或密码无效"
   }
 }
