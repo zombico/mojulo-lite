@@ -382,7 +382,7 @@ export default function HomePage() {
   const { data, isLoading } = useSWR('/api/deployments', fetcher);
   const { data: keysData } = useSWR('/api/settings/api-keys', fetcher);
   const hasLLMKey = Array.isArray(keysData?.keys) && keysData.keys.some(
-    (k) => ['anthropic', 'openai', 'bedrock'].includes(k.provider),
+    (k) => ['anthropic', 'openai', 'ollama'].includes(k.provider),
   );
   const deployments = data?.deployments || [];
   const [busyId, setBusyId] = useState(null);

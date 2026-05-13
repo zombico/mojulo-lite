@@ -46,6 +46,8 @@ Step IDs and their roles ([source](../control/components/wizard/modular/config/M
 
 Step numbering is recomputed when protocols change so the stepper always shows a contiguous 1..N sequence — no gaps when a protocol is turned off.
 
+The Protocols step also consults the active `(provider, model)` pair via [getAllowedProtocolsForModel](../control/lib/llm-providers.js): on small Ollama models (qwen3, mistral-nemo) the form-gathering, appointments, triage, and optical-read cards are disabled with an inline reason pointing at llama3.3 — the multi-step tool-following those protocols need is unreliable on smaller local models. Cloud providers and llama3.3 are unrestricted. The gate is enforced again at save time in [buildDeploymentConfig](../control/lib/config-builder.js), so a config that bypasses the UI (direct API call, hydrated edit, replay) still fails fast.
+
 ---
 
 ## State management
@@ -70,11 +72,13 @@ The state shape is normalized into four buckets:
 
 A flat `formData` view is computed via `useMemo` for legacy step components that predate the bucketed shape — they read flat keys, the context maps writes back into the right bucket. Both APIs coexist on the same context.
 
+`updateCore` watches for provider/model changes and prunes `enabledProtocols` against the active model's allowlist on every transition. Toggles the user set on llama3.3 don't silently survive a switch to qwen3.
+
 ### Per-step validation
 
 Each step has a validator. They run on Next click, on stepper jump-forward, and (for protocol-specific data) before save. Validators are split:
 
-- `core`, `protocols`, `identity` validate inline in [validateStep](../control/components/wizard/modular/ModularWizardContext.jsx#L353) — required fields, length caps, provider-specific credential shape (Bedrock takes a JSON blob, others take a plain key).
+- `core`, `protocols`, `identity` validate inline in [validateStep](../control/components/wizard/modular/ModularWizardContext.jsx#L353) — required fields, length caps, provider-specific credential shape (Ollama takes a host URL, the API-key providers take a plain key).
 - `knowledge`, `formGathering`, `appointments`, `triage` validate via the [PROTOCOL_VALIDATORS](../control/components/wizard/modular/ModularWizardContext.jsx#L21) registry — each returns `{ valid, error }`. The knowledge validator gates on `embeddings.storageKey` being populated, not just on documents being uploaded — embedding has to actually have run.
 
 Stepper navigation is one-way-forward by default: a step is accessible only if it's `<= currentStep + 1`, so the user can't skip ahead past unfilled required fields. Edit mode (when a `?from=<deploymentId>` query param is present) marks all steps accessible — operators editing an existing bot can jump anywhere.

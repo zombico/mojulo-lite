@@ -38,8 +38,10 @@ export default function FormGatheringConfig({ stepConfig }) {
     // A saved-key pick clears apiKey in favor of an opaque apiKeyId; edit
     // mode advertises an existing on-file credential via hasStoredApiKey +
     // editDeploymentId. Any one of the three is enough — the route resolves
-    // the plaintext server-side.
-    const hasCredential = !!(
+    // the plaintext server-side. Ollama is credential-less and skips this
+    // gate entirely (the route falls back to defaultHost if no host is set).
+    const isOllama = formData.provider === 'ollama';
+    const hasCredential = isOllama || !!(
       formData.apiKey ||
       formData.apiKeyId ||
       (formData.hasStoredApiKey && formData.editDeploymentId)

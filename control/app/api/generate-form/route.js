@@ -59,6 +59,12 @@ async function resolveCredential({ provider, apiKey, apiKeyId, editDeploymentId 
       const hasCreds = block.useIamRole || (block.accessKeyId && block.secretAccessKey);
       return hasCreds ? JSON.stringify(block) : null;
     }
+    if (provider === 'ollama') {
+      // Ollama config carries `host` instead of `apiKey`. Encode it in the
+      // JSON shape that resolveOllamaHost expects downstream so the same
+      // credential slot semantics apply regardless of source.
+      return block.host ? JSON.stringify({ host: block.host }) : null;
+    }
     return block.apiKey || null;
   }
   return null;
@@ -156,7 +162,7 @@ export async function POST(request) {
     }
 
     // Validate provider
-    const validProviders = ['openai', 'anthropic', 'bedrock'];
+    const validProviders = ['openai', 'anthropic', 'bedrock', 'ollama'];
     if (!validProviders.includes(provider)) {
       return NextResponse.json(
         { error: `Invalid provider: ${provider}. Must be one of: ${validProviders.join(', ')}` },
@@ -200,6 +206,11 @@ export async function POST(request) {
           { status: 400 }
         );
       }
+    } else if (provider === 'ollama') {
+      // Ollama needs no credential — when resolvedApiKey is null the
+      // adapter falls back to LLM_PROVIDERS.ollama.defaultHost. When it's
+      // set, it carries the host URL (either JSON {host} or bare URL),
+      // which resolveOllamaHost normalizes inside generateStructured.
     } else if (!resolvedApiKey) {
       return NextResponse.json(
         { error: 'API key is required. Please provide your API key for the selected provider.' },

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { LLM_PROVIDERS, providerSupportsVision } from '@/lib/llm-providers';
+import { LLM_PROVIDERS, providerSupportsVision, getAllowedProtocolsForModel } from '@/lib/llm-providers';
 
 const ModularWizardContext = createContext(null);
 
@@ -291,12 +291,33 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
     }));
   }, []);
 
-  // Update core fields
+  // Update core fields. When the provider or model changes, prune
+  // enabledProtocols to whatever the new (provider, model) pair allows —
+  // otherwise a user who enabled form-gathering on llama3.3 could silently
+  // ship it after switching to qwen3, which can't reliably run that flow.
+  // The UI also disables those cards, but state can drift across step
+  // navigation, so the source-of-truth lives here.
   const updateCore = useCallback((updates) => {
-    setState(prev => ({
-      ...prev,
-      core: { ...prev.core, ...updates },
-    }));
+    setState(prev => {
+      const nextCore = { ...prev.core, ...updates };
+      const providerChanged = 'provider' in updates && updates.provider !== prev.core.provider;
+      const modelChanged = 'model' in updates && updates.model !== prev.core.model;
+      if (!providerChanged && !modelChanged) {
+        return { ...prev, core: nextCore };
+      }
+      const allowed = getAllowedProtocolsForModel(nextCore.provider, nextCore.model);
+      if (!allowed) {
+        return { ...prev, core: nextCore };
+      }
+      const prunedProtocols = Object.fromEntries(
+        Object.entries(prev.enabledProtocols).map(([id, on]) => [id, on && allowed.has(id)])
+      );
+      return {
+        ...prev,
+        core: nextCore,
+        enabledProtocols: prunedProtocols,
+      };
+    });
   }, []);
 
   // Update identity fields

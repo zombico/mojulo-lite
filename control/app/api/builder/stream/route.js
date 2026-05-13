@@ -27,7 +27,7 @@ import { parseModularDeploymentConfig } from '@/lib/config-builder';
 import { auditLog } from '@/lib/audit-logger-new';
 import { checkRateLimit, RateLimitPresets } from '@/lib/rate-limiter';
 import { parseDocument } from '@/lib/document-parser';
-import { buildBedrockModelId, getDefaultModelForTask } from '@/lib/llm-providers';
+import { buildBedrockModelId, getDefaultModelForTask, resolveOllamaHost } from '@/lib/llm-providers';
 import { uploadFile } from '@/lib/storage';
 import { decryptApiKey } from '@/lib/deployment-auth';
 
@@ -83,7 +83,10 @@ async function getLLMConfigForBuilder(session, userId) {
   }
 
   if (!apiKeyRecord) {
-    const fallbackOrder = ['anthropic', 'bedrock', 'openai'];
+    // Local-only inference (ollama) sits last so a user with both cloud
+    // and Ollama keys doesn't get silently routed to the slower lane —
+    // ollama selection happens via isDefault, not by accident.
+    const fallbackOrder = ['anthropic', 'bedrock', 'openai', 'ollama'];
     for (const provider of fallbackOrder) {
       apiKeyRecord = apiKeys.find((k) => k.provider === provider);
       if (apiKeyRecord) break;
@@ -547,9 +550,20 @@ async function streamModularWithTools(
     );
   }
 
+  if (provider === 'ollama') {
+    return streamModularWithOllamaTools(
+      systemPrompt,
+      messages,
+      executionContext,
+      controller,
+      encoder,
+      llmConfig
+    );
+  }
+
   if (provider !== 'anthropic') {
     throw new Error(
-      `Lite chat builder streaming supports Anthropic, OpenAI, or Bedrock. Got: ${provider}.`
+      `Lite chat builder streaming supports Anthropic, OpenAI, Ollama, or Bedrock. Got: ${provider}.`
     );
   }
 
@@ -1244,6 +1258,341 @@ async function streamModularWithOpenAITools(
     currentMessages.push({ role: 'user', content: toolResultContents });
 
     toolUseBlocks = [];
+  }
+
+  return { fullResponse, toolResults };
+}
+
+/**
+ * Ollama orchestrator for the chat builder.
+ *
+ * Mirrors the Anthropic and OpenAI paths: agentic tool-use loop, same SSE
+ * event vocabulary, same `currentMessages` shape (Anthropic-flavored —
+ * converted at the wire only). Uses Ollama's `/api/chat` endpoint with
+ * `stream: true`, which returns NDJSON (one JSON object per line) rather
+ * than SSE. Tool schemas are reused as-is — `BUILDER_TOOLS[].input_schema`
+ * is valid JSON Schema and slots into Ollama's OpenAI-compatible
+ * `function.parameters` field.
+ *
+ * No prompt caching on Ollama — every iteration re-processes the full prompt.
+ * Acceptable since local inference has no per-token cost.
+ */
+async function streamModularWithOllamaTools(
+  systemPrompt,
+  messages,
+  executionContext,
+  controller,
+  encoder,
+  llmConfig
+) {
+  const { apiKey, model } = llmConfig;
+  const host = resolveOllamaHost(apiKey);
+
+  const ollamaTools = BUILDER_TOOLS.map((tool) => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.input_schema,
+    },
+  }));
+
+  // Chain-continuation directive prepended to the shared system prompt for
+  // Ollama only. Anthropic / OpenAI chain tools aggressively in agentic
+  // loops because of how they're trained; open models (llama3.3, mistral-nemo)
+  // default to conversational behavior and tend to emit prose after each tool
+  // — which exits the orchestrator at the zero-tool-call branch below before
+  // infer_intent / recommend_protocols / compose_identity ever run. This
+  // section makes the chain explicit and forbids prose between steps.
+  const ollamaSystemPrompt = `# CRITICAL: Tool Chain Execution Rules
+
+You MUST execute the full tool chain in sequence before addressing the user. Do NOT emit any user-facing text between tool calls. The chain is:
+
+1. process_documents (if documents are attached)
+2. infer_intent (ALWAYS, even with no documents)
+3. recommend_protocols (ALWAYS)
+4. Protocol-specific tools as needed: generate_form_schema, generate_appointment_config, generate_triage_config, generate_optical_read_config
+5. compose_identity (ALWAYS)
+6. set_suggested_prompts AND generate_bot_summary (BOTH, after compose_identity)
+
+After process_documents returns, immediately call infer_intent on the next turn — do not write a message to the user. After infer_intent, immediately call recommend_protocols. Continue without prose until compose_identity completes.
+
+Only after set_suggested_prompts and generate_bot_summary have both succeeded should you write your first user-facing message presenting the recommendations and asking for confirmation. Do not call save_modular_bot until the user explicitly confirms.
+
+If you find yourself wanting to write "I've processed your documents" or "Let me know what's next" between tool calls — DO NOT. Call the next tool instead. The user sees each tool call as a pill in the chat log, so they know what's happening.
+
+---
+
+${systemPrompt}`;
+
+  // Convert the persisted Anthropic-shaped history into Ollama's chat-message
+  // shape. Tool calls live on the assistant message as `tool_calls`; tool
+  // results are their own `role: 'tool'` messages keyed by `tool_call_id`
+  // (round-tripping Anthropic's tool_use.id).
+  const convertMessagesToOllama = (msgs) => {
+    const out = [];
+    for (const msg of msgs) {
+      if (typeof msg.content === 'string') {
+        out.push({ role: msg.role, content: msg.content });
+        continue;
+      }
+      if (msg.role === 'assistant') {
+        const textBlocks = msg.content.filter((b) => b.type === 'text');
+        const toolUseBlocks = msg.content.filter((b) => b.type === 'tool_use');
+        const assistantMsg = {
+          role: 'assistant',
+          content: textBlocks.map((b) => b.text).join(''),
+        };
+        if (toolUseBlocks.length > 0) {
+          assistantMsg.tool_calls = toolUseBlocks.map((tu) => ({
+            id: tu.id,
+            function: {
+              name: tu.name,
+              arguments: tu.input || {},
+            },
+          }));
+        }
+        out.push(assistantMsg);
+      } else if (msg.role === 'user') {
+        const toolResultBlocks = msg.content.filter((b) => b.type === 'tool_result');
+        for (const tr of toolResultBlocks) {
+          out.push({
+            role: 'tool',
+            tool_call_id: tr.tool_use_id,
+            content: String(tr.content),
+          });
+        }
+        const textBlocks = msg.content.filter((b) => b.type === 'text');
+        if (textBlocks.length > 0) {
+          out.push({
+            role: 'user',
+            content: textBlocks.map((b) => b.text).join(''),
+          });
+        }
+      }
+    }
+    return out;
+  };
+
+  const toolResults = [];
+  let currentMessages = [...messages];
+  let iterations = 0;
+  let fullResponse = '';
+
+  while (iterations < MAX_TOOL_ITERATIONS) {
+    iterations++;
+
+    const ollamaMessages = [
+      { role: 'system', content: ollamaSystemPrompt },
+      ...convertMessagesToOllama(currentMessages),
+    ];
+
+    const response = await fetch(`${host.replace(/\/$/, '')}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model || 'llama3.3',
+        messages: ollamaMessages,
+        tools: ollamaTools,
+        stream: true,
+        // Suppress hybrid-reasoning scratchpad if the user overrode to qwen3.
+        // No-op on llama3.3 / mistral-nemo.
+        think: false,
+        // Pin the model in memory across iterations and across user turns in
+        // the same builder session. Default unload (~5 min) makes a 70B
+        // llama3.3 cold-reload between messages, which is a 30–60s stall on
+        // typical hardware. 30m comfortably spans an interactive build.
+        keep_alive: '30m',
+        options: {
+          // Tool-use loop accumulates tool_results across iterations (full
+          // JSON dumps of identity / protocols / form schemas); the default
+          // 2048 window overflows fast on multi-step builder runs. 32K is
+          // headroom for llama3.3's 128K native context without ballooning
+          // KV cache on smaller hosts.
+          num_ctx: 32768,
+          // Ollama defaults to 0.8 which is too loose for tool-call argument
+          // selection — at 70B the model becomes more confident about
+          // plausible-but-wrong tool args. 0.2 keeps it deterministic on the
+          // tool channel without making the short prose deltas robotic.
+          temperature: 0.2,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `Ollama API error (${response.status}): ${errorText || response.statusText}`
+      );
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentText = '';
+    const accumulatedToolCalls = [];
+    let sentSpeakingState = false;
+
+    // Ollama streams NDJSON — one JSON object per line, terminated by a chunk
+    // with `done: true`. Text deltas arrive in `message.content`; tool_calls
+    // usually arrive whole in a single chunk (often the done chunk) rather
+    // than incrementally, so we accumulate per-chunk and dispatch after the
+    // stream closes.
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        let event;
+        try {
+          event = JSON.parse(trimmed);
+        } catch {
+          continue;
+        }
+        if (event.error) {
+          throw new Error(`Ollama streaming error: ${event.error}`);
+        }
+        const delta = event.message?.content || '';
+        if (delta) {
+          if (!sentSpeakingState) {
+            sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, {
+              state: 'speaking',
+            });
+            sentSpeakingState = true;
+          }
+          currentText += delta;
+          sendEvent(controller, encoder, EventTypes.TEXT, { text: delta });
+        }
+        const calls = event.message?.tool_calls;
+        if (Array.isArray(calls) && calls.length > 0) {
+          accumulatedToolCalls.push(...calls);
+        }
+      }
+    }
+
+    // Defense in depth — llama3.3 / mistral-nemo don't emit <think>, but a
+    // user-overridden qwen3 might leak the scratchpad despite `think: false`.
+    currentText = currentText
+      .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
+      .replace(/<think\b[^>]*>[\s\S]*$/i, '');
+
+    fullResponse += currentText;
+
+    // Normalize Ollama tool_calls into the orchestrator's shared shape.
+    // `arguments` can be either a string (JSON-encoded) or an object
+    // depending on model — handle both.
+    const toolUseBlocks = accumulatedToolCalls.map((tc, idx) => {
+      let input = tc.function?.arguments;
+      if (typeof input === 'string') {
+        try {
+          input = JSON.parse(input || '{}');
+        } catch {
+          input = {};
+        }
+      } else if (!input || typeof input !== 'object') {
+        input = {};
+      }
+      return {
+        id: tc.id || `ollama_tool_${iterations}_${idx}`,
+        name: tc.function?.name,
+        input,
+      };
+    });
+
+    if (toolUseBlocks.length === 0) {
+      return { fullResponse, toolResults };
+    }
+
+    const toolResultContents = [];
+    for (const toolUse of toolUseBlocks) {
+      sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'thinking' });
+      sendEvent(controller, encoder, EventTypes.TOOL_STARTED, {
+        tool: toolUse.name,
+        toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+        input: toolUse.input,
+      });
+
+      const updatedSession = await BuilderSessionRepository.findById(
+        executionContext.session.id
+      );
+      executionContext.session = updatedSession;
+
+      const result = await executeBuilderTool(toolUse.name, toolUse.input, executionContext);
+      toolResults.push({
+        tool: toolUse.name,
+        toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+        success: result.success,
+        result: result.success ? result.result : undefined,
+        error: result.error,
+      });
+
+      if (result.success) {
+        sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'success' });
+        sendEvent(controller, encoder, EventTypes.TOOL_COMPLETED, {
+          tool: toolUse.name,
+          toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+          result: result.result,
+        });
+
+        if (toolUse.name === 'infer_intent') {
+          sendEvent(controller, encoder, EventTypes.INFERENCE_COMPLETE, {
+            intent: result.result.intent,
+            confidence: result.result.confidence,
+          });
+        } else if (toolUse.name === 'recommend_protocols') {
+          sendEvent(controller, encoder, EventTypes.PROTOCOLS_RECOMMENDED, {
+            protocols: result.result.protocols,
+          });
+        } else if (toolUse.name === 'compose_identity') {
+          sendEvent(controller, encoder, EventTypes.IDENTITY_COMPOSED, {
+            identity: result.result.identity,
+          });
+        } else if (toolUse.name === 'set_suggested_prompts') {
+          sendEvent(controller, encoder, EventTypes.PROMPTS_SET, {
+            identity: result.result.identity,
+          });
+        } else if (toolUse.name === 'generate_bot_summary') {
+          sendEvent(controller, encoder, EventTypes.BOT_SUMMARY_GENERATED, {
+            botSummary: result.result.botSummary,
+          });
+        }
+      } else {
+        sendEvent(controller, encoder, EventTypes.MODULO_EXPRESSION, { state: 'concerned' });
+        sendEvent(controller, encoder, EventTypes.TOOL_FAILED, {
+          tool: toolUse.name,
+          toolDisplayName: TOOL_LABELS[toolUse.name] || toolUse.name,
+          error: result.error,
+        });
+      }
+
+      toolResultContents.push({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: result.success
+          ? JSON.stringify(result.result, null, 2)
+          : `Error: ${result.error}`,
+        is_error: !result.success,
+      });
+    }
+
+    currentMessages.push({
+      role: 'assistant',
+      content: [
+        ...(currentText ? [{ type: 'text', text: currentText }] : []),
+        ...toolUseBlocks.map((tu) => ({
+          type: 'tool_use',
+          id: tu.id,
+          name: tu.name,
+          input: tu.input,
+        })),
+      ],
+    });
+
+    currentMessages.push({ role: 'user', content: toolResultContents });
   }
 
   return { fullResponse, toolResults };

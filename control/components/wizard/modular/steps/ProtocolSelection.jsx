@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useModularWizard } from '../ModularWizardContext';
-import { providerSupportsVision } from '@/lib/llm-providers';
+import { providerSupportsVision, getAllowedProtocolsForModel } from '@/lib/llm-providers';
 
 const PROTOCOL_ICONS = {
   knowledge: (
@@ -33,7 +33,15 @@ const PROTOCOL_ICONS = {
   ),
 };
 
-function useProtocolCards(t, { provider } = {}) {
+function useProtocolCards(t, { provider, model } = {}) {
+  // Model-level gate: small Ollama models (qwen3, mistral-nemo) are only
+  // reliable at single-turn knowledge Q&A. Returns null for unrestricted
+  // (provider, model) pairs — knowledge stays available either way.
+  const allowedProtocols = getAllowedProtocolsForModel(provider, model);
+  const isModelRestricted = (id) =>
+    !!allowedProtocols && !allowedProtocols.has(id);
+  const modelGateReason = t('modelGate');
+
   return [
     {
       id: 'knowledge',
@@ -46,30 +54,42 @@ function useProtocolCards(t, { provider } = {}) {
       title: t('formCollection'),
       description: t('formCollectionDescription'),
       icon: PROTOCOL_ICONS.formGathering,
+      disabled: isModelRestricted('formGathering'),
+      disabledReason: modelGateReason,
     },
     {
       id: 'appointments',
       title: t('appointmentBooking'),
       description: t('appointmentBookingDescription'),
       icon: PROTOCOL_ICONS.appointments,
+      disabled: isModelRestricted('appointments'),
+      disabledReason: modelGateReason,
     },
     {
       id: 'triage',
       title: t('triageRouting'),
       description: t('triageRoutingDescription'),
       icon: PROTOCOL_ICONS.triage,
+      disabled: isModelRestricted('triage'),
+      disabledReason: modelGateReason,
     },
     {
       id: 'opticalRead',
       title: t('opticalRead'),
       description: t('opticalReadDescription'),
       icon: PROTOCOL_ICONS.opticalRead,
-      // Disable the card for providers whose runtime adapter doesn't accept
-      // image input. The wizard step and validator re-check, so direct toggles
-      // via state can't bypass this. Keep VISION_PROVIDERS aligned with the
-      // adapters in lite-template/helper/llm-client.js.
-      disabled: provider && !providerSupportsVision(provider),
-      disabledReason: t('opticalReadProviderGate'),
+      // Two independent gates: vision capability (provider-level) and the
+      // small-Ollama-model restriction. Either can disable the card; the
+      // model gate wins the reason text when both apply, since it's the
+      // narrower constraint the user can act on (switch model vs. switch
+      // provider). Keep VISION_PROVIDERS aligned with the adapters in
+      // lite-template/helper/llm-client.js.
+      disabled:
+        isModelRestricted('opticalRead') ||
+        (!!provider && !providerSupportsVision(provider)),
+      disabledReason: isModelRestricted('opticalRead')
+        ? modelGateReason
+        : t('opticalReadProviderGate'),
     },
   ];
 }
@@ -129,7 +149,10 @@ function ProtocolCard({ protocol, enabled, onToggle }) {
 export default function ProtocolSelection({ stepConfig }) {
   const t = useTranslations('wizard.protocols');
   const { enabledProtocols, toggleProtocol, errors, clearError, formData } = useModularWizard();
-  const protocolCards = useProtocolCards(t, { provider: formData.provider });
+  const protocolCards = useProtocolCards(t, {
+    provider: formData.provider,
+    model: formData.model,
+  });
 
   const hasAnyProtocol = enabledProtocols.knowledge ||
                          enabledProtocols.formGathering ||

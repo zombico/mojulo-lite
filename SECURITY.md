@@ -55,7 +55,7 @@ These are known design constraints, not vulnerabilities:
 - **Control plane exposed to the public internet.** The control plane has no authentication by design. It is meant to run locally or behind operator-controlled access (VPN, SSH tunnel, Tailscale, reverse proxy with auth, etc.). Reachability of port 3001 from the internet is the operator's responsibility, not a project bug.
 - **Local filesystem attacks.** Issues that require an attacker to already have read or write access to the host's filesystem (e.g. reading `control/data/mojulo-lite.db` directly, reading `.env` files) are out of scope. The threat model assumes the host is trusted.
 - **Denial of service against a single self-hosted instance.** Resource-exhaustion attacks against the control plane or a single bot are not treated as security issues.
-- **Issues in third-party LLM providers.** Bugs or policy issues in Anthropic, OpenAI, Gemini, Cohere, or Bedrock APIs should be reported to those vendors.
+- **Issues in third-party LLM providers.** Bugs or policy issues in Anthropic or OpenAI APIs should be reported to those vendors.
 - **LLM hallucination, jailbreak, or prompt-injection content quality** that does not cross a security boundary (e.g. does not exfiltrate other documents, does not bypass the chain). These are product-quality issues — open a regular GitHub issue.
 - **Lack of rate limiting** at the control plane, since it is single-user.
 - **Missing security headers** on the control plane UI, for the same reason.

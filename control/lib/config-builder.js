@@ -3,7 +3,12 @@
  * Transforms simple form data into the config.json structure expected by dragbot-factory
  */
 
-import { LLM_PROVIDERS, buildBedrockModelId, stripBedrockModelPrefix } from './llm-providers.js';
+import {
+  LLM_PROVIDERS,
+  buildBedrockModelId,
+  stripBedrockModelPrefix,
+  getAllowedProtocolsForModel,
+} from './llm-providers.js';
 
 /**
  * Extract terms and conditions text from formStructure's consentToTC field
@@ -212,6 +217,27 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
 
   if (missing.length > 0) {
     throw new Error(`Missing required fields: ${missing.join(', ')}`);
+  }
+
+  // Final-line-of-defense protocol gate. The wizard prunes enabledProtocols
+  // when the user changes provider/model, and the chat builder's
+  // recommend_protocols clamps its suggestions; this catches any path that
+  // bypasses both (direct API caller, replay of a stale session, etc.).
+  // Restricted Ollama models (qwen3, mistral-nemo) can only ship the
+  // knowledge protocol — refuse to compile a config that says otherwise.
+  if (flowType === 'modular' && enabledProtocols) {
+    const allowedForModel = getAllowedProtocolsForModel(formData.provider, formData.model);
+    if (allowedForModel) {
+      const disallowed = Object.entries(enabledProtocols)
+        .filter(([id, on]) => on && !allowedForModel.has(id))
+        .map(([id]) => id);
+      if (disallowed.length > 0) {
+        throw new Error(
+          `${formData.model} only supports: ${Array.from(allowedForModel).join(', ')}. ` +
+          `Disable these protocols or switch to a more capable model: ${disallowed.join(', ')}.`
+        );
+      }
+    }
   }
 
   const configSection = {

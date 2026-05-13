@@ -39,6 +39,16 @@ export async function resolveSavedApiKeyIntoConfig(config, apiKeyId) {
       secretAccessKey: credentials.secretAccessKey || null,
       model: buildBedrockModelId(baseModel, region),
     };
+  } else if (provider === 'ollama') {
+    // Ollama's "credential" row stores {"host": "..."} JSON. The host stamps
+    // onto config.llm.ollama just like buildLLMConfig would have done from
+    // the wizard's ollamaHost field — saved-host references and pasted
+    // hosts converge on the same artifact shape.
+    const parsed = JSON.parse(plaintext);
+    config.llm.ollama = {
+      ...config.llm.ollama,
+      host: parsed.host || config.llm.ollama?.host || '',
+    };
   } else {
     config.llm[provider] = {
       ...config.llm[provider],
@@ -62,6 +72,13 @@ export function configHasStoredApiKey(config) {
   if (!block) return false;
   if (provider === 'bedrock') {
     return !!(block.useIamRole || (block.accessKeyId && block.secretAccessKey));
+  }
+  if (provider === 'ollama') {
+    // Host is the only transport field. Empty host means the wizard will
+    // fall back to LLM_PROVIDERS.ollama.defaultHost at build time, which is
+    // still a usable artifact — but the "on file" claim should be honest
+    // about whether the user actually configured one.
+    return !!block.host;
   }
   return !!block.apiKey;
 }

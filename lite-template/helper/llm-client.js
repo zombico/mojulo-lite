@@ -110,8 +110,39 @@ function rejectImage(adapterName, image) {
 
 /**
  * Ollama adapter - uses /api/chat for role-based messaging
+ *
+ * Envelope reliability: passes ENVELOPE_SCHEMA to Ollama's `format` parameter,
+ * which the daemon (0.5+) compiles to a GBNF grammar via llama.cpp. The
+ * sampler rejects tokens that would break the schema, so the model literally
+ * cannot emit envelope-non-conforming output. Brings Ollama to the same
+ * structural guarantee OpenAI and Anthropic adapters already provide.
+ *
+ * Older daemons silently ignore the schema object and behave as `format: 'json'`,
+ * which is the prior behavior — degrades safely. The fallback synthesis path
+ * in server.js stays in place as the safety net for that case.
  */
 class OllamaAdapter extends LLMAdapter {
+    constructor(config) {
+        super(config);
+        this._probeVersion();
+    }
+
+    async _probeVersion() {
+        try {
+            const r = await axios.get(`${this.config.host}/api/version`, { timeout: 5000 });
+            const v = r.data?.version || '';
+            const [maj, min] = v.split('.').map(Number);
+            if (maj === 0 && min < 5) {
+                console.warn(
+                    `[OLLAMA] daemon ${v} < 0.5.0 — schema-constrained format ignored, ` +
+                    `falling back to free-form JSON. Upgrade Ollama for envelope guarantees.`
+                );
+            }
+        } catch (e) {
+            // Non-fatal — daemon may not be up at adapter init time
+        }
+    }
+
     async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
         rejectImage('Ollama', image);
         const url = `${this.config.host}/api/chat`;
@@ -143,8 +174,23 @@ class OllamaAdapter extends LLMAdapter {
         const response = await axios.post(url, {
             model: this.config.model,
             messages: messages,
-            format: this.config.format || 'json',
-            stream: this.config.stream || false
+            // Grammar-constrained sampling against the canonical envelope shape.
+            // Ollama 0.5+ compiles this to a GBNF grammar via llama.cpp; older
+            // daemons silently ignore the object and behave as `format: 'json'`,
+            // which is the prior behavior — degrades safely.
+            format: ENVELOPE_SCHEMA,
+            stream: this.config.stream || false,
+            // Suppress hybrid-reasoning scratchpad (qwen3's <think> blocks).
+            // Not part of constrained-decoding output but can leak on some
+            // daemon versions if the flag is omitted.
+            think: false,
+            options: {
+                // Conversation history + RAG context can push past Ollama's
+                // default 2048-token window mid-conversation; window-overflow
+                // failures look identical to schema mismatches and are easy
+                // to misdiagnose.
+                num_ctx: 16384,
+            },
         }, {
             timeout: this.config.timeout || 300000
         });

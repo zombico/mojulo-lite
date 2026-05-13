@@ -17,7 +17,7 @@ import { BuilderSessionRepository, SESSION_STATUS } from '@/lib/db/repositories/
 import { DocumentRepository } from '@/lib/db/repositories/documents.js';
 import { ApiKeyRepository } from '@/lib/db/repositories/apiKeys.js';
 import { decryptApiKey } from '@/lib/deployment-auth.js';
-import { getDefaultModelForTask } from '@/lib/llm-providers.js';
+import { getDefaultModelForTask, getAllowedProtocolsForModel } from '@/lib/llm-providers.js';
 import { saveBuilderConfig } from './executor.js';
 import { buildArtifact } from '@/lib/deployers/build.js';
 
@@ -53,9 +53,12 @@ async function getLLMConfigFromSession(session, userId, task = 'reasoning') {
     apiKeyRecord = apiKeys.find((k) => k.provider === defaultProvider);
   }
 
-  // Final fallback: anthropic > bedrock > others
+  // Final fallback: cloud providers first, then ollama. Local-only inference
+  // sits last so a user who has both Anthropic and Ollama keys doesn't get
+  // silently routed to the slower lane — they pick Ollama by marking it
+  // default, not by accident.
   if (!apiKeyRecord) {
-    const fallbackOrder = ['anthropic', 'bedrock', 'openai'];
+    const fallbackOrder = ['anthropic', 'bedrock', 'openai', 'ollama'];
     for (const provider of fallbackOrder) {
       apiKeyRecord = apiKeys.find((k) => k.provider === provider);
       if (apiKeyRecord) break;
@@ -715,6 +718,32 @@ const builderToolHandlers = {
         recommendations.triage.presetConfig = {
           routes: session.generatedConfigs.triage.routes,
         };
+      }
+    }
+
+    // Model-level gate: small Ollama models (qwen3, mistral-nemo) are only
+    // reliable at single-turn knowledge Q&A. Force-disable the stateful
+    // protocols regardless of what the heuristics above suggested. The
+    // wizard's enabledProtocols uses `formGathering`; this tool's shape uses
+    // `forms` — map across the boundary. The bot being built inherits the
+    // builder's default provider/model, so gating on preloadedContext is
+    // correct here.
+    const { defaultProvider, defaultModel } = session.preloadedContext || {};
+    const allowedForModel = getAllowedProtocolsForModel(defaultProvider, defaultModel);
+    if (allowedForModel) {
+      const toolKeyToWizardKey = {
+        knowledge: 'knowledge',
+        forms: 'formGathering',
+        appointments: 'appointments',
+        triage: 'triage',
+      };
+      const gateReason = `${defaultModel} only supports the knowledge protocol — switch to llama3.3 for multi-step flows.`;
+      for (const [toolKey, wizardKey] of Object.entries(toolKeyToWizardKey)) {
+        if (!allowedForModel.has(wizardKey) && recommendations[toolKey]) {
+          recommendations[toolKey].enabled = false;
+          recommendations[toolKey].reason = gateReason;
+          recommendations[toolKey].presetConfig = null;
+        }
       }
     }
 
