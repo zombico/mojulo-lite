@@ -43,11 +43,13 @@ export default function LLMProviderSelector({
           }`}
         >
           <option value="">{t('selectProvider')}</option>
-          {Object.entries(LLM_PROVIDERS).map(([key, config]) => (
-            <option key={key} value={key}>
-              {config.name}
-            </option>
-          ))}
+          {Object.entries(LLM_PROVIDERS)
+            .filter(([, config]) => !config.hidden)
+            .map(([key, config]) => (
+              <option key={key} value={key}>
+                {config.name}
+              </option>
+            ))}
         </select>
         {providerError && (
           <p className="mt-1 text-sm text-red-400">{providerError}</p>

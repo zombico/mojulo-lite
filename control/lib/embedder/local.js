@@ -1,7 +1,7 @@
 /**
  * Local embedding client for the control plane.
  *
- * Replaces the prior Cohere client. Loads multilingual-e5-small from the
+ * Loads multilingual-e5-small from the
  * pre-fetched ONNX cache at lib/embedder/models/ via @huggingface/transformers
  * and runs inference in-process. No network calls.
  *
@@ -54,7 +54,6 @@ function getExtractor() {
  * @param {string[]} texts
  * @param {Object} options
  * @param {'search_document' | 'search_query'} options.inputType
- *        Naming kept for parity with the old cohere.js signature.
  * @returns {Promise<number[][]>}
  */
 export async function generateEmbeddings(texts, { inputType } = {}) {

@@ -9,8 +9,10 @@ export default function APIKeySelector({
   apiKey,
   apiKeyId,
   hasStoredApiKey = false,
+  ollamaHost = '',
   onApiKeyChange,
   onApiKeyIdChange,
+  onOllamaHostChange,
   error,
 }) {
   const t = useTranslations('wizard.resources');
@@ -129,6 +131,100 @@ export default function APIKeySelector({
     onApiKeyIdChange?.(null);
     onApiKeyChange(e.target.value);
   };
+
+  // Render Ollama-specific UI: a host URL field, no credentials. The host
+  // is optional in the wizard — buildLLMConfig falls back to
+  // LLM_PROVIDERS.ollama.defaultHost when blank. Saved hosts from settings
+  // surface as picker chips below, the same shape the standard-provider
+  // branch uses for saved API keys.
+  if (provider === 'ollama') {
+    const placeholder = LLM_PROVIDERS.ollama?.defaultHost || 'http://host.docker.internal:11434';
+    const hostFieldDisabled = !!selectedSavedKey;
+    return (
+      <div className="space-y-3">
+        <div className="p-3 bg-teal-900/20 border border-teal-800 rounded-md">
+          <p className="text-xs text-teal-300">
+            {t('ollamaNoCredsNeeded')}
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="ollamaHost" className="block text-sm font-medium text-gray-300 mb-1">
+            {t('ollamaHost')}
+          </label>
+          <input
+            id="ollamaHost"
+            type="text"
+            autoComplete="off"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            value={selectedSavedKey ? '' : (ollamaHost || '')}
+            onChange={(e) => {
+              // Typing in the manual field invalidates any saved-host
+              // selection — same UX pattern as the standard-provider branch.
+              onApiKeyIdChange?.(null);
+              onOllamaHostChange?.(e.target.value);
+            }}
+            disabled={hostFieldDisabled}
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-60"
+            placeholder={selectedSavedKey ? t('ollamaHostSavedPlaceholder') : placeholder}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            {t('ollamaHostHelper')}
+          </p>
+        </div>
+
+        {selectedSavedKey && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-teal-400">
+              {t('ollamaHostUsingSaved')} <span className="font-medium">{selectedSavedKey.name}</span>
+            </p>
+            <button
+              type="button"
+              onClick={handleClearSavedKey}
+              className="text-xs text-red-400 hover:text-red-300 font-medium"
+            >
+              {t('apiKeyClear')}
+            </button>
+          </div>
+        )}
+
+        {loadingApiKeys ? (
+          <div className="text-sm text-gray-500">{t('apiKeyLoadingSaved')}</div>
+        ) : savedApiKeys.length > 0 ? (
+          <div>
+            <p className="text-xs font-medium text-gray-300 mb-2">
+              {t('ollamaHostOrUseSaved')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {savedApiKeys.map((key) => (
+                <button
+                  key={key.id}
+                  type="button"
+                  onClick={() => {
+                    handleSelectSavedKey(key.id);
+                    // Picking a saved host clears the manual field so wizard
+                    // state stays in sync with what the user sees. Server-side
+                    // resolution wins at deploy time either way, but the local
+                    // formData should not carry a stale host alongside an
+                    // apiKeyId reference.
+                    onOllamaHostChange?.('');
+                  }}
+                  className={`px-3 py-2 text-sm rounded-md border transition ${
+                    selectedSavedKeyId === key.id
+                      ? 'bg-teal-900/50 border-teal-500 text-teal-300 font-medium'
+                      : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500 hover:bg-gray-600'
+                  }`}
+                >
+                  {key.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   // Render Bedrock-specific UI
   if (provider === 'bedrock') {

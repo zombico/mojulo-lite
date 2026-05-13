@@ -15,6 +15,35 @@ export function providerSupportsVision(provider) {
   return VISION_PROVIDERS.has(provider);
 }
 
+/**
+ * Per-model protocol allowlist. Some local Ollama models (qwen3, mistral-nemo)
+ * are small enough that the multi-step instruction-following required by
+ * form-gathering, appointments, triage, and optical-read protocols is
+ * unreliable in practice — they can answer questions over a knowledge base
+ * but lose the thread on stateful flows. llama3.3 (70B) handles all
+ * protocols. Cloud providers are unrestricted.
+ *
+ * Returns `null` when all protocols are allowed (the common case). Returns a
+ * `Set` of allowed protocol IDs when the model is restricted.
+ *
+ * Protocol IDs match the wizard's `enabledProtocols` keys: knowledge,
+ * formGathering, appointments, triage, opticalRead.
+ */
+const RESTRICTED_OLLAMA_MODELS = new Set(['qwen3', 'mistral-nemo']);
+
+export function getAllowedProtocolsForModel(provider, model) {
+  if (provider === 'ollama' && RESTRICTED_OLLAMA_MODELS.has(model)) {
+    return new Set(['knowledge']);
+  }
+  return null;
+}
+
+export function isProtocolAllowedForModel(provider, model, protocolId) {
+  const allowed = getAllowedProtocolsForModel(provider, model);
+  if (!allowed) return true;
+  return allowed.has(protocolId);
+}
+
 export const LLM_PROVIDERS = {
   openai: {
     name: 'OpenAI',
@@ -32,6 +61,13 @@ export const LLM_PROVIDERS = {
   },
   bedrock: {
     name: 'AWS Bedrock (Claude)',
+    // Not surfaced in the UI yet. The provider is wired end-to-end (settings,
+    // wizard branch, generateSummary/generateStructured, deployer) but stays
+    // hidden until we're ready to support it publicly. Consumers that render
+    // a provider picker should filter on this flag; code paths keyed on
+    // `provider === 'bedrock'` continue to work for anyone driving the API
+    // directly.
+    hidden: true,
     // Base model IDs without geographic prefix - prefix is added dynamically based on region
     models: [
       { id: 'anthropic.claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
@@ -51,6 +87,26 @@ export const LLM_PROVIDERS = {
       { id: 'ap-southeast-1', name: 'Asia Pacific (Singapore)', geoPrefix: 'apac' },
     ],
     authModes: ['credentials', 'iam-role'],
+  },
+  ollama: {
+    name: 'Ollama (local)',
+    // Opinionated short list: all three are tool-capable in Ollama and have
+    // strong instruction-following for the envelope JSON shape. Plain mistral
+    // (7B, non-tool-capable) is intentionally omitted — users who want it can
+    // still pick a tool-capable model and pull it with `ollama pull <model>`.
+    // llama3.3 (70B) is the heaviest local option here — only viable on
+    // machines with the VRAM/unified memory to run a 70B model at usable
+    // speed; smaller hosts should stick to qwen3 or mistral-nemo.
+    models: ['qwen3', 'mistral-nemo', 'llama3.3'],
+    defaultModel: 'llama3.3',
+    // Canonical Ollama endpoint. We don't bundle Ollama — users run their
+    // own. This default works from the control plane (native Node) without
+    // assuming any topology. The bot artifact (Docker) needs a different
+    // host to reach the user's Ollama: `host.docker.internal:11434` on
+    // Mac/Windows, the host's LAN IP on Linux. The wizard helper text calls
+    // this out so savvy users override deliberately rather than getting a
+    // Docker-shaped default they didn't ask for.
+    defaultHost: 'http://localhost:11434',
   }
 };
 
@@ -81,6 +137,19 @@ export const MODEL_TIERS = {
     reasoning: 'anthropic.claude-sonnet-4-6',
     structured: 'anthropic.claude-haiku-4-5',
     summary: 'anthropic.claude-haiku-4-5',
+  },
+  ollama: {
+    // Single model across tiers — Ollama is local/free, so the cost-driven
+    // reasoning/structured/summary split that the cloud providers use doesn't
+    // apply. llama3.3 is natively tool-tuned (no <think> scratchpad to strip),
+    // handles grammar-constrained JSON via Ollama's `format` param, and writes
+    // clean prose — one warm model covers all three workloads. Note: it's a
+    // 70B model, so it only runs at usable speed on machines with the VRAM /
+    // unified memory to host it. Smaller hosts should override to qwen3 or
+    // mistral-nemo via the wizard.
+    reasoning: 'llama3.3',
+    structured: 'llama3.3',
+    summary: 'llama3.3',
   },
 };
 
@@ -156,8 +225,56 @@ export function stripBedrockModelPrefix(modelId) {
 }
 
 /**
+ * Resolve an Ollama host URL from the `apiKey` parameter passed through the
+ * shared generate*() entry points. The slot can carry one of three shapes:
+ *
+ *   - JSON `{"host":"http://..."}` — settings-resolved saved key
+ *   - bare URL string `http://...` — direct caller without saved key
+ *   - empty / null              — fall back to LLM_PROVIDERS.ollama.defaultHost
+ *
+ * Same pattern as Bedrock's `JSON.parse(apiKey)` discriminator; keeps the
+ * outer function signatures stable across providers.
+ *
+ * The host stored in deployment configs is intended for the bot artifact,
+ * which runs in Docker and reaches the host via `host.docker.internal`. The
+ * control plane (this code) usually runs natively (`npm run dev`) where that
+ * alias doesn't resolve. Two escape hatches:
+ *
+ *   1. process.env.OLLAMA_HOST wins outright — set this when the control
+ *      plane needs a different endpoint than the bot artifact (Dockerized
+ *      control plane, remote Ollama, tunneled endpoint).
+ *   2. Otherwise, rewrite `host.docker.internal` → `localhost` so a
+ *      stock-default deployment config works from a native control plane
+ *      without configuration. Set OLLAMA_HOST explicitly if you actually
+ *      want the control plane to use the Docker alias.
+ */
+export function resolveOllamaHost(apiKey) {
+  const envOverride = process.env.OLLAMA_HOST?.trim();
+  if (envOverride) return envOverride;
+
+  const fallback = LLM_PROVIDERS.ollama?.defaultHost || 'http://host.docker.internal:11434';
+  let resolved = fallback;
+  if (apiKey) {
+    const trimmed = String(apiKey).trim();
+    if (trimmed) {
+      if (trimmed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          resolved = parsed.host || fallback;
+        } catch {
+          resolved = fallback;
+        }
+      } else {
+        resolved = trimmed;
+      }
+    }
+  }
+  return resolved.replace(/host\.docker\.internal/gi, 'localhost');
+}
+
+/**
  * Generate summary using specified LLM provider
- * @param {string} provider - The LLM provider (openai, anthropic, bedrock)
+ * @param {string} provider - The LLM provider (openai, anthropic, bedrock, ollama)
  * @param {string} content - The content to summarize
  * @param {string} apiKey - The API key for the provider
  * @param {string} customPrompt - Optional custom prompt
@@ -205,6 +322,11 @@ Keep the summary clear, structured, and focused on what information is available
         credentials.region = 'us-east-1'; // Fallback region
       }
       return await generateSummaryWithBedrock(content, credentials, systemInstruction, selectedModel);
+    }
+
+    case 'ollama': {
+      const host = resolveOllamaHost(apiKey);
+      return await generateSummaryWithOllama(content, host, systemInstruction, selectedModel);
     }
 
     default:
@@ -348,6 +470,69 @@ async function generateSummaryWithBedrock(content, credentials, systemInstructio
 }
 
 /**
+ * Strip hybrid-reasoning scratchpad tags from Ollama model output. qwen3
+ * (and other hybrid-thinking models) emit `<think>...</think>` blocks before
+ * their actual answer; downstream call sites want clean prose. We pass
+ * `think: false` in the request as the canonical suppression, but keep this
+ * as defense in depth for models that ignore it or for older Ollama versions.
+ */
+function stripReasoningTags(text) {
+  if (!text) return text;
+  // Strip both well-formed and unterminated <think> blocks.
+  return text
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think\b[^>]*>[\s\S]*$/i, '')
+    .trim();
+}
+
+/**
+ * Generate summary via Ollama /api/chat. Free-text return; no JSON-mode hint
+ * because the call sites in tool-executors want prose digests, not structured
+ * output. Caller passes the resolved host directly.
+ */
+async function generateSummaryWithOllama(content, host, systemInstruction, model) {
+  const url = `${host.replace(/\/$/, '')}/api/chat`;
+  const hasContent = content && content.trim().length > 0;
+
+  // Ollama doesn't expose a separate `system` field; the system role inside
+  // messages is the supported shape and matches what the bot-runtime adapter
+  // sends in lite-template/helper/llm-client.js.
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      // Hybrid-reasoning models (qwen3) emit <think> scratchpad unless told
+      // to skip it. This flag is Ollama's official switch; ignored by
+      // non-thinking models, so it's safe to set unconditionally.
+      think: false,
+      messages: [
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: hasContent ? content : systemInstruction },
+      ],
+      options: {
+        // Bump the context window above Ollama's default 2048 — the chat
+        // builder's summary prompts can run past 4K when documents are large.
+        num_ctx: 16384,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Ollama API error (${response.status}): ${errorText || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const raw = data?.message?.content;
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('Ollama response contained no message.content');
+  }
+  return stripReasoningTags(raw) || 'No summary generated';
+}
+
+/**
  * Generate a structured object using specified LLM provider.
  *
  * Unlike generateSummary (free-text return), this routes each provider
@@ -392,6 +577,11 @@ export async function generateStructured(provider, content, apiKey, systemInstru
         credentials.region = 'us-east-1';
       }
       return await generateStructuredWithBedrock(content, credentials, systemInstruction, selectedModel, schema);
+    }
+
+    case 'ollama': {
+      const host = resolveOllamaHost(apiKey);
+      return await generateStructuredWithOllama(content, host, systemInstruction, selectedModel, schema);
     }
 
     default:
@@ -555,5 +745,71 @@ async function generateStructuredWithBedrock(content, credentials, systemInstruc
       throw new Error('Bedrock rate limit exceeded. Please try again in a few moments.');
     }
     throw error;
+  }
+}
+
+/**
+ * Generate a structured object via Ollama /api/chat with grammar-constrained
+ * sampling against the caller-supplied JSON schema.
+ *
+ * Ollama 0.5+ compiles the `format` schema into a GBNF grammar at the daemon
+ * and constrains token sampling to it — the model cannot emit non-conforming
+ * output. We initially tried pairing `format` with forced tool use to match
+ * the OpenAI/Anthropic response shape, but that combo caused the model to
+ * emit the constrained JSON into `message.content` and bypass the tool-call
+ * channel entirely. So this path drops the tool wrapper and reads
+ * `message.content` directly.
+ *
+ * Caveats:
+ *   - Requires Ollama ≥ 0.5.0. Older daemons silently ignore the schema and
+ *     return free-form JSON, which surfaces here as a parse error if the
+ *     model's free-form output doesn't match what the caller expects.
+ *   - No prompt caching. Every call re-processes the full system prompt +
+ *     schema. Acceptable for one-shot structured calls.
+ */
+async function generateStructuredWithOllama(content, host, systemInstruction, model, schema) {
+  const url = `${host.replace(/\/$/, '')}/api/chat`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      // Suppress hybrid-reasoning scratchpad on qwen3 — wasted tokens on the
+      // structured-output path where the model should emit the JSON directly.
+      think: false,
+      messages: [
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content },
+      ],
+      // Grammar-constrained sampling against the caller's schema. Daemon-side
+      // guarantee that `message.content` parses as a JSON object matching the
+      // schema. No `tools` — pairing `format` with forced tool use causes the
+      // constrained output to land in `content` instead of the tool call.
+      format: schema,
+      options: {
+        num_ctx: 16384,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Ollama API error (${response.status}): ${errorText || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const raw = data?.message?.content;
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('Ollama response contained no message.content');
+  }
+  // Defense in depth — grammar-constrained output should never carry markdown
+  // fences, but some daemon/model combos emit them anyway. Cheap to strip.
+  const jsonString = raw.replace(/```json|```/g, '').trim();
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    throw new Error(`Ollama returned malformed JSON: ${e.message}. Content: ${jsonString.slice(0, 200)}`);
   }
 }

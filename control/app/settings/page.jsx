@@ -8,7 +8,7 @@ import { locales, localeNames } from '@/i18n/config';
 
 const fetcher = (url) => fetch(url).then((r) => r.json());
 
-const LLM_PROVIDER_IDS_LIST = ['anthropic', 'openai', 'bedrock'];
+const LLM_PROVIDER_IDS_LIST = ['anthropic', 'openai', 'ollama'];
 const INFRA_PROVIDER_IDS_LIST = ['fly'];
 
 const LLM_PROVIDER_IDS = new Set(LLM_PROVIDER_IDS_LIST);
@@ -16,7 +16,7 @@ const INFRA_PROVIDER_IDS = new Set(INFRA_PROVIDER_IDS_LIST);
 
 const TAB_IDS = ['llm', 'provider', 'language'];
 
-function KeySection({ title, description, providers, keys, isLoading, defaultName, placeholderFor }) {
+function KeySection({ title, description, providers, keys, isLoading, defaultName, placeholderFor, labelFor }) {
   const t = useTranslations('settings.mojulo');
   const [name, setName] = useState(defaultName);
   const [provider, setProvider] = useState(providers[0].id);
@@ -32,7 +32,12 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
     const res = await fetch('/api/settings/api-keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, provider, apiKey, makeDefault }),
+      body: JSON.stringify({
+        name,
+        provider,
+        apiKey,
+        makeDefault: provider === 'ollama' ? false : makeDefault,
+      }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -89,7 +94,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
             </label>
           </div>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[color:var(--text-muted)]">{t('form.apiKey')}</span>
+            <span className="text-[color:var(--text-muted)]">{labelFor ? labelFor(provider) : t('form.apiKey')}</span>
             <input
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
@@ -97,14 +102,20 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
               className="rounded-lg bg-[color:var(--surface-elevated)] px-3 py-2 text-sm font-mono"
             />
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className={`flex items-center gap-2 text-sm ${provider === 'ollama' ? 'opacity-50' : ''}`}>
             <input
               type="checkbox"
-              checked={makeDefault}
+              checked={provider === 'ollama' ? false : makeDefault}
               onChange={(e) => setMakeDefault(e.target.checked)}
+              disabled={provider === 'ollama'}
             />
             {t('form.makeDefault')}
           </label>
+          {provider === 'ollama' && (
+            <p className="text-xs text-[color:var(--text-muted)] -mt-2">
+              {t('form.ollamaNoDefault')}
+            </p>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           <button
             type="submit"
@@ -140,7 +151,7 @@ function KeySection({ title, description, providers, keys, isLoading, defaultNam
                 <p className="text-[color:var(--text-muted)]">{k.provider}</p>
               </div>
               <div className="flex items-center gap-2">
-                {!k.isDefault && (
+                {!k.isDefault && k.provider !== 'ollama' && (
                   <button
                     onClick={() => setDefault(k.id)}
                     className="text-xs px-2 py-1 rounded border border-[color:var(--border-color)]"
@@ -226,7 +237,15 @@ function SettingsPageInner() {
 
   function llmPlaceholder(provider) {
     if (provider === 'bedrock') return t('llm.bedrockPlaceholder');
+    if (provider === 'ollama') return t('llm.ollamaPlaceholder');
     return t('llm.placeholder');
+  }
+
+  // Ollama doesn't have an API key — the "credential" slot stores the host
+  // URL of the user's Ollama instance. Label adapts to match.
+  function llmLabel(provider) {
+    if (provider === 'ollama') return t('form.ollamaHost');
+    return t('form.apiKey');
   }
 
   function infraPlaceholder(provider) {
@@ -278,6 +297,7 @@ function SettingsPageInner() {
                 isLoading={isLoading}
                 defaultName={t('llm.defaultName')}
                 placeholderFor={llmPlaceholder}
+                labelFor={llmLabel}
               />
             )}
             {activeTab === 'provider' && (

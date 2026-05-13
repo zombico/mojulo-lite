@@ -105,6 +105,8 @@ Classifies the bot type — `support_bot`, `lead_gen`, `appointment_scheduler`, 
 
 Returns a recommendation map: `{ knowledge: bool, formGathering: bool, appointments: bool, triage: bool }`. The recommendation is *what should be enabled*, not *what is enabled* — the user confirms before `save_modular_bot` runs. The handler reasons from intent + digest + message, but the final say is the user's via the `confirmedProtocols` argument to `save_modular_bot`.
 
+The handler clamps its suggestions against the active provider/model's allowlist via [isProtocolAllowedForModel](../control/lib/llm-providers.js). On small Ollama models (qwen3, mistral-nemo) any non-`knowledge` slot comes back disabled with a "switch to llama3.3 for this" reason — the built bot inherits the builder's lane, so the recommendation has to match what the bot will actually be able to run. Cloud providers and llama3.3 are unrestricted. The same gate fires again at `save_modular_bot` time inside [buildDeploymentConfig](../control/lib/config-builder.js), so a `confirmedProtocols` payload that re-adds a disabled slot fails fast.
+
 ### `generate_form_schema`
 
 Only called if forms were recommended and the user wants them. Generates the locale-aware schema described in [form-collection.md](form-collection.md): field types, regex patterns appropriate for the locale, GDPR hints, an `afterSubmitChatMessage`. The form JSON is what the bot client renders into ghost-form bubbles at runtime — PII never reaches the LLM, only an opaque `{contact_form_filled}` marker does.

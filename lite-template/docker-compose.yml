@@ -14,8 +14,6 @@ services:
       - LLM_PROVIDER=${LLM_PROVIDER:-gemini}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - COHERE_API_KEY=${COHERE_API_KEY}
     # Uncomment to override documents/config at runtime (for testing)
     volumes:
       - ./data:/data

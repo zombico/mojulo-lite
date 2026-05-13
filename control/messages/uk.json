@@ -892,7 +892,10 @@
       "awsUsingIamRoleStatus": "Використовується IAM-роль",
       "awsCredentialsConfigured": "Облікові дані AWS налаштовано",
       "awsLoadingCredentials": "Завантаження збережених облікових даних...",
-      "awsOrUseSaved": "Або використайте збережені облікові дані AWS:"
+      "awsOrUseSaved": "Або використайте збережені облікові дані AWS:",
+      "ollamaNoCredsNeeded": "Ollama працює з вашою власною кінцевою точкою — API-ключ не потрібен.",
+      "ollamaHost": "URL хоста Ollama",
+      "ollamaHostHelper": "Залиште порожнім, щоб використати значення за замовчуванням (http://host.docker.internal:11434). У Linux додайте extra_hosts до docker-compose.yml або використайте LAN IP вашого хоста. Хмарні розгортання потребують публічно доступної кінцевої точки Ollama."
     },
     "knowledge": {
       "loadingDocuments": "Завантаження документів...",

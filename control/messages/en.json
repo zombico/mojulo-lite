@@ -350,6 +350,7 @@
       "opticalRead": "Optical Read",
       "opticalReadDescription": "Extract structured data from an uploaded image using a vision-capable LLM",
       "opticalReadProviderGate": "Optical Read requires a vision-capable provider. Anthropic and OpenAI are supported.",
+      "modelGate": "This model only supports the knowledge protocol. Switch to llama3.3 (Ollama) or a cloud provider to enable multi-step flows.",
       "exampleFaq": "FAQ chatbots",
       "exampleDocumentation": "Documentation assistants",
       "exampleProductSupport": "Product support",
@@ -875,6 +876,12 @@
       "apiKeyEncryptedHelper": "Your API key is encrypted and stored securely",
       "apiKeyLoadingSaved": "Loading saved keys...",
       "apiKeyOrUseSaved": "Or use a saved API key:",
+      "ollamaNoCredsNeeded": "Ollama runs against your own endpoint — no API key needed.",
+      "ollamaHost": "Ollama host URL",
+      "ollamaHostHelper": "The endpoint your bot will hit. Leave blank to default to http://localhost:11434. If your bot runs in Docker and Ollama runs on the host, use http://host.docker.internal:11434 (Mac/Windows) or your host's LAN IP (Linux). Cloud deploys need a publicly reachable Ollama endpoint. Requires Ollama ≥ 0.5.0 for envelope-validity guarantees — older daemons work but fall back to best-effort JSON parsing.",
+      "ollamaHostSavedPlaceholder": "Using saved host — clear to type a fresh URL",
+      "ollamaHostUsingSaved": "Using saved Ollama host:",
+      "ollamaHostOrUseSaved": "Or use a saved Ollama host:",
       "awsCredentialsUsing": "Using saved AWS credentials:",
       "awsCredentialsExisting": "Existing AWS credentials configured — will be reused unless you enter new ones below",
       "awsUseIamRole": "Use IAM Role (recommended for EKS/EC2)",
@@ -1414,7 +1421,9 @@
         "name": "Display name",
         "provider": "Provider",
         "apiKey": "API key",
+        "ollamaHost": "Host URL",
         "makeDefault": "Make this the default key",
+        "ollamaNoDefault": "Ollama can't be the default — the chat builder needs a cloud provider.",
         "saving": "Saving…",
         "save": "Save key",
         "saveError": "Save failed"
@@ -1433,10 +1442,12 @@
         "defaultName": "Default",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (paste JSON credentials)"
+          "bedrock": "AWS Bedrock (paste JSON credentials)",
+          "ollama": "Ollama (local — paste host URL)"
         }
       },
       "provider": {

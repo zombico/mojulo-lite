@@ -34,11 +34,28 @@ export async function POST(request) {
     );
   }
 
+  // The default key powers the chat builder, whose agentic tool-use loop
+  // relies on cloud-provider reliability and latency. Ollama keys can exist
+  // (the wizard / bot artifact still uses them) but must never hold the
+  // default flag — silently coerce instead of erroring so legacy clients
+  // sending the old `makeDefault: true` payload still succeed.
+  const effectiveMakeDefault = provider === 'ollama' ? false : makeDefault;
+
+  // Ollama doesn't have a secret — the "credential" slot holds the endpoint
+  // URL. We serialize it as JSON {"host": "..."} so the on-disk shape mirrors
+  // Bedrock's encrypted-JSON pattern and resolveSavedApiKeyIntoConfig can
+  // discriminate cleanly. Running a non-secret through encryptApiKey is
+  // semantically odd but reuses the existing row contract (encryptedKey NOT
+  // NULL) without a schema change.
+  const storedSecret = provider === 'ollama'
+    ? JSON.stringify({ host: apiKey.trim() })
+    : apiKey;
+
   const created = await ApiKeyRepository.create({
     name,
     provider,
-    encryptedKey: encryptApiKey(apiKey),
-    isDefault: makeDefault,
+    encryptedKey: encryptApiKey(storedSecret),
+    isDefault: effectiveMakeDefault,
   });
 
   return NextResponse.json({ key: redact(created) }, { status: 201 });

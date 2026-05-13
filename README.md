@@ -38,7 +38,7 @@ Both produce a `<bot>.zip`. One image, one config, one command.
 **Also included**
 
 - **Two builders, same output.** Conversational builder for fast iteration, structured wizard for precision.
-- **Multiple LLM providers.** OpenAI, Anthropic, AWS Bedrock — pick at build time, swap by editing `.env`.
+- **Multiple LLM providers.** OpenAI, Anthropic, or local Ollama — pick at build time, swap by editing `.env`. Cloud providers and llama3.3 (70B, ~75GB resident) run every protocol; smaller local models (qwen3, mistral-nemo) are gated to knowledge-base bots where the multi-step tool-use a forms/appointments/triage bot needs is unreliable.
 - **Protocol cartridges.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing, optical read.
 - **Localized bot UI and form validation across 20 locales.** The chat widget and ghost-form error messages render in the user's language without operator configuration.
 - **One-click cloud deploy** to Fly.io — paste a token in Settings, click Deploy. Persistent volume, autostart on request, autostop when idle. No shell, no `flyctl`.
@@ -74,7 +74,7 @@ npm run dev
 
 Open `http://localhost:3001` and:
 
-1. **Settings → Provider Keys** — paste at least one LLM provider key (Anthropic / OpenAI / Bedrock). Optionally add a Fly.io token in the same place if you want one-click cloud deploy. The same store powers the builder, gets baked into compiled bots, and authenticates cloud deploys.
+1. **Settings → Provider Keys** — paste at least one LLM provider key (Anthropic / OpenAI), or point the wizard at a local Ollama host. Optionally add a Fly.io token in the same place if you want one-click cloud deploy. The same store powers the builder, gets baked into compiled bots, and authenticates cloud deploys.
 2. **Chat builder** or **Wizard** — describe the bot.
 3. **My bots** — pick how to run your bot:
    - **Deploy to cloud** — ship it to Fly.io with one click.

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { LLM_PROVIDERS, providerSupportsVision } from '@/lib/llm-providers';
+import { LLM_PROVIDERS, providerSupportsVision, getAllowedProtocolsForModel } from '@/lib/llm-providers';
 
 const ModularWizardContext = createContext(null);
 
@@ -184,6 +184,10 @@ const createInitialState = () => ({
     provider: 'anthropic',
     model: LLM_PROVIDERS.anthropic.defaultModel,
     apiKey: '',
+    // Ollama lane: host URL. Empty string means "fall back to the provider
+    // entry's defaultHost when the artifact is built" — kept out of apiKey
+    // so the credential-encryption path never touches it.
+    ollamaHost: '',
     apiKeyId: null,
     // Edit mode only: GET endpoint reports a stored credential exists for
     // the selected provider. Lets the wizard mark the credential step
@@ -287,12 +291,33 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
     }));
   }, []);
 
-  // Update core fields
+  // Update core fields. When the provider or model changes, prune
+  // enabledProtocols to whatever the new (provider, model) pair allows —
+  // otherwise a user who enabled form-gathering on llama3.3 could silently
+  // ship it after switching to qwen3, which can't reliably run that flow.
+  // The UI also disables those cards, but state can drift across step
+  // navigation, so the source-of-truth lives here.
   const updateCore = useCallback((updates) => {
-    setState(prev => ({
-      ...prev,
-      core: { ...prev.core, ...updates },
-    }));
+    setState(prev => {
+      const nextCore = { ...prev.core, ...updates };
+      const providerChanged = 'provider' in updates && updates.provider !== prev.core.provider;
+      const modelChanged = 'model' in updates && updates.model !== prev.core.model;
+      if (!providerChanged && !modelChanged) {
+        return { ...prev, core: nextCore };
+      }
+      const allowed = getAllowedProtocolsForModel(nextCore.provider, nextCore.model);
+      if (!allowed) {
+        return { ...prev, core: nextCore };
+      }
+      const prunedProtocols = Object.fromEntries(
+        Object.entries(prev.enabledProtocols).map(([id, on]) => [id, on && allowed.has(id)])
+      );
+      return {
+        ...prev,
+        core: nextCore,
+        enabledProtocols: prunedProtocols,
+      };
+    });
   }, []);
 
   // Update identity fields
@@ -328,7 +353,7 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
       const newState = { ...prev };
 
       // Map updates to appropriate state sections
-      const coreFields = ['provider', 'model', 'apiKey', 'apiKeyId', 'hasStoredApiKey', 'botName', 'objective', 'botSummary'];
+      const coreFields = ['provider', 'model', 'apiKey', 'ollamaHost', 'apiKeyId', 'hasStoredApiKey', 'botName', 'objective', 'botSummary'];
       const identityFields = ['firstMessage', 'chatDisplayName', 'placeholder', 'suggestedPrompts'];
       const knowledgeFields = ['skipRag', 'documents', 'embeddings'];
       const formFields = ['formLocale', 'formStructureInput', 'generatedFormJson', 'formCompletionWebhook', 'afterSubmitChatMessage', 'formSendHome', 'enableFormCollection', 'termsAndConditions'];
@@ -436,7 +461,11 @@ export function ModularWizardProvider({ children, initialData = null, botSpaceId
         // the browser — the deploy route resolves it server-side. In edit
         // mode, hasStoredApiKey signals an existing on-file credential the
         // PATCH route will preserve if no new one is supplied.
-        if (state.core.apiKeyId || state.core.hasStoredApiKey) {
+        if (state.core.provider === 'ollama') {
+          // Ollama is credential-less; the host URL is the only transport
+          // input and it falls back to defaultHost in buildLLMConfig if
+          // left blank. Nothing to validate at the wizard layer.
+        } else if (state.core.apiKeyId || state.core.hasStoredApiKey) {
           // Saved key picked or existing key on file — no fresh paste needed.
         } else if (state.core.provider === 'bedrock') {
           if (!state.core.apiKey) {

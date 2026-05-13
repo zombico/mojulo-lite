@@ -3,7 +3,12 @@
  * Transforms simple form data into the config.json structure expected by dragbot-factory
  */
 
-import { LLM_PROVIDERS, buildBedrockModelId, stripBedrockModelPrefix } from './llm-providers.js';
+import {
+  LLM_PROVIDERS,
+  buildBedrockModelId,
+  stripBedrockModelPrefix,
+  getAllowedProtocolsForModel,
+} from './llm-providers.js';
 
 /**
  * Extract terms and conditions text from formStructure's consentToTC field
@@ -71,7 +76,28 @@ export function buildLLMConfig(provider, apiKey, model, additionalSettings = {})
   Object.keys(LLM_PROVIDERS).forEach(key => {
     const keyConfig = LLM_PROVIDERS[key];
 
-    if (key === 'bedrock') {
+    if (key === 'ollama') {
+      // Ollama runs against a self-hosted endpoint with no credentials. The
+      // wizard collects host + model; everything else uses defaults baked
+      // into the runtime adapter. additionalSettings.ollamaHost falls back
+      // to the provider's defaultHost so a user who never touches the host
+      // field still ends up with a working artifact.
+      if (key === provider) {
+        llmConfig[key] = {
+          host: additionalSettings.ollamaHost || keyConfig.defaultHost,
+          model,
+          format: 'json',
+          timeout: 300000,
+        };
+      } else {
+        llmConfig[key] = {
+          host: keyConfig.defaultHost,
+          model: keyConfig.defaultModel,
+          format: 'json',
+          timeout: 300000,
+        };
+      }
+    } else if (key === 'bedrock') {
       // Bedrock uses different config structure (credentials stored as JSON in apiKey)
       if (key === provider && !usingSavedKey) {
         // Parse credentials from apiKey JSON
@@ -179,13 +205,39 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
   const isOpticalRead = flowType === 'modular' && enabledProtocols?.opticalRead;
   const isSkipRag = !!formData.skipRag;
 
-  const required = apiKeyId
+  // Ollama is credential-less — no apiKey, no saved-key reference. Validate
+  // host + model only; the deployer bakes the host into config.json and the
+  // bot's adapter calls it directly. Default host falls back to the provider
+  // entry's defaultHost in buildLLMConfig if the field is empty.
+  const isOllama = formData.provider === 'ollama';
+  const required = (apiKeyId || isOllama)
     ? ['botName', 'objective', 'provider', 'model']
     : ['botName', 'objective', 'provider', 'apiKey', 'model'];
   const missing = required.filter(field => !formData[field]);
 
   if (missing.length > 0) {
     throw new Error(`Missing required fields: ${missing.join(', ')}`);
+  }
+
+  // Final-line-of-defense protocol gate. The wizard prunes enabledProtocols
+  // when the user changes provider/model, and the chat builder's
+  // recommend_protocols clamps its suggestions; this catches any path that
+  // bypasses both (direct API caller, replay of a stale session, etc.).
+  // Restricted Ollama models (qwen3, mistral-nemo) can only ship the
+  // knowledge protocol — refuse to compile a config that says otherwise.
+  if (flowType === 'modular' && enabledProtocols) {
+    const allowedForModel = getAllowedProtocolsForModel(formData.provider, formData.model);
+    if (allowedForModel) {
+      const disallowed = Object.entries(enabledProtocols)
+        .filter(([id, on]) => on && !allowedForModel.has(id))
+        .map(([id]) => id);
+      if (disallowed.length > 0) {
+        throw new Error(
+          `${formData.model} only supports: ${Array.from(allowedForModel).join(', ')}. ` +
+          `Disable these protocols or switch to a more capable model: ${disallowed.join(', ')}.`
+        );
+      }
+    }
   }
 
   const configSection = {
@@ -268,7 +320,10 @@ export function buildDeploymentConfig(formData, flowType = 'conversational', opt
       formData.provider,
       formData.apiKey,
       formData.model,
-      formData.llmSettings || {}
+      {
+        ...(formData.llmSettings || {}),
+        ollamaHost: formData.ollamaHost,
+      }
     ),
 
     // Extra fields for deployer (not part of config.json)
@@ -307,8 +362,11 @@ export function parseDeploymentConfig(config) {
   const provider = config.llm.provider;
   const providerConfig = config.llm[provider];
 
-  // For Bedrock, apiKey is JSON credentials; for others it's the key itself
+  // For Bedrock, apiKey is JSON credentials; for others it's the key itself.
+  // Ollama has no credentials — just a host URL that round-trips into the
+  // wizard's ollamaHost field.
   let apiKey = '';
+  let ollamaHost = '';
   let model = providerConfig.model;
   if (provider === 'bedrock') {
     apiKey = JSON.stringify({
@@ -319,6 +377,8 @@ export function parseDeploymentConfig(config) {
     });
     // Strip geographic prefix from model ID so it matches dropdown options
     model = stripBedrockModelPrefix(model);
+  } else if (provider === 'ollama') {
+    ollamaHost = providerConfig.host || '';
   } else {
     apiKey = providerConfig.apiKey || '';
   }
@@ -333,6 +393,7 @@ export function parseDeploymentConfig(config) {
     provider,
     model,
     apiKey,
+    ollamaHost,
 
     // Form Structure (if it exists)
     formStructure: config.formStructure ? {
@@ -388,10 +449,12 @@ export function parseModularDeploymentConfig(config, options = {}) {
     opticalRead: (config.opticalReadFields?.length > 0) || !!config.config?.isOpticalRead,
   };
 
-  // Compute core fields (handles Bedrock vs standard providers)
+  // Compute core fields (handles Bedrock vs standard providers; Ollama
+  // carries a host instead of a key)
   const coreProvider = config.llm?.provider || 'anthropic';
   const coreProviderConfig = config.llm?.[coreProvider] || {};
   let coreApiKey = '';
+  let coreOllamaHost = '';
   let coreModel = coreProviderConfig.model || '';
   if (coreProvider === 'bedrock') {
     coreApiKey = JSON.stringify({
@@ -402,6 +465,8 @@ export function parseModularDeploymentConfig(config, options = {}) {
     });
     // Strip geographic prefix from model ID so it matches dropdown options
     coreModel = stripBedrockModelPrefix(coreModel);
+  } else if (coreProvider === 'ollama') {
+    coreOllamaHost = coreProviderConfig.host || '';
   } else {
     coreApiKey = coreProviderConfig.apiKey || '';
   }
@@ -415,6 +480,7 @@ export function parseModularDeploymentConfig(config, options = {}) {
       provider: coreProvider,
       model: coreModel,
       apiKey: coreApiKey,
+      ollamaHost: coreOllamaHost,
       apiKeyId: null,
       hasStoredApiKey: !!options.hasStoredApiKey,
       botName: config.config?.name || '',
@@ -556,6 +622,11 @@ export function validateDeploymentConfig(config) {
     if (!providerConfig?.useIamRole && (!providerConfig?.accessKeyId || !providerConfig?.secretAccessKey)) {
       errors.push('AWS Access Key ID and Secret Access Key are required (or enable IAM Role)');
     }
+  } else if (provider === 'ollama') {
+    // Ollama is credential-less; host is the only required transport field.
+    // buildLLMConfig falls back to defaultHost when the wizard leaves it
+    // blank, so this should only fail if someone hand-constructs a config.
+    if (!providerConfig?.host) errors.push('Ollama host URL is required');
   } else {
     // Standard API key validation for other providers
     if (!providerConfig?.apiKey) errors.push('API key is required');
