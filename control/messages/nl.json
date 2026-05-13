@@ -2194,5 +2194,14 @@
       "openBot": "Bot openen",
       "viewInBotSpace": "Bekijk in botruimte"
     }
+  },
+  "login": {
+    "subtitle": "Log in om door te gaan",
+    "username": "Gebruikersnaam",
+    "password": "Wachtwoord",
+    "signIn": "Inloggen",
+    "signingIn": "Bezig met inloggen…",
+    "signOut": "Uitloggen",
+    "invalid": "Ongeldige gebruikersnaam of wachtwoord"
   }
 }

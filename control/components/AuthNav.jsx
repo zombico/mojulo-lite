@@ -1,9 +1,11 @@
 'use client';
 
-// Lite is single-user — there's no sign-in/out flow. This is a minimal top
-// bar shared across the app: brand-as-home on the left, settings on the right.
+// Lite is single-user. Top bar: brand-as-home on the left, settings on the
+// right. When CONTROL_PLANE_USER/PASSWORD are set in env, layout.js passes
+// authEnabled=true and a logout link is rendered next to settings.
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 function HomeIcon({ className = 'h-4 w-4' }) {
@@ -45,8 +47,38 @@ function GearIcon({ className = 'h-4 w-4' }) {
   );
 }
 
-export default function AuthNav() {
+function SignOutIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M15 17l5-5-5-5" />
+      <path d="M20 12H9" />
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    </svg>
+  );
+}
+
+export default function AuthNav({ authEnabled = false }) {
   const tSettings = useTranslations('settings');
+  const tLogin = useTranslations('login');
+  const router = useRouter();
+
+  async function onLogout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    router.replace('/login');
+  }
+
   return (
     <nav className="w-full border-b border-[color:var(--border-color)] bg-[color:var(--surface-primary)] px-4 py-2 flex items-center justify-between text-sm">
       <Link href="/" className="font-semibold tracking-tight inline-flex items-center gap-2">
@@ -58,6 +90,16 @@ export default function AuthNav() {
           <GearIcon />
           {tSettings('title')}
         </Link>
+        {authEnabled ? (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex items-center gap-1.5 hover:text-white"
+          >
+            <SignOutIcon />
+            {tLogin('signOut')}
+          </button>
+        ) : null}
       </div>
     </nav>
   );

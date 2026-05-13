@@ -163,9 +163,7 @@ See [ARCHITECTURE.md §7](ARCHITECTURE.md) for the trust model.
 
 ## Security & deployment posture
 
-The control plane has **no built-in authentication**, by design. Wiring half-baked auth into a single-user, self-hosted tool tends to create false confidence — better to pick the gating that already matches your environment.
-
-Choose one:
+The control plane ships with an **opt-in HTTP login** as a last-line-of-defense affordance. Set `CONTROL_PLANE_USER` and `CONTROL_PLANE_PASSWORD` in `control/.env` to enable it; leave them blank to preserve the historical no-auth default. Sessions are HMAC-signed with the password itself, so rotating the password invalidates every outstanding session with no extra bookkeeping. The login is intentionally minimal — no MFA, no lockout, no multi-user — and should not be treated as a substitute for network isolation. Pick the gating that matches your environment:
 
 - **Run on `localhost`** (the default). Bind to `127.0.0.1`, never expose port 3001. This is the right posture for "build a bot on my laptop, ship the artifact."
 - **Tailscale / WireGuard / VPN.** Reach the control plane only from your tailnet or VPN. Zero-config, works offline, no public surface.

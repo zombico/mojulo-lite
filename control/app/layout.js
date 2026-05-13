@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getLocale } from 'next-intl/server';
 import AuthNav from '@/components/AuthNav';
 import { rtlLocales } from '@/i18n/config';
+import { isAuthEnabled } from '@/lib/auth/session';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
@@ -23,6 +24,7 @@ export default async function RootLayout({ children }) {
   const messages = await getMessages();
 
   const dir = rtlLocales.has(locale) ? 'rtl' : 'ltr';
+  const authEnabled = isAuthEnabled();
 
   return (
     <html lang={locale} dir={dir}>
@@ -30,7 +32,7 @@ export default async function RootLayout({ children }) {
         className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`}
       >
         <NextIntlClientProvider messages={messages}>
-          <AuthNav />
+          <AuthNav authEnabled={authEnabled} />
           {children}
         </NextIntlClientProvider>
       </body>

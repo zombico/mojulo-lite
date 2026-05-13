@@ -2194,5 +2194,14 @@
       "openBot": "Otwórz bota",
       "viewInBotSpace": "Wyświetl w przestrzeni botów"
     }
+  },
+  "login": {
+    "subtitle": "Zaloguj się, aby kontynuować",
+    "username": "Nazwa użytkownika",
+    "password": "Hasło",
+    "signIn": "Zaloguj się",
+    "signingIn": "Logowanie…",
+    "signOut": "Wyloguj się",
+    "invalid": "Nieprawidłowa nazwa użytkownika lub hasło"
   }
 }

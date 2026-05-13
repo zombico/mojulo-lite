@@ -2194,5 +2194,14 @@
       "openBot": "Abrir bot",
       "viewInBotSpace": "Ver en Bot Space"
     }
+  },
+  "login": {
+    "subtitle": "Inicia sesión para continuar",
+    "username": "Nombre de usuario",
+    "password": "Contraseña",
+    "signIn": "Iniciar sesión",
+    "signingIn": "Iniciando sesión…",
+    "signOut": "Cerrar sesión",
+    "invalid": "Nombre de usuario o contraseña inválidos"
   }
 }
