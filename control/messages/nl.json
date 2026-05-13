@@ -350,6 +350,7 @@
       "opticalRead": "Optical Read",
       "opticalReadDescription": "Extraheer gestructureerde data uit een geüploade afbeelding met een visueel capabele LLM",
       "opticalReadProviderGate": "Optical Read vereist een visueel capabele provider. Anthropic en OpenAI worden ondersteund.",
+      "modelGate": "Dit model ondersteunt alleen het kennisprotocol. Schakel over naar llama3.3 (Ollama) of een cloudprovider om multi-step flows in te schakelen.",
       "exampleFaq": "FAQ-chatbots",
       "exampleDocumentation": "Documentatie-assistenten",
       "exampleProductSupport": "Productondersteuning",
@@ -877,7 +878,10 @@
       "apiKeyOrUseSaved": "Of gebruik een opgeslagen API-sleutel:",
       "ollamaNoCredsNeeded": "Ollama draait op je eigen endpoint — geen API-sleutel nodig.",
       "ollamaHost": "Ollama host-URL",
-      "ollamaHostHelper": "Laat leeg om de standaardwaarde te gebruiken (http://host.docker.internal:11434). Voeg op Linux extra_hosts toe aan docker-compose.yml of gebruik het LAN-IP van je host. Cloud-deployments hebben een publiek bereikbaar Ollama-endpoint nodig.",
+      "ollamaHostHelper": "Het endpoint dat je bot zal aanspreken. Laat leeg om standaard http://localhost:11434 te gebruiken. Als je bot in Docker draait en Ollama op de host draait, gebruik dan http://host.docker.internal:11434 (Mac/Windows) of het LAN-IP van je host (Linux). Cloud-deployments hebben een publiek bereikbaar Ollama-endpoint nodig. Vereist Ollama ≥ 0.5.0 voor envelope-validity-garanties — oudere daemons werken, maar vallen terug op best-effort JSON-parsing.",
+      "ollamaHostSavedPlaceholder": "Opgeslagen host wordt gebruikt — wis om een nieuwe URL te typen",
+      "ollamaHostUsingSaved": "Opgeslagen Ollama-host wordt gebruikt:",
+      "ollamaHostOrUseSaved": "Of gebruik een opgeslagen Ollama-host:",
       "awsCredentialsUsing": "Opgeslagen AWS-credentials worden gebruikt:",
       "awsCredentialsExisting": "Bestaande AWS-credentials geconfigureerd — worden hergebruikt tenzij je hieronder nieuwe invoert",
       "awsUseIamRole": "Gebruik IAM-rol (aanbevolen voor EKS/EC2)",
@@ -1417,7 +1421,9 @@
         "name": "Weergavenaam",
         "provider": "Provider",
         "apiKey": "API-sleutel",
+        "ollamaHost": "Host-URL",
         "makeDefault": "Maak dit de standaardsleutel",
+        "ollamaNoDefault": "Ollama kan niet de standaard zijn — de chatbouwer heeft een cloudprovider nodig.",
         "saving": "Opslaan…",
         "save": "Sleutel opslaan",
         "saveError": "Opslaan mislukt"
@@ -1436,10 +1442,12 @@
         "defaultName": "Standaard",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (plak JSON-credentials)"
+          "bedrock": "AWS Bedrock (plak JSON-credentials)",
+          "ollama": "Ollama (lokaal — plak host-URL)"
         }
       },
       "provider": {

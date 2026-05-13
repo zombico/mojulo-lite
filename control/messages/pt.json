@@ -350,6 +350,7 @@
       "opticalRead": "Leitura Ótica",
       "opticalReadDescription": "Extraia dados estruturados de uma imagem carregada usando um LLM com capacidade de visão",
       "opticalReadProviderGate": "A Leitura Ótica requer um fornecedor com capacidade de visão. Anthropic e OpenAI são suportados.",
+      "modelGate": "Este modelo apenas suporta o protocolo de conhecimento. Mude para llama3.3 (Ollama) ou um fornecedor de cloud para ativar fluxos de múltiplos passos.",
       "exampleFaq": "Chatbots de FAQ",
       "exampleDocumentation": "Assistentes de documentação",
       "exampleProductSupport": "Suporte de produto",
@@ -877,7 +878,10 @@
       "apiKeyOrUseSaved": "Ou use uma chave de API guardada:",
       "ollamaNoCredsNeeded": "O Ollama é executado contra o seu próprio endpoint — não é necessária uma chave de API.",
       "ollamaHost": "URL do host Ollama",
-      "ollamaHostHelper": "Deixe em branco para usar o predefinido (http://host.docker.internal:11434). No Linux, adicione extra_hosts ao docker-compose.yml ou use o IP da LAN do seu host. Implementações na cloud requerem um endpoint Ollama publicamente acessível.",
+      "ollamaHostHelper": "O endpoint que o seu bot vai contactar. Deixe em branco para usar o predefinido http://localhost:11434. Se o seu bot correr em Docker e o Ollama correr no host, use http://host.docker.internal:11434 (Mac/Windows) ou o IP da LAN do seu host (Linux). Implementações na cloud requerem um endpoint Ollama publicamente acessível. Requer Ollama ≥ 0.5.0 para garantias de validade do envelope — daemons mais antigos funcionam mas recorrem a análise JSON de melhor esforço.",
+      "ollamaHostSavedPlaceholder": "A usar host guardado — limpe para escrever um novo URL",
+      "ollamaHostUsingSaved": "A usar host Ollama guardado:",
+      "ollamaHostOrUseSaved": "Ou use um host Ollama guardado:",
       "awsCredentialsUsing": "A usar credenciais AWS guardadas:",
       "awsCredentialsExisting": "Credenciais AWS existentes configuradas — serão reutilizadas a menos que introduza novas abaixo",
       "awsUseIamRole": "Usar IAM Role (recomendado para EKS/EC2)",
@@ -1417,7 +1421,9 @@
         "name": "Nome a apresentar",
         "provider": "Fornecedor",
         "apiKey": "Chave de API",
+        "ollamaHost": "URL do host",
         "makeDefault": "Tornar esta a chave predefinida",
+        "ollamaNoDefault": "O Ollama não pode ser o predefinido — o construtor de chat precisa de um fornecedor de cloud.",
         "saving": "A guardar…",
         "save": "Guardar chave",
         "saveError": "Falha ao guardar"
@@ -1436,10 +1442,12 @@
         "defaultName": "Predefinida",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (cole credenciais JSON)"
+          "bedrock": "AWS Bedrock (cole credenciais JSON)",
+          "ollama": "Ollama (local — cole URL do host)"
         }
       },
       "provider": {

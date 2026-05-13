@@ -350,6 +350,7 @@
       "opticalRead": "Оптичне зчитування",
       "opticalReadDescription": "Видобувайте структуровані дані із завантаженого зображення за допомогою LLM з підтримкою зору",
       "opticalReadProviderGate": "Оптичне зчитування потребує постачальника з підтримкою зору. Anthropic та OpenAI підтримуються.",
+      "modelGate": "Ця модель підтримує лише протокол бази знань. Перейдіть на llama3.3 (Ollama) або хмарного постачальника, щоб увімкнути багатокрокові потоки.",
       "exampleFaq": "Чат-боти FAQ",
       "exampleDocumentation": "Помічники з документацією",
       "exampleProductSupport": "Підтримка продуктів",
@@ -895,7 +896,10 @@
       "awsOrUseSaved": "Або використайте збережені облікові дані AWS:",
       "ollamaNoCredsNeeded": "Ollama працює з вашою власною кінцевою точкою — API-ключ не потрібен.",
       "ollamaHost": "URL хоста Ollama",
-      "ollamaHostHelper": "Залиште порожнім, щоб використати значення за замовчуванням (http://host.docker.internal:11434). У Linux додайте extra_hosts до docker-compose.yml або використайте LAN IP вашого хоста. Хмарні розгортання потребують публічно доступної кінцевої точки Ollama."
+      "ollamaHostHelper": "Кінцева точка, до якої звертатиметься ваш бот. Залиште порожнім, щоб використати значення за замовчуванням http://localhost:11434. Якщо ваш бот працює в Docker, а Ollama — на хості, використайте http://host.docker.internal:11434 (Mac/Windows) або LAN IP вашого хоста (Linux). Хмарні розгортання потребують публічно доступної кінцевої точки Ollama. Потребує Ollama ≥ 0.5.0 для гарантій валідності конверта — старіші демони працюють, але переходять до парсингу JSON за найкращих зусиль.",
+      "ollamaHostSavedPlaceholder": "Використовується збережений хост — очистіть, щоб ввести нову URL-адресу",
+      "ollamaHostUsingSaved": "Використовується збережений хост Ollama:",
+      "ollamaHostOrUseSaved": "Або використайте збережений хост Ollama:"
     },
     "knowledge": {
       "loadingDocuments": "Завантаження документів...",
@@ -1417,7 +1421,9 @@
         "name": "Відображуване ім’я",
         "provider": "Постачальник",
         "apiKey": "API-ключ",
+        "ollamaHost": "URL хоста",
         "makeDefault": "Зробити цей ключ типовим",
+        "ollamaNoDefault": "Ollama не може бути типовою — конструктору чату потрібен хмарний постачальник.",
         "saving": "Збереження…",
         "save": "Зберегти ключ",
         "saveError": "Помилка збереження"
@@ -1436,10 +1442,12 @@
         "defaultName": "Типовий",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (вставте JSON-облікові дані)"
+          "bedrock": "AWS Bedrock (вставте JSON-облікові дані)",
+          "ollama": "Ollama (локально — вставте URL хоста)"
         }
       },
       "provider": {

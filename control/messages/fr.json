@@ -350,6 +350,7 @@
       "opticalRead": "Lecture optique",
       "opticalReadDescription": "Extraire des données structurées d'une image téléversée à l'aide d'un LLM doté de vision",
       "opticalReadProviderGate": "La lecture optique nécessite un fournisseur doté de vision. Anthropic et OpenAI sont pris en charge.",
+      "modelGate": "Ce modèle ne prend en charge que le protocole de connaissances. Passe à llama3.3 (Ollama) ou à un fournisseur cloud pour activer les flux multi-étapes.",
       "exampleFaq": "Chatbots FAQ",
       "exampleDocumentation": "Assistants de documentation",
       "exampleProductSupport": "Support produit",
@@ -895,7 +896,10 @@
       "awsOrUseSaved": "Ou utilise des identifiants AWS enregistrés :",
       "ollamaNoCredsNeeded": "Ollama fonctionne avec ton propre endpoint — aucune clé API nécessaire.",
       "ollamaHost": "URL de l'hôte Ollama",
-      "ollamaHostHelper": "Laisse vide pour utiliser la valeur par défaut (http://host.docker.internal:11434). Sous Linux, ajoute extra_hosts à docker-compose.yml ou utilise l'IP LAN de ton hôte. Les déploiements cloud nécessitent un endpoint Ollama accessible publiquement."
+      "ollamaHostHelper": "L'endpoint que ton bot va contacter. Laisse vide pour utiliser http://localhost:11434 par défaut. Si ton bot tourne dans Docker et qu'Ollama tourne sur l'hôte, utilise http://host.docker.internal:11434 (Mac/Windows) ou l'IP LAN de ton hôte (Linux). Les déploiements cloud nécessitent un endpoint Ollama accessible publiquement. Nécessite Ollama ≥ 0.5.0 pour garantir la validité de l'enveloppe — les daemons plus anciens fonctionnent mais retombent sur un parsing JSON best-effort.",
+      "ollamaHostSavedPlaceholder": "Utilisation de l'hôte enregistré — efface pour saisir une nouvelle URL",
+      "ollamaHostUsingSaved": "Hôte Ollama enregistré utilisé :",
+      "ollamaHostOrUseSaved": "Ou utilise un hôte Ollama enregistré :"
     },
     "knowledge": {
       "loadingDocuments": "Chargement des documents…",
@@ -1417,7 +1421,9 @@
         "name": "Nom affiché",
         "provider": "Fournisseur",
         "apiKey": "Clé API",
+        "ollamaHost": "URL de l'hôte",
         "makeDefault": "Définir comme clé par défaut",
+        "ollamaNoDefault": "Ollama ne peut pas être la valeur par défaut — le constructeur de chat a besoin d'un fournisseur cloud.",
         "saving": "Enregistrement…",
         "save": "Enregistrer la clé",
         "saveError": "Échec de l'enregistrement"
@@ -1436,10 +1442,12 @@
         "defaultName": "Par défaut",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (colle les identifiants JSON)"
+          "bedrock": "AWS Bedrock (colle les identifiants JSON)",
+          "ollama": "Ollama (local — colle l'URL de l'hôte)"
         }
       },
       "provider": {

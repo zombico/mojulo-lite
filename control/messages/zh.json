@@ -350,6 +350,7 @@
       "opticalRead": "光学读取",
       "opticalReadDescription": "使用具备视觉能力的 LLM 从上传的图片中提取结构化数据",
       "opticalReadProviderGate": "光学读取需要具备视觉能力的提供方。已支持 Anthropic 和 OpenAI。",
+      "modelGate": "此模型仅支持知识协议。请切换到 llama3.3（Ollama）或云端提供方以启用多步骤流程。",
       "exampleFaq": "FAQ 聊天机器人",
       "exampleDocumentation": "文档助手",
       "exampleProductSupport": "产品支持",
@@ -895,7 +896,10 @@
       "awsOrUseSaved": "或使用已保存的 AWS 凭证：",
       "ollamaNoCredsNeeded": "Ollama 使用你自己的端点运行——无需 API 密钥。",
       "ollamaHost": "Ollama 主机 URL",
-      "ollamaHostHelper": "留空以使用默认值（http://host.docker.internal:11434）。在 Linux 上，请在 docker-compose.yml 中添加 extra_hosts，或使用你主机的局域网 IP。云端部署需要可公开访问的 Ollama 端点。"
+      "ollamaHostHelper": "你的机器人将访问的端点。留空则默认为 http://localhost:11434。如果你的机器人运行在 Docker 中，而 Ollama 运行在宿主机上，请使用 http://host.docker.internal:11434（Mac/Windows）或你宿主机的局域网 IP（Linux）。云端部署需要可公开访问的 Ollama 端点。需要 Ollama ≥ 0.5.0 以保证信封有效性——较旧的守护进程也可使用，但会回退到尽力而为的 JSON 解析。",
+      "ollamaHostSavedPlaceholder": "正在使用已保存的主机——清空以输入新的 URL",
+      "ollamaHostUsingSaved": "正在使用已保存的 Ollama 主机：",
+      "ollamaHostOrUseSaved": "或使用已保存的 Ollama 主机："
     },
     "knowledge": {
       "loadingDocuments": "加载文档中...",
@@ -1417,7 +1421,9 @@
         "name": "显示名称",
         "provider": "提供方",
         "apiKey": "API 密钥",
+        "ollamaHost": "主机 URL",
         "makeDefault": "设为默认密钥",
+        "ollamaNoDefault": "Ollama 不能作为默认值——聊天构建器需要一个云端提供方。",
         "saving": "保存中…",
         "save": "保存密钥",
         "saveError": "保存失败"
@@ -1436,10 +1442,12 @@
         "defaultName": "默认",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock（粘贴 JSON 凭证）"
+          "bedrock": "AWS Bedrock（粘贴 JSON 凭证）",
+          "ollama": "Ollama（本地——粘贴主机 URL）"
         }
       },
       "provider": {

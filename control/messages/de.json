@@ -350,6 +350,7 @@
       "opticalRead": "Optical Read",
       "opticalReadDescription": "Strukturierte Daten aus einem hochgeladenen Bild mit einem visionsfähigen LLM extrahieren",
       "opticalReadProviderGate": "Optical Read benötigt einen visionsfähigen Anbieter. Anthropic und OpenAI werden unterstützt.",
+      "modelGate": "Dieses Modell unterstützt nur das Knowledge-Protokoll. Wechsle zu llama3.3 (Ollama) oder einem Cloud-Anbieter, um mehrstufige Flows zu aktivieren.",
       "exampleFaq": "FAQ-Chatbots",
       "exampleDocumentation": "Dokumentations-Assistenten",
       "exampleProductSupport": "Produkt-Support",
@@ -877,7 +878,10 @@
       "apiKeyOrUseSaved": "Oder verwende einen gespeicherten API-Schlüssel:",
       "ollamaNoCredsNeeded": "Ollama läuft gegen deinen eigenen Endpunkt — kein API-Schlüssel erforderlich.",
       "ollamaHost": "Ollama-Host-URL",
-      "ollamaHostHelper": "Leer lassen, um den Standardwert zu verwenden (http://host.docker.internal:11434). Unter Linux füge extra_hosts in der docker-compose.yml hinzu oder verwende die LAN-IP deines Hosts. Cloud-Deployments benötigen einen öffentlich erreichbaren Ollama-Endpunkt.",
+      "ollamaHostHelper": "Der Endpunkt, den dein Bot ansteuert. Leer lassen, um http://localhost:11434 als Standard zu verwenden. Wenn dein Bot in Docker läuft und Ollama auf dem Host, verwende http://host.docker.internal:11434 (Mac/Windows) oder die LAN-IP deines Hosts (Linux). Cloud-Deployments benötigen einen öffentlich erreichbaren Ollama-Endpunkt. Erfordert Ollama ≥ 0.5.0 für Envelope-Validitätsgarantien — ältere Daemons funktionieren, fallen aber auf Best-Effort-JSON-Parsing zurück.",
+      "ollamaHostSavedPlaceholder": "Gespeicherter Host wird verwendet — leeren, um eine neue URL einzugeben",
+      "ollamaHostUsingSaved": "Gespeicherter Ollama-Host wird verwendet:",
+      "ollamaHostOrUseSaved": "Oder verwende einen gespeicherten Ollama-Host:",
       "awsCredentialsUsing": "Verwende gespeicherte AWS-Zugangsdaten:",
       "awsCredentialsExisting": "Vorhandene AWS-Zugangsdaten konfiguriert — werden wiederverwendet, sofern du unten keine neuen eingibst",
       "awsUseIamRole": "IAM-Rolle verwenden (empfohlen für EKS/EC2)",
@@ -1417,7 +1421,9 @@
         "name": "Anzeigename",
         "provider": "Anbieter",
         "apiKey": "API-Schlüssel",
+        "ollamaHost": "Host-URL",
         "makeDefault": "Diesen als Standardschlüssel festlegen",
+        "ollamaNoDefault": "Ollama kann nicht als Standard festgelegt werden — der Chat-Builder benötigt einen Cloud-Anbieter.",
         "saving": "Speichere…",
         "save": "Schlüssel speichern",
         "saveError": "Speichern fehlgeschlagen"
@@ -1436,10 +1442,12 @@
         "defaultName": "Standard",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (JSON-Zugangsdaten einfügen)"
+          "bedrock": "AWS Bedrock (JSON-Zugangsdaten einfügen)",
+          "ollama": "Ollama (lokal — Host-URL einfügen)"
         }
       },
       "provider": {

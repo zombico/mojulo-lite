@@ -350,6 +350,7 @@
       "opticalRead": "Odczyt optyczny",
       "opticalReadDescription": "Wyodrębniaj strukturalne dane z przesłanego obrazu za pomocą LLM z możliwościami wizyjnymi",
       "opticalReadProviderGate": "Odczyt optyczny wymaga dostawcy z możliwościami wizyjnymi. Anthropic i OpenAI są obsługiwane.",
+      "modelGate": "Ten model obsługuje wyłącznie protokół bazy wiedzy. Przełącz na llama3.3 (Ollama) lub dostawcę chmurowego, aby włączyć przepływy wieloetapowe.",
       "exampleFaq": "Chatboty FAQ",
       "exampleDocumentation": "Asystenci dokumentacji",
       "exampleProductSupport": "Wsparcie produktowe",
@@ -877,7 +878,10 @@
       "apiKeyOrUseSaved": "Lub użyj zapisanego klucza API:",
       "ollamaNoCredsNeeded": "Ollama działa na Twoim własnym endpoincie — klucz API nie jest potrzebny.",
       "ollamaHost": "URL hosta Ollama",
-      "ollamaHostHelper": "Pozostaw puste, aby użyć domyślnego (http://host.docker.internal:11434). W systemie Linux dodaj extra_hosts do docker-compose.yml lub użyj adresu IP swojego hosta w sieci LAN. Wdrożenia w chmurze wymagają publicznie dostępnego endpointu Ollama.",
+      "ollamaHostHelper": "Endpoint, z którym będzie łączyć się Twój bot. Pozostaw puste, aby domyślnie użyć http://localhost:11434. Jeśli bot działa w Dockerze, a Ollama na hoście, użyj http://host.docker.internal:11434 (Mac/Windows) lub adresu IP hosta w sieci LAN (Linux). Wdrożenia w chmurze wymagają publicznie dostępnego endpointu Ollama. Wymaga Ollama ≥ 0.5.0 dla gwarancji poprawności koperty — starsze daemony działają, ale wracają do parsowania JSON na zasadzie best-effort.",
+      "ollamaHostSavedPlaceholder": "Używa zapisanego hosta — wyczyść, aby wpisać nowy URL",
+      "ollamaHostUsingSaved": "Używa zapisanego hosta Ollama:",
+      "ollamaHostOrUseSaved": "Lub użyj zapisanego hosta Ollama:",
       "awsCredentialsUsing": "Używa zapisanych poświadczeń AWS:",
       "awsCredentialsExisting": "Istniejące poświadczenia AWS skonfigurowane — zostaną użyte ponownie, chyba że wprowadzisz nowe poniżej",
       "awsUseIamRole": "Użyj roli IAM (zalecane dla EKS/EC2)",
@@ -1420,7 +1424,9 @@
         "makeDefault": "Ustaw jako domyślny klucz",
         "saving": "Zapisywanie…",
         "save": "Zapisz klucz",
-        "saveError": "Zapisywanie nie powiodło się"
+        "saveError": "Zapisywanie nie powiodło się",
+        "ollamaHost": "URL hosta",
+        "ollamaNoDefault": "Ollama nie może być domyślnym dostawcą — kreator czatu wymaga dostawcy chmurowego."
       },
       "list": {
         "title": "Zapisane klucze",
@@ -1436,10 +1442,12 @@
         "defaultName": "Domyślny",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (wklej poświadczenia JSON)"
+          "bedrock": "AWS Bedrock (wklej poświadczenia JSON)",
+          "ollama": "Ollama (lokalnie — wklej URL hosta)"
         }
       },
       "provider": {

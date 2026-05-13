@@ -350,6 +350,7 @@
       "opticalRead": "光学読取",
       "opticalReadDescription": "視覚対応LLMを使用してアップロードされた画像から構造化データを抽出",
       "opticalReadProviderGate": "光学読取には視覚対応プロバイダーが必要です。AnthropicとOpenAIがサポートされています。",
+      "modelGate": "このモデルはknowledgeプロトコルのみをサポートしています。マルチステップフローを有効にするには、llama3.3 (Ollama) またはクラウドプロバイダーに切り替えてください。",
       "exampleFaq": "FAQチャットボット",
       "exampleDocumentation": "ドキュメントアシスタント",
       "exampleProductSupport": "製品サポート",
@@ -877,7 +878,10 @@
       "apiKeyOrUseSaved": "または保存されたAPIキーを使用:",
       "ollamaNoCredsNeeded": "Ollamaは独自のエンドポイントに対して実行されます — APIキーは不要です。",
       "ollamaHost": "OllamaホストURL",
-      "ollamaHostHelper": "デフォルト(http://host.docker.internal:11434)を使用するには空のままにしてください。Linuxでは、docker-compose.ymlにextra_hostsを追加するか、ホストのLAN IPを使用してください。クラウドデプロイには、公開アクセス可能なOllamaエンドポイントが必要です。",
+      "ollamaHostHelper": "ボットが接続するエンドポイントです。空のままにすると、デフォルトで http://localhost:11434 が使用されます。ボットがDockerで動作し、Ollamaがホスト側で動作している場合は、http://host.docker.internal:11434 (Mac/Windows) またはホストのLAN IP (Linux) を使用してください。クラウドデプロイには、公開アクセス可能なOllamaエンドポイントが必要です。エンベロープの有効性を保証するには Ollama ≥ 0.5.0 が必要です — それより古いデーモンでも動作しますが、ベストエフォートのJSONパースにフォールバックします。",
+      "ollamaHostSavedPlaceholder": "保存されたホストを使用中 — クリアして新しいURLを入力",
+      "ollamaHostUsingSaved": "保存されたOllamaホストを使用中:",
+      "ollamaHostOrUseSaved": "または保存されたOllamaホストを使用:",
       "awsCredentialsUsing": "保存されたAWS認証情報を使用中:",
       "awsCredentialsExisting": "既存のAWS認証情報が構成済みです — 新しいものを下に入力しない限り再利用されます",
       "awsUseIamRole": "IAMロールを使用(EKS/EC2に推奨)",
@@ -1417,7 +1421,9 @@
         "name": "表示名",
         "provider": "プロバイダー",
         "apiKey": "APIキー",
+        "ollamaHost": "ホストURL",
         "makeDefault": "これをデフォルトキーにする",
+        "ollamaNoDefault": "Ollamaはデフォルトにできません — チャットビルダーにはクラウドプロバイダーが必要です。",
         "saving": "保存中…",
         "save": "キーを保存",
         "saveError": "保存に失敗しました"
@@ -1436,10 +1442,12 @@
         "defaultName": "デフォルト",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (JSON認証情報を貼り付け)"
+          "bedrock": "AWS Bedrock (JSON認証情報を貼り付け)",
+          "ollama": "Ollama (ローカル — ホストURLを貼り付け)"
         }
       },
       "provider": {

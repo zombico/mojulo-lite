@@ -350,6 +350,7 @@
       "opticalRead": "광학 판독",
       "opticalReadDescription": "비전 지원 LLM을 사용하여 업로드된 이미지에서 구조화된 데이터 추출",
       "opticalReadProviderGate": "광학 판독은 비전 지원 제공자가 필요합니다. Anthropic과 OpenAI가 지원됩니다.",
+      "modelGate": "이 모델은 지식 프로토콜만 지원합니다. 다단계 흐름을 활성화하려면 llama3.3(Ollama) 또는 클라우드 제공자로 전환하세요.",
       "exampleFaq": "FAQ 챗봇",
       "exampleDocumentation": "문서 어시스턴트",
       "exampleProductSupport": "제품 지원",
@@ -877,7 +878,10 @@
       "apiKeyOrUseSaved": "또는 저장된 API 키 사용:",
       "ollamaNoCredsNeeded": "Ollama는 사용자의 자체 엔드포인트에 대해 실행됩니다 — API 키가 필요하지 않습니다.",
       "ollamaHost": "Ollama 호스트 URL",
-      "ollamaHostHelper": "기본값(http://host.docker.internal:11434)을 사용하려면 비워두세요. Linux에서는 docker-compose.yml에 extra_hosts를 추가하거나 호스트의 LAN IP를 사용하세요. 클라우드 배포에는 공개적으로 접근 가능한 Ollama 엔드포인트가 필요합니다.",
+      "ollamaHostHelper": "봇이 접근할 엔드포인트입니다. 비워두면 http://localhost:11434 이 기본값으로 사용됩니다. 봇이 Docker에서 실행되고 Ollama가 호스트에서 실행되는 경우, http://host.docker.internal:11434 (Mac/Windows) 또는 호스트의 LAN IP(Linux)를 사용하세요. 클라우드 배포에는 공개적으로 접근 가능한 Ollama 엔드포인트가 필요합니다. 엔벨로프 유효성 보장을 위해 Ollama ≥ 0.5.0 이 필요합니다 — 이전 데몬도 작동하지만 최선의 노력 기반 JSON 파싱으로 폴백됩니다.",
+      "ollamaHostSavedPlaceholder": "저장된 호스트 사용 중 — 새 URL을 입력하려면 지우세요",
+      "ollamaHostUsingSaved": "저장된 Ollama 호스트 사용 중:",
+      "ollamaHostOrUseSaved": "또는 저장된 Ollama 호스트 사용:",
       "awsCredentialsUsing": "저장된 AWS 자격 증명 사용 중:",
       "awsCredentialsExisting": "기존 AWS 자격 증명이 구성됨 — 아래에 새로 입력하지 않으면 재사용됩니다",
       "awsUseIamRole": "IAM 역할 사용 (EKS/EC2에 권장)",
@@ -1417,7 +1421,9 @@
         "name": "표시 이름",
         "provider": "제공자",
         "apiKey": "API 키",
+        "ollamaHost": "호스트 URL",
         "makeDefault": "이 키를 기본값으로 설정",
+        "ollamaNoDefault": "Ollama는 기본값으로 설정할 수 없습니다 — 챗 빌더에는 클라우드 제공자가 필요합니다.",
         "saving": "저장 중…",
         "save": "키 저장",
         "saveError": "저장 실패"
@@ -1436,10 +1442,12 @@
         "defaultName": "기본값",
         "placeholder": "sk-…",
         "bedrockPlaceholder": "{\"region\":\"us-east-1\",\"accessKeyId\":\"…\",\"secretAccessKey\":\"…\"}",
+        "ollamaPlaceholder": "http://localhost:11434",
         "providers": {
           "anthropic": "Anthropic",
           "openai": "OpenAI",
-          "bedrock": "AWS Bedrock (JSON 자격 증명 붙여넣기)"
+          "bedrock": "AWS Bedrock (JSON 자격 증명 붙여넣기)",
+          "ollama": "Ollama (로컬 — 호스트 URL 붙여넣기)"
         }
       },
       "provider": {
