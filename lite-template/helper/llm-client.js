@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { json } = require('express');
-const { ENVELOPE_SCHEMA, toStrictEnvelopeSchema } = require('./envelope-schema');
+const { ENVELOPE_SCHEMA } = require('./envelope-schema');
 
 /**
  * Resolves environment variable references in config values
@@ -219,20 +219,12 @@ class OllamaAdapter extends LLMAdapter {
  * Mirrors the Anthropic adapter's vision path so the same protocol cartridge
  * works on both providers. image=null short-circuits to the string-content shape.
  *
- * Envelope reliability: structured outputs against the strict-mode envelope
- * schema (text.format = json_schema, strict: true). The model cannot return
- * prose-not-JSON; the prose-to-fallback path in server.js becomes structurally
- * unreachable for this provider. Refusals surface via the dedicated refusal
- * channel; max_output_tokens truncation throws explicitly.
+ * Envelope shape is requested in-prompt by the composed protocol cartridges,
+ * not enforced at the wire. The runtime relies on `extractJSON` and the
+ * fallback-synthesis branch in server.js to handle prose-leaning responses —
+ * same contract as the Ollama adapter.
  */
 class OpenAIAdapter extends LLMAdapter {
-    constructor(config) {
-        super(config);
-        // Build once per adapter — strict schema is byte-stable; rebuilding
-        // per-call would just churn allocations on the hot path.
-        this.strictSchema = toStrictEnvelopeSchema();
-    }
-
     async generate(instructions, userPrompt, ragContext, conversationHistory, image = null) {
         const url = `${this.config.baseURL}${this.config.endpoint}`;
 
@@ -270,21 +262,15 @@ class OpenAIAdapter extends LLMAdapter {
             currentTurn
         ];
 
-        // text.format lives outside `input`, so adding it does not perturb
-        // the cacheable input prefix. The schema-compile cache is per-schema
-        // and warmed by the first call after a redeploy — expect a small
-        // cold-start latency bump, not a steady-state regression.
+        // gpt-5 family does internal reasoning by default, which adds seconds
+        // per turn. The chat-runtime workload (envelope-shaped reply, no
+        // math/code synthesis) doesn't benefit. `minimal` brings latency back
+        // in line with non-reasoning models. Ignored by gpt-4.1 — safe to set
+        // unconditionally.
         const response = await axios.post(url, {
             model: this.config.model,
             input,
-            text: {
-                format: {
-                    type: 'json_schema',
-                    name: 'envelope',
-                    schema: this.strictSchema,
-                    strict: true,
-                },
-            },
+            reasoning: { effort: 'minimal' },
         }, {
             timeout: this.config.timeout || 300000,
             headers: {
@@ -299,20 +285,13 @@ class OpenAIAdapter extends LLMAdapter {
         const inputTokens = usage?.input_tokens ?? usage?.prompt_tokens ?? 0;
         console.log(`[LLM CACHE ${this.config.model}] input=${inputTokens} cached=${cachedTokens}`);
 
-        if (response.data.incomplete_details?.reason === 'max_output_tokens') {
-            throw new Error('OpenAI hit max_output_tokens before completing structured output');
-        }
-
-        const block = response?.data?.output?.[0]?.content?.[0];
-        if (block?.type === 'refusal') {
-            throw new Error(`OpenAI refused: ${block.refusal}`);
-        }
-        if (!block || typeof block.text !== 'string') {
-            throw new Error('OpenAI response contained no output_text block');
-        }
-
+        // gpt-5 prepends a `reasoning` item to `output[]` before the `message`
+        // item; gpt-4.1 emits just the message. Scan for the message item
+        // instead of indexing position 0 so both shapes work.
+        const messageItem = response?.data?.output?.find((o) => o?.type === 'message');
+        const content = messageItem?.content?.find((c) => typeof c?.text === 'string')?.text;
         return {
-            response: block.text,
+            response: content,
             trace: response.trace
         };
     }

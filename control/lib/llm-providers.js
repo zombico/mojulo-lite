@@ -16,12 +16,17 @@ export function providerSupportsVision(provider) {
 }
 
 /**
- * Per-model protocol allowlist. Some local Ollama models (qwen3, mistral-nemo)
- * are small enough that the multi-step instruction-following required by
- * form-gathering, appointments, triage, and optical-read protocols is
- * unreliable in practice — they can answer questions over a knowledge base
- * but lose the thread on stateful flows. llama3.3 (70B) handles all
- * protocols. Cloud providers are unrestricted.
+ * Per-model protocol allowlist.
+ *
+ * Ollama — qwen3 and mistral-nemo are small enough that multi-step
+ * instruction-following (form-gathering, appointments, triage, optical-read)
+ * is unreliable in practice; they can answer over a knowledge base but lose
+ * the thread on stateful flows. llama3.3 (70B) handles everything.
+ *
+ * OpenAI — gpt-4.1 stays on form-free protocols. The form-gathering flow
+ * needs the model to track field state across turns and follow stricter
+ * shape guidance now that wire-level enforcement is gone; gpt-5 and
+ * gpt-5-mini handle it reliably, gpt-4.1 doesn't. Anchor model otherwise.
  *
  * Returns `null` when all protocols are allowed (the common case). Returns a
  * `Set` of allowed protocol IDs when the model is restricted.
@@ -30,10 +35,14 @@ export function providerSupportsVision(provider) {
  * formGathering, appointments, triage, opticalRead.
  */
 const RESTRICTED_OLLAMA_MODELS = new Set(['qwen3', 'mistral-nemo']);
+const RESTRICTED_OPENAI_MODELS = new Set(['gpt-4.1']);
 
 export function getAllowedProtocolsForModel(provider, model) {
   if (provider === 'ollama' && RESTRICTED_OLLAMA_MODELS.has(model)) {
     return new Set(['knowledge']);
+  }
+  if (provider === 'openai' && RESTRICTED_OPENAI_MODELS.has(model)) {
+    return new Set(['knowledge', 'appointments', 'triage', 'opticalRead']);
   }
   return null;
 }
@@ -47,7 +56,11 @@ export function isProtocolAllowedForModel(provider, model, protocolId) {
 export const LLM_PROVIDERS = {
   openai: {
     name: 'OpenAI',
-    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini'],
+    // User-facing model picker. `gpt-4.1-mini` and `gpt-4.1-nano` are
+    // intentionally absent here — `MODEL_TIERS` still resolves to them for
+    // control-plane tasks (form-gen, RAG summary), but they're not surfaced
+    // as bot-runtime options. `gpt-4.1` is the anchor.
+    models: ['gpt-4.1', 'gpt-5', 'gpt-5-mini'],
     defaultModel: 'gpt-4.1',
     baseURL: 'https://api.openai.com/v1',
     endpoint: '/responses'
