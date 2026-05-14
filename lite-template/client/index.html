@@ -927,14 +927,16 @@
             formProgressBarContainer.classList.add('complete');
             formProgressFill.style.backgroundColor = '#4caf50'; // Green color
 
-            // Show a completion message in the form area
-            const completionMessage = document.createElement('div');
-            completionMessage.className = 'form-completion-message';
-            completionMessage.innerHTML = '✓ Form complete! Ready to submit.';
-            completionMessage.style.cssText = 'color: #4caf50; font-weight: bold; padding: 10px; text-align: center;';
+            // Show a completion message in the form area, sourced from the
+            // operator-configured afterSubmitChatMessage so the in-panel banner
+            // and the chat-bubble acknowledgement stay in sync.
+            const completionText = botContext?.afterSubmitChatMessage;
+            if (completionText && !formContentWrapper.querySelector('.form-completion-message')) {
+                const completionMessage = document.createElement('div');
+                completionMessage.className = 'form-completion-message';
+                completionMessage.textContent = completionText;
+                completionMessage.style.cssText = 'color: #4caf50; font-weight: bold; padding: 10px; text-align: center;';
 
-            // Add completion message if it doesn't already exist
-            if (!formContentWrapper.querySelector('.form-completion-message')) {
                 // Insert before the progress bar container (inside left side)
                 const leftSide = formContentWrapper.querySelector('.form-fields-left-side');
                 if (leftSide && formProgressBarContainer) {

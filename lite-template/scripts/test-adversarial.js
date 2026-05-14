@@ -1,31 +1,28 @@
 #!/usr/bin/env node
 /**
- * Adversarial regression suite for the structured-output providers.
+ * Adversarial regression suite for the Anthropic forced-tool-use envelope.
  *
- * Issues prompts known to elicit prose-instead-of-JSON on free-text prompting,
- * then verifies each adapter still returns a valid ENVELOPE_SCHEMA payload.
- * With Anthropic forced tool use (tool_choice: respond) and OpenAI structured
- * outputs (text.format = json_schema, strict: true) this should be
- * structurally guaranteed — every prompt below should pass on every covered
- * provider. A failure here means the structured-output contract has regressed
- * (most likely cause: tool_choice/text.format removed, schema drift, provider
- * behavior change).
+ * Issues prompts known to elicit prose-instead-of-JSON on free-text prompting
+ * and verifies the Anthropic adapter still returns a valid ENVELOPE_SCHEMA
+ * payload. Forced tool use (tool_choice: respond, input_schema = ENVELOPE_SCHEMA)
+ * makes this structurally guaranteed — every prompt below should pass.
+ * A failure here means the tool-use contract has regressed (most likely cause:
+ * tool_choice removed, schema drift, provider behavior change).
+ *
+ * OpenAI and Ollama are intentionally not covered — both rely on prompt-side
+ * cartridge guidance plus extractJSON/fallback synthesis in server.js, not a
+ * wire-level guarantee, so adversarial prompts can legitimately produce prose
+ * on those providers and the runtime is expected to recover.
  *
  * Complements scripts/test-envelope-migration.js — that one is offline and
- * covers structural compatibility; this one requires live API keys and
+ * covers structural compatibility; this one requires a live API key and
  * exercises model behavior under stress.
  *
  * Run:
- *   ANTHROPIC_API_KEY=sk-ant-... OPENAI_API_KEY=sk-... \
- *     node lite-template/scripts/test-adversarial.js
+ *   ANTHROPIC_API_KEY=sk-ant-... node lite-template/scripts/test-adversarial.js
  *
- *   # restrict providers
- *   node lite-template/scripts/test-adversarial.js --provider=anthropic
- *   node lite-template/scripts/test-adversarial.js --provider=openai
- *
- *   # override models
- *   node lite-template/scripts/test-adversarial.js \
- *     --anthropic-model=claude-sonnet-4-6 --openai-model=gpt-4.1
+ *   # override model
+ *   node lite-template/scripts/test-adversarial.js --anthropic-model=claude-sonnet-4-6
  */
 
 const { createLLMClient } = require('../helper/llm-client');
@@ -44,7 +41,7 @@ const args = Object.fromEntries(
 );
 
 const requestedProvider = args.provider || 'all';
-const validProviders = new Set(['anthropic', 'openai', 'all']);
+const validProviders = new Set(['anthropic', 'all']);
 if (!validProviders.has(requestedProvider)) {
   console.error(`--provider must be one of: ${[...validProviders].join(', ')}`);
   process.exit(2);
@@ -75,32 +72,13 @@ const PROVIDERS = {
       };
     },
   },
-  openai: {
-    envKey: 'OPENAI_API_KEY',
-    defaultModel: 'gpt-4.1',
-    modelArg: 'openai-model',
-    buildConfig(apiKey, model) {
-      return {
-        llm: {
-          provider: 'openai',
-          openai: {
-            apiKey,
-            model,
-            baseURL: 'https://api.openai.com/v1',
-            endpoint: '/responses',
-            timeout: 300000,
-          },
-        },
-      };
-    },
-  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Minimal envelope validator — covers the constraints that matter for the
-// "did the model break out of structured outputs" check. Permissive on
-// purpose: OpenAI strict mode emits `null` for absent protocol blocks while
-// Anthropic omits them entirely; both pass.
+// "did the model break out of forced tool use" check. Permissive on absent
+// protocol blocks: Anthropic omits them entirely when the tool input schema
+// doesn't require them.
 // ─────────────────────────────────────────────────────────────────────────────
 function validateEnvelope(env) {
   const errors = [];
@@ -136,8 +114,8 @@ function validateEnvelope(env) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Adversarial prompt set. Each entry should make a free-text-prompted model
-// emit prose, markdown, or otherwise non-envelope output. Structured outputs
-// make every one structurally impossible to fail.
+// emit prose, markdown, or otherwise non-envelope output. Forced tool use
+// makes every one structurally impossible to fail.
 // ─────────────────────────────────────────────────────────────────────────────
 const ADVERSARIAL_PROMPTS = [
   {
@@ -174,9 +152,9 @@ const ADVERSARIAL_PROMPTS = [
   },
 ];
 
-// Minimal instructions: cartridges in production are heavier, but the
-// structured-output contract is what enforces shape. If this passes with weak
-// instructions, it'll pass with the production stack too.
+// Minimal instructions: cartridges in production are heavier, but forced
+// tool use is what enforces shape. If this passes with weak instructions,
+// it'll pass with the production stack too.
 const INSTRUCTIONS =
   'You are a helpful assistant. Reply to the user. Do not invoke any protocol.';
 
@@ -234,7 +212,7 @@ async function runProvider(name, def) {
     ? Object.keys(PROVIDERS)
     : [requestedProvider];
 
-  console.log(`Adversarial structured-output test — providers=${selected.join(',')}`);
+  console.log(`Adversarial forced-tool-use test — providers=${selected.join(',')}`);
 
   const results = [];
   for (const name of selected) {
@@ -263,7 +241,7 @@ async function runProvider(name, def) {
   console.log(`Total: passed=${totalPassed} failed=${totalFailed}`);
 
   if (!anyRan) {
-    console.error('\nNo providers ran. Set ANTHROPIC_API_KEY and/or OPENAI_API_KEY.');
+    console.error('\nNo providers ran. Set ANTHROPIC_API_KEY.');
     process.exit(2);
   }
   if (totalFailed > 0) process.exit(1);
