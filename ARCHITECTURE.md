@@ -489,3 +489,9 @@ Key files:
 | [lite-template/middleware/auth.js](lite-template/middleware/auth.js) | `MOJULO_API_KEY` guard for `/api/*` |
 | [lite-template/Dockerfile](lite-template/Dockerfile) | Debian slim Node 20 image (Alpine's musl is incompatible with onnxruntime-node's prebuilt glibc binaries) |
 
+---
+
+## 9. Prior art
+
+The protocol cartridge pattern — composing a bot's behavior from layered, opt-in instruction blocks — was first published in Oct 2025 in [zombico/sati](https://github.com/zombico/sati) with an example artifact. Mojulo-lite is the production-grade version: the cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/) trace their shape to that earlier work.
+

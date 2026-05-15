@@ -167,6 +167,8 @@ cachedInstructions = fs.readFileSync(instructionsPath, "utf-8");
 
 ## Adding a new protocol
 
+The recipe below works whether you're extending a fork or proposing a capability upstream. Bespoke protocols — those specific to one client, vertical, or workflow — belong in forks. Upstream additions should clear a broader-applicability bar (the existing `01_knowledge` through `05_optical-read` cartridges did). The mechanics are identical either way.
+
 The shape codifies a recipe — a new capability, end to end, is:
 
 1. Write `protocols/XT_<name>.txt`. Imperative voice, blunt, no preamble. Keep the cartridge focused on *behavior*; per-deploy data goes in the inline section, not the prose.

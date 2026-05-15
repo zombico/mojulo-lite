@@ -1,0 +1,107 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel in-progress runs on the same branch / PR when a new commit lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests / ${{ matrix.os }} / node 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Node 20 matches the bot's Dockerfile (node:20-bookworm-slim) so the
+        # test environment shadows the runtime environment. Add Node 22 to
+        # the matrix once the bot image moves.
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # No cache: both packages' postinstall fetch ONNX weights (~113MB)
+          # outside node_modules, and a cache hit would skip them. Re-enable
+          # when the model fetch becomes opt-out.
+
+      - name: Install lite-template
+        working-directory: lite-template
+        run: npm install
+
+      - name: Test lite-template
+        working-directory: lite-template
+        run: npm test
+
+      - name: Install control
+        working-directory: control
+        run: npm install
+
+      - name: Test control
+        working-directory: control
+        run: npm test
+
+  lint-hygiene:
+    name: lint hygiene (node --check + locale validator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Syntax floor — neither package has a typecheck script, so node --check
+      # is the cheapest way to catch a syntax error sitting in main.
+      - name: node --check (lite-template)
+        run: |
+          find lite-template -type f \( -name '*.js' -o -name '*.mjs' \) \
+            -not -path '*/node_modules/*' \
+            -not -path '*/models/*' \
+            -print0 | xargs -0 -n1 node --check
+
+      - name: node --check (control)
+        run: |
+          find control -type f \( -name '*.js' -o -name '*.mjs' \) \
+            -not -path '*/node_modules/*' \
+            -not -path '*/.next/*' \
+            -not -path '*/data/*' \
+            -not -path '*/lib/embedder/models/*' \
+            -print0 | xargs -0 -n1 node --check
+
+      # Locale catalog parity — runs the existing validator against every
+      # non-en code so the EN-default coding standard from CLAUDE.md doesn't
+      # silently desync the other 12 catalogs.
+      - name: Validate locale catalogs
+        working-directory: control
+        run: |
+          for f in messages/*.json; do
+            code=$(basename "$f" .json)
+            if [ "$code" != "en" ]; then
+              echo "validating $code"
+              node scripts/validate-locale.mjs en "$code"
+            fi
+          done
+
+  smoke:
+    name: README install-success smoke
+    runs-on: ubuntu-latest
+    # Slower than unit tests (downloads ~113MB of ONNX weights + runs a full
+    # Next build + boots the control plane). Allow up to 10 minutes so a
+    # transient ONNX-download stall doesn't fail the run.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run smoke script
+        run: bash scripts/smoke.sh
