@@ -65,9 +65,36 @@ function init(db) {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS mcp_jobs (
+      id TEXT PRIMARY KEY,
+      tool TEXT NOT NULL,
+      status TEXT NOT NULL,
+      progress INTEGER,
+      result TEXT,
+      error TEXT,
+      mcp_session_id TEXT,
+      builder_session_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_mcp_jobs_created_at ON mcp_jobs(created_at);
   `);
 
   migrateDeploymentColumns(db);
+  reapStaleMcpJobs(db);
+}
+
+function reapStaleMcpJobs(db) {
+  // Job runner is in-process; a control-plane restart kills running jobs.
+  // Mark anything still in pending / running as errored on startup so
+  // clients polling stale jobIds get a clear failure instead of an
+  // indefinite "pending" state.
+  db.prepare(
+    `UPDATE mcp_jobs
+     SET status = 'error', error = COALESCE(error, 'Control plane restarted while job was in flight'), updated_at = ?
+     WHERE status IN ('pending', 'running')`
+  ).run(Date.now());
 }
 
 function migrateDeploymentColumns(db) {
