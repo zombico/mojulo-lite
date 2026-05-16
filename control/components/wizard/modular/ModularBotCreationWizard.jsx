@@ -455,7 +455,11 @@ export default function ModularBotCreationWizard() {
                     onClick={() => handleStepClick(step)}
                     disabled={!isAccessible}
                     title={getStepSection(stepConfig)}
-                    className={`w-full text-center transition ${isAccessible ? 'cursor-pointer' : 'cursor-not-allowed'
+                    aria-current={isActive ? 'step' : undefined}
+                    aria-label={`Step ${step} of ${maxSteps}: ${getStepSection(stepConfig)}${
+                      isActive ? ' (current)' : isCompleted ? ' (completed)' : !isAccessible ? ' (locked)' : ''
+                    }`}
+                    className={`w-full text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 rounded ${isAccessible ? 'cursor-pointer' : 'cursor-not-allowed'
                       }`}
                   >
                     {/* Icon and step name */}
@@ -526,7 +530,8 @@ export default function ModularBotCreationWizard() {
               type="button"
               onClick={previousStep}
               disabled={!canGoBack}
-              className="px-4 py-2 text-gray-300 font-medium hover:text-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed transition"
+              aria-label={`${tCommon('back')} (step ${currentStep} of ${maxSteps})`}
+              className="px-4 py-2 text-gray-300 font-medium hover:text-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed transition rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
             >
               {tCommon('back')}
             </button>
@@ -534,7 +539,8 @@ export default function ModularBotCreationWizard() {
               type="button"
               onClick={handleNext}
               disabled={!canGoNext}
-              className="px-6 py-2 bg-teal-600 text-white font-medium rounded-md hover:bg-teal-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition"
+              aria-label={`${tCommon('next')} (step ${currentStep} of ${maxSteps})`}
+              className="px-6 py-2 bg-teal-600 text-white font-medium rounded-md hover:bg-teal-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
             >
               {tCommon('next')}
             </button>

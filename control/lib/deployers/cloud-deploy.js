@@ -216,6 +216,7 @@ export async function cloudDeploy({
     options,
   });
 
+  let lastStep = 'init';
   try {
     const configFiles = await harvestConfigFiles(refreshed);
     const llmEnv = await resolveLlmEnv(refreshed);
@@ -234,6 +235,7 @@ export async function cloudDeploy({
       guest: options.guest,
       volumeGb: options.volumeGb,
       onProgress: async ({ step, message }) => {
+        lastStep = step;
         try {
           await DeploymentRepository.appendCloudProgress(deploymentId, {
             step,
@@ -252,12 +254,13 @@ export async function cloudDeploy({
     });
     return { deployment: updated, ...result };
   } catch (err) {
+    const detail = `${err.message || String(err)} (failed at step: ${lastStep})`;
     console.error('[cloud-deploy]', err);
     await DeploymentRepository.appendCloudProgress(deploymentId, {
       step: 'error',
-      message: err.message || String(err),
+      message: detail,
     }).catch(() => {});
-    await DeploymentRepository.failCloudDeploy(deploymentId, err.message || String(err));
+    await DeploymentRepository.failCloudDeploy(deploymentId, detail);
     throw err;
   }
 }

@@ -26,6 +26,17 @@ const DEFAULT_GUEST = { cpu_kind: 'shared', cpus: 1, memory_mb: 1024 };
 const DEFAULT_REGION = 'iad';
 const DEFAULT_VOLUME_GB = 1;
 
+// Fly's max app-name length; computeAppName truncates to this.
+const FLY_APP_NAME_MAX_LENGTH = 63;
+// Port the bot's Express server listens on inside the container (matches lite-template/server.js).
+const BOT_INTERNAL_PORT = 3000;
+// Healthcheck cadence injected into the Fly machine config.
+const HEALTHCHECK_CONFIG = {
+  interval: '15s',
+  timeout: '5s',
+  grace_period: '20s',
+};
+
 export class FlyDeployer {
   constructor({
     apiToken,
@@ -77,7 +88,7 @@ export class FlyDeployer {
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/(^-|-$)/g, '')
-      .slice(0, 63);
+      .slice(0, FLY_APP_NAME_MAX_LENGTH);
   }
 
   async _request(pathSuffix, options = {}) {
@@ -278,7 +289,7 @@ export class FlyDeployer {
             { port: 443, handlers: ['tls', 'http'] },
           ],
           protocol: 'tcp',
-          internal_port: 3000,
+          internal_port: BOT_INTERNAL_PORT,
           autostart: true,
           autostop: 'stop',
         },
@@ -286,11 +297,9 @@ export class FlyDeployer {
       checks: {
         httpget: {
           type: 'http',
-          port: 3000,
+          port: BOT_INTERNAL_PORT,
           path: '/health',
-          interval: '15s',
-          timeout: '5s',
-          grace_period: '20s',
+          ...HEALTHCHECK_CONFIG,
         },
       },
       guest,
