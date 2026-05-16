@@ -205,30 +205,62 @@ Concept docs:
 - [docs/mojulo-bots.md](docs/mojulo-bots.md) — **start here:** plain-language orientation to bots, protocols, and the Control Plane before diving into the deep dives below
 - [docs/wizard-builder.md](docs/wizard-builder.md) — the structured wizard: how steps are generated from protocol toggles, how the live-preview Theatre runs the real bot client, and how its output converges with the chat builder at `buildDeploymentConfig`
 - [docs/chat-builder.md](docs/chat-builder.md) — the conversational builder: the 10 tools Claude orchestrates, two-tier intent evaluation, the streaming tool loop with custom event overlays
-- [docs/protocol-composition.md](docs/protocol-composition.md) — how the bot's `instructions.txt` is assembled at deploy time from stackable protocol cartridges + a matching response schema (the convergence point both builders feed)
-- [docs/bot-frontend.md](docs/bot-frontend.md) — the bot's UI: standalone client, embeddable widget, control-plane preview shim — one HTML file, three surfaces, no build step
 - [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
-- [docs/form-collection.md](docs/form-collection.md) — ghost forms: locale-aware schema generated at build time, rendered on the client, submitted via a dedicated endpoint that bypasses the LLM (PII never reaches the model)
-- [docs/optical-read.md](docs/optical-read.md) — extract user-defined fields from an uploaded image with a vision-capable LLM; the extraction turn is hashed into the conversation chain over the source image bytes
-- [docs/conversation-events.md](docs/conversation-events.md) — the `turns` table as a typed event log: chat turns, optical-read extractions, and handoff events share one chain; how each consumer (LLM, verifier, dashboard) replays a different view of it
-- [docs/conversations-api.md](docs/conversations-api.md) — Connect Bot: how the control plane proxies through to a running bot's conversations API without copying data
 - [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot tamper-evident chain that `/verify/:id` walks
-- [docs/federated-routing.md](docs/federated-routing.md) — cross-bot tamper-evident chain across triage handoffs (extends turn-hashing across bot boundaries)
+
 
 ## What this isn't
 
-Mojulo-Lite is for building specialized, focused bots with up to a few thousand documents per knowledge base. Brute-force vector search starts to slow on very large corpora — for that scale, you'd want a dedicated vector database. The control plane is single-user by design; for multi-tenant production you'd want a different tool. The artifact format may change between 0.x versions.
+Mojulo-Lite is for building specialized, focused bots with your documents per knowledge base. Brute-force vector search starts to slow on very large corpora — for that scale, you'd want a dedicated vector database. The control plane is single-user by design.  The artifact format may change between 0.x versions.
 
 ## Status
 
 Currently versioned `0.x` — APIs and config shapes can change between minor versions. The artifact format and bot image are pinned to the control-plane version they were built with.
 
+
 ## Contributing
 
-Issues and PRs welcome. Before opening a PR:
+**One maintainer, no SLA.** Issues and PRs are read, but triage and review can
+take days or weeks depending on what's already in flight — a non-trivial PR may
+sit until I've had time to catch up on the surfaces it touches. Opening an issue
+first, even for a one-line PR, is the fastest path to a decision: it lets the
+scope conversation happen before the code does, so nobody's work waits in the
+queue for a "no, retarget that."
 
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) so we're working from the same picture.
-- For non-trivial changes, open an issue first to align on scope.
+The codebase is functionally modular but tightly integrated — a change to the
+envelope schema, the cartridge composer, or a deployer touches multiple surfaces
+(control plane wizard, bot runtime, locales, model gates). That integration
+density is load-bearing for the artifact-portability and audit-chain guarantees,
+and it's also the reason contribution policy is channeled by surface rather than
+open across the board.
+
+**Always welcome — open an issue:**
+- Bug reports with a reproducer (especially RAG/locale/cartridge edge cases)
+- Translation quality issues (any locale, any string)
+- Documentation gaps or errors
+- Questions about whether something should be a PR
+
+**Accepted as PRs with the standard bar:**
+- Bug fixes with a clear reproducer (for non-obvious bugs, file an issue first so we can align on scope before you write the code)
+- Documentation fixes
+- Locale string fixes
+- Test additions that target the surfaces listed in [CONTRIBUTING.md](CONTRIBUTING.md#test-surface)
+
+**Forking & extending the platform:**
+- Custom protocols (your bot's specific behavior shape)
+- New provider adapters
+- Bespoke wizard flows or steps
+- Anything narrow to a client, vertical, or workflow
+
+These belong in forks — the upstream repo stays abstract so the artifact format
+and audit guarantees stay stable. See
+[docs/protocol-composition.md#adding-a-new-protocol](docs/protocol-composition.md#adding-a-new-protocol)
+for the recipe; it works whether you keep changes in your fork or, for
+capabilities with broad applicability, eventually propose them upstream.
+
+Before opening a PR, read [ARCHITECTURE.md](ARCHITECTURE.md) so we're working
+from the same picture, and see [CONTRIBUTING.md](CONTRIBUTING.md) for the test
+surface, file layout, and pre-submit checklist.
 
 ## License
 

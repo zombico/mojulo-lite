@@ -26,6 +26,17 @@ const DEFAULT_GUEST = { cpu_kind: 'shared', cpus: 1, memory_mb: 1024 };
 const DEFAULT_REGION = 'iad';
 const DEFAULT_VOLUME_GB = 1;
 
+// Fly's max app-name length; computeAppName truncates to this.
+const FLY_APP_NAME_MAX_LENGTH = 63;
+// Port the bot's Express server listens on inside the container (matches lite-template/server.js).
+const BOT_INTERNAL_PORT = 3000;
+// Healthcheck cadence injected into the Fly machine config.
+const HEALTHCHECK_CONFIG = {
+  interval: '15s',
+  timeout: '5s',
+  grace_period: '20s',
+};
+
 export class FlyDeployer {
   constructor({
     apiToken,
@@ -40,18 +51,19 @@ export class FlyDeployer {
     }
     this.apiToken = apiToken;
     this.orgSlug = orgSlug;
-    // Cloud image is independent of BOT_IMAGE (which docker.js uses for the
-    // local docker-compose path and is often set to a laptop tag like
-    // `mojulo/bot:latest`). Cloud always wants a public registry pin —
-    // override via MOJULO_CLOUD_IMAGE if you need a different tag.
-    
+    // Cloud always wants a public registry pin. In the common case BOT_IMAGE
+    // already points at GHCR, so fall back to it. Set MOJULO_CLOUD_IMAGE only
+    // when the cloud tag needs to diverge from the local docker-compose tag
+    // (e.g. BOT_IMAGE is a laptop tag like `mojulo/bot:latest`). The registry
+    // check below catches that case regardless of which env var supplied it.
     this.image =
       image ||
-      process.env.MOJULO_CLOUD_IMAGE;
-    if (!/[:/]/.test(this.image) || !this.image.includes('/')) {
+      process.env.MOJULO_CLOUD_IMAGE ||
+      process.env.BOT_IMAGE;
+    if (!this.image || !this.image.includes('/')) {
       throw new Error(
         `Cloud image "${this.image}" has no registry prefix; Fly will route it through Docker Hub. ` +
-          `Use a fully-qualified image like ghcr.io/owner/name:tag.`
+          `Set MOJULO_CLOUD_IMAGE or BOT_IMAGE to a fully-qualified image like ghcr.io/owner/name:tag.`
       );
     }
     this.defaultRegion = defaultRegion;
@@ -76,7 +88,7 @@ export class FlyDeployer {
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/(^-|-$)/g, '')
-      .slice(0, 63);
+      .slice(0, FLY_APP_NAME_MAX_LENGTH);
   }
 
   async _request(pathSuffix, options = {}) {
@@ -277,7 +289,7 @@ export class FlyDeployer {
             { port: 443, handlers: ['tls', 'http'] },
           ],
           protocol: 'tcp',
-          internal_port: 3000,
+          internal_port: BOT_INTERNAL_PORT,
           autostart: true,
           autostop: 'stop',
         },
@@ -285,11 +297,9 @@ export class FlyDeployer {
       checks: {
         httpget: {
           type: 'http',
-          port: 3000,
+          port: BOT_INTERNAL_PORT,
           path: '/health',
-          interval: '15s',
-          timeout: '5s',
-          grace_period: '20s',
+          ...HEALTHCHECK_CONFIG,
         },
       },
       guest,

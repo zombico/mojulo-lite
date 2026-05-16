@@ -6,6 +6,22 @@ This doc describes the cartridges, how they're combined, and how the prose proto
 
 ---
 
+## Before you touch the wizard
+
+The wizard and the chat builder are **convenience layers** that produce a deployment artifact. Nothing about the runtime depends on them — the artifact is the contract. A bot whose `config/instructions.txt`, `config/<protocol>.json`, and `config/config.json` were written by hand is indistinguishable, at runtime, from one the wizard produced.
+
+So when you're adding a protocol, the engineering problem is narrow: **get an intent flag to fire reliably in the LLM's envelope**. The user says something, the LLM matches it against your inline data, and a top-level key (`yourField`, `triage.deploymentId`, `appointment.calendarId`) comes back populated on the inputs you expect — and empty on the ones you don't. Everything else in this doc — the registry, the response-attribute groups, the wizard step, the chat-builder tool — is plumbing that exists so the operator can stop hand-editing files. None of it improves how reliably your intent fires.
+
+Validate the intent loop *first*, on an unzipped [lite-template/](../lite-template/):
+
+1. Hand-author `config/instructions.txt` = the contents of [00_base.txt](../control/lib/composer/protocols/00_base.txt), then your cartridge prose, then your data JSON pasted inline under a `## <YOUR_PROTOCOL>` header, then a `## RESPONSE FORMAT PROTOCOL` block that lists your new field alongside `answer` and `suggestions`.
+2. Point `config/config.json` at an **OpenAI or Ollama** provider — Anthropic's forced tool use enforces [envelope-schema.js](../lite-template/helper/envelope-schema.js) with `additionalProperties: false` and will silently drop any field you haven't added there yet. OpenAI and Ollama extract via prose, so they'll pass your field through unchanged.
+3. `npm install && npm start`, POST to `/api/chat`, and inspect that your field is populated when expected.
+
+If you can't get the LLM to emit your field reliably from a hand-crafted prompt, no amount of composer or wizard wiring will fix it — those layers just hand the same prompt to the same model. Iterate on cartridge prose and the inline-data shape until the intent fires consistently, *then* come back and wire it through the composer and the builders below.
+
+---
+
 ## Why this shape
 
 Three properties drive the design:
@@ -167,8 +183,11 @@ cachedInstructions = fs.readFileSync(instructionsPath, "utf-8");
 
 ## Adding a new protocol
 
+The recipe below works whether you're extending a fork or proposing a capability upstream. Bespoke protocols — those specific to one client, vertical, or workflow — belong in forks. Upstream additions should clear a broader-applicability bar (the existing `01_knowledge` through `05_optical-read` cartridges did). The mechanics are identical either way.
+
 The shape codifies a recipe — a new capability, end to end, is:
 
+0. **Get the intent flag firing on a hand-authored artifact first.** See [Before you touch the wizard](#before-you-touch-the-wizard). Steps 2–6 below wire a working cartridge into the system; they don't make a flaky cartridge less flaky. Skip this step and you'll be debugging the composer when the bug is in the prose.
 1. Write `protocols/XT_<name>.txt`. Imperative voice, blunt, no preamble. Keep the cartridge focused on *behavior*; per-deploy data goes in the inline section, not the prose.
 2. Add an entry to `PROTOCOL_FILES` and `PROTOCOL_ORDER` in [composer.js](../control/lib/composer/composer.js).
 3. If the protocol needs per-deploy config: write a `build<Name>Section()` that strips the input to fields the LLM needs and returns either a header + JSON section or `''` on missing/invalid input. Mirror the form/calendar/triage discipline — strip aggressively, never leak URLs or secrets into the prompt.

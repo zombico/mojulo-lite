@@ -33,9 +33,14 @@ function getExtractor() {
   if (!extractorPromise) {
     extractorPromise = loadExtractor().catch((err) => {
       extractorPromise = null;
+      const isMissingFile = /ENOENT|not found|could not locate|404/i.test(
+        err.message || ''
+      );
+      const hint = isMissingFile
+        ? 'Run `npm install` to fetch the ~113MB ONNX weights via scripts/fetch-embed-model.mjs (the file is gitignored).'
+        : `Underlying error: ${err.message}`;
       throw new Error(
-        `Failed to load embedding model from ${MODELS_DIR}. ` +
-          `The artifact image must include the ONNX weights. Cause: ${err.message}`
+        `Failed to load embedding model from ${MODELS_DIR}. ${hint}`
       );
     });
   }
