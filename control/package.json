@@ -9,6 +9,8 @@
     "build": "next build",
     "start": "next start -p 3001",
     "build:bot": "docker build -t mojulo/bot:latest ../lite-template",
+    "mcp-stdio": "node scripts/mcp-stdio.mjs",
+    "mcp-config": "node scripts/mcp-config.mjs",
     "postinstall": "node scripts/fetch-embed-model.js",
     "test": "vitest run"
   },

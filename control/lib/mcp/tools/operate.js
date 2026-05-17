@@ -55,6 +55,25 @@ async function listDeploymentsHandler(input, _ctx) {
   return { total, limit, offset, deployments: page };
 }
 
+function redactConfigCredentials(config) {
+  if (!config || typeof config !== 'object') return config;
+  const llmConfig = config.llmConfig;
+  if (!llmConfig || typeof llmConfig !== 'object') return config;
+  const redactedLlm = {};
+  for (const [provider, providerConfig] of Object.entries(llmConfig)) {
+    if (!providerConfig || typeof providerConfig !== 'object') {
+      redactedLlm[provider] = providerConfig;
+      continue;
+    }
+    const next = { ...providerConfig };
+    if ('apiKey' in next) next.apiKey = next.apiKey ? '[redacted]' : '';
+    if ('accessKeyId' in next && next.accessKeyId) next.accessKeyId = '[redacted]';
+    if ('secretAccessKey' in next && next.secretAccessKey) next.secretAccessKey = '[redacted]';
+    redactedLlm[provider] = next;
+  }
+  return { ...config, llmConfig: redactedLlm };
+}
+
 async function getDeploymentHandler(input, _ctx) {
   const { id } = input || {};
   if (!id) throw new Error('id is required');
@@ -63,7 +82,7 @@ async function getDeploymentHandler(input, _ctx) {
   const summary = summarizeDeployment(dep);
   return {
     ...summary,
-    config: dep.config,
+    config: redactConfigCredentials(dep.config),
     botSummary: dep.config?.botSummary || null,
     documentIds: dep.documentIds,
   };

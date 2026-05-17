@@ -14,7 +14,9 @@ import { existsSync } from 'node:fs';
 import { pipeline, env } from '@huggingface/transformers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const modelsDir = path.resolve(__dirname, '..', 'lib', 'embedder', 'models');
+const modelsDir =
+  process.env.MOJULO_MODELS_DIR ||
+  path.resolve(__dirname, '..', 'lib', 'embedder', 'models');
 env.cacheDir = modelsDir;
 env.allowRemoteModels = true;
 

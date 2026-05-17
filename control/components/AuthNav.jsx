@@ -83,7 +83,7 @@ export default function AuthNav({ authEnabled = false }) {
     <nav className="w-full border-b border-[color:var(--border-color)] bg-[color:var(--surface-primary)] px-4 py-2 flex items-center justify-between text-sm">
       <Link href="/" className="font-semibold tracking-tight inline-flex items-center gap-2">
         <HomeIcon />
-        Mojulo-Lite
+        Mojulo
       </Link>
       <div className="flex items-center gap-4 text-[color:var(--text-muted)]">
         <Link href="/settings" className="inline-flex items-center gap-1.5 hover:text-white">
