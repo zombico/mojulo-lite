@@ -155,7 +155,9 @@ export async function ensureToolsRegistered() {
   const { registerBuildTools } = await import('@/lib/mcp/tools/build');
   const { registerJobsTools } = await import('@/lib/mcp/tools/jobs-tools');
   const { registerOperateTools } = await import('@/lib/mcp/tools/operate');
+  const { registerCatalystTools } = await import('@/lib/mcp/tools/catalysts');
   registerBuildTools();
   registerJobsTools();
   registerOperateTools();
+  registerCatalystTools();
 }

@@ -107,6 +107,17 @@ npx @modelcontextprotocol/inspector http://localhost:3001/api/mcp \
 
 Conversation- and submission-reading tools proxy through to the bot — they never copy transcript rows into the control-plane DB.
 
+### Catalysts
+
+| Tool              | Returns                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `list_catalysts`  | The curated library: `id`, `name`, `summary`, `category`, `requires` per catalyst. Optional `category` filter. |
+| `get_catalyst`    | Full catalyst body for one `id` — the prose recipe Claude reads at synthesis time.                 |
+
+Catalysts are curated workflow patterns (qualify-lead-to-crm, submission-to-ticket, appointment-to-calendar, weekly-submissions-digest, scan-conversations-for-signal, knowledge-gap-miner). The user's Claude pulls a catalyst, reads the target bot's shape via `get_deployment`, picks a destination MCP from what's installed locally, and synthesizes a concrete skill into `.claude/skills/`. The "catalyst" name is literal — each file enables one phase transition from intent + bot shape + destination MCP into a structured skill, without itself appearing in the result. The bare name (not "skill catalyst") is deliberate: catalysts **produce** skills, they are not themselves skills. See [docs/catalysts.md](catalysts.md) for the author spec.
+
+The catalyst library is repo-only — there is no user-writable catalyst directory. Custom patterns are Claude Code's responsibility (synthesize from scratch, or maintain catalyst-shaped markdown locally). New patterns worth promoting to the canonical library are added by PR to [control/lib/mcp/catalysts/](../control/lib/mcp/catalysts/).
+
 ---
 
 ## Recipes — composing mojulo tools with your other MCP servers
@@ -169,6 +180,27 @@ The point of MCP exposure isn't a second way to drive the in-app chat-builder. I
 ---
 
 Recipes 1 and 2 use another MCP server as the *data source* and mojulo as the artifact producer. Recipes 3 and 4 invert that: mojulo's read tools are the data source, and the downstream MCP servers are the actuators. In both directions, the user's Claude is the glue — and 3 and 4 in particular are the ones worth promoting from ad-hoc prompts to versioned skills, since the orchestration is reusable, the inputs are parameterizable, and the output feeds further automation.
+
+---
+
+## Catalysts — synthesizing a skill from a curated pattern
+
+Recipes 3 and 4 above are the **prototype**. Catalysts are the **productized** version. A catalyst is a reusable pattern shipped with mojulo (`qualify-lead-to-crm`, `submission-to-ticket`, `appointment-to-calendar`, `weekly-submissions-digest`, `scan-conversations-for-signal`, `knowledge-gap-miner`) that Claude reads and uses to synthesize a concrete skill specific to one of your bots. The name is literal — each catalyst enables one phase transition from your intent + the bot's shape + a destination MCP into a structured skill, without itself appearing in the result. (The bare term is deliberate; catalysts produce skills, they are not skills.)
+
+The synthesis sequence:
+
+1. **Discover.** *"What catalysts are available?"* — Claude calls `list_catalysts`. You can ask for a specific one (*"use the qualify-lead-to-crm catalyst for my dental intake bot"*) or have Claude pick by description.
+2. **Read the catalyst.** Claude calls `get_catalyst(id)` to pull the full body — the workflow logic, mapping intent, pitfalls, and skill contract. The body opens with a synthesizer briefing that licenses Claude to adapt, combine catalysts, or write from scratch if the catalog doesn't fit.
+3. **Read the bot shape.** Claude calls `get_deployment(deploymentId)` to read your bot's form schema, enabled protocols, triage routes, and identity. The catalyst's mapping is derived from this — never guessed.
+4. **Bind a destination MCP.** Claude scans the MCPs you have installed in Claude Code (HubSpot, Linear, Notion, Slack, whatever), finds the candidates that match the catalyst's destination category, and asks you to confirm: *"You have `hubspot-mcp` and `pipedrive-mcp` — which one is this for?"* The chosen MCP gets hard-coded into the synthesized skill.
+5. **Answer parameter prompts.** Claude asks the questions the catalyst declares (qualifying rubric, score threshold, dedupe key, etc.) in one round.
+6. **Write the skill.** Claude writes `.claude/skills/<bot-slug>-<purpose>/SKILL.md` referencing the mojulo MCP and your bound destination MCP. The skill defaults to `--dry-run` for any catalyst that writes externally; you opt into live writes explicitly.
+
+From this point you own the skill. Edit, version-control, share. The catalyst is not a live link — if the canonical catalyst later improves, your existing skill doesn't auto-update. Re-run the flow if you want to regenerate.
+
+**Credentials never touch mojulo.** Destination-system auth lives entirely in Claude Code (the destination MCP's own config). Mojulo only knows that *some* CRM-shaped MCP exists; it never sees your HubSpot key.
+
+**No user-writable catalyst library.** Custom or one-off workflows that don't merit a canonical catalyst are Claude Code's responsibility — either let Claude synthesize without a catalyst, or maintain catalyst-shaped markdown locally and feed it inline. New patterns worth promoting to the canonical library are added by PR to [control/lib/mcp/catalysts/](../control/lib/mcp/catalysts/); see [docs/catalysts.md](catalysts.md) for the author spec.
 
 ---
 
