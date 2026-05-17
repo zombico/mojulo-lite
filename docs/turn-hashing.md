@@ -120,6 +120,16 @@ Response shape:
 - **No timestamp guarantee.** `timestamp` is a `DEFAULT CURRENT_TIMESTAMP` column and is *not* part of the hashed content. An operator can edit timestamps without breaking verify. (This is deliberate — clock skew and DST changes would otherwise produce false invalidations.)
 - **No cross-bot continuity, on its own.** Each bot's verify only attests to that bot's portion. Cross-bot tamper-evidence requires the federated-routing extension below.
 
+### Stronger guarantees, not shipped
+
+For threat models where the bot operator themselves is in scope — coordinated forgery, not just naive retroactive edits — the standard fix is to externalize chain tips to a record the operator cannot rewrite after the fact. Three patterns recognized in this space:
+
+- **RFC 3161 timestamping** — the bot posts each chain tip (or a batched Merkle root) to a Time-Stamp Authority, which signs `(hash, time)` with its own key. Strongest single-jump guarantee; requires per-turn or per-batch outbound network, and breaks the offline-build story unless batching is deferred.
+- **OpenTimestamps (Bitcoin anchoring)** — batch chain tips into a Merkle root and post to a public aggregator; once the next Bitcoin block is mined, the timestamp is unforgeable without rewriting the public chain. Free, async, no key trust. Verify gets stronger over time as the anchor matures.
+- **External witness server** — POST `{conversation_id, turn, chain_hash, ts}` to a configured endpoint (control plane, regulator, customer's compliance webhook). Trust shifts from a TSA to whoever runs the witness; simplest fit for self-hosted deployments.
+
+None of these are implemented today. The federated-routing handoff is the existing externalization surface in the codebase — generalizing it into a pluggable witness sink is the natural extension point. The bare hash chain documented above is the minimum primitive; everything beyond it depends on which external anchor your threat model accepts.
+
 ---
 
 ## Cross-bot continuity

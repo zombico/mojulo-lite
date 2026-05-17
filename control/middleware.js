@@ -3,7 +3,7 @@ import { SESSION_COOKIE, isAuthEnabled, verifySessionToken } from '@/lib/auth/se
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icon.svg|api/health|api/auth/login|api/auth/logout|login).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icon.svg|api/health|api/auth/login|api/auth/logout|api/mcp|login).*)',
   ],
 };
 

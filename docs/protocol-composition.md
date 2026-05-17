@@ -181,6 +181,57 @@ cachedInstructions = fs.readFileSync(instructionsPath, "utf-8");
 
 ---
 
+## Before adding a protocol — could a catalyst do this?
+
+Protocols and **catalysts** ([docs/catalysts.md](catalysts.md)) both extend what mojulo can do, but they live in different layers and answer different questions. Before you write a new cartridge, check whether what you actually want is a catalyst.
+
+The split, in one sentence: **protocols change what the bot does inside a conversation; catalysts change what happens with the bot's data afterward.** They commonly compose — `formGathering` captures leads (protocol), a `qualify-lead-to-crm` catalyst pushes the qualified ones to a CRM (catalyst). Same underlying work, two layers.
+
+### Pick a protocol when the capability lives inside the turn
+
+A new protocol is the right answer when the work has to happen **during the agent loop**, on every reply, in the LLM's envelope. Signals:
+
+- The bot needs to recognize a new intent class while talking to an end user and emit a new top-level envelope field (`extractedFields`, `appointment.calendarId`, etc.).
+- The bot needs to collect a new shape of structured data from the user across turns.
+- The bot needs to render a new UI affordance (a button, an upload prompt, a modal trigger) that the frontend keys off of in the envelope.
+- The behavior should be available to **every end user** who talks to the bot, not invoked manually by the operator.
+- The capability is conversational by nature — the value comes from the bot doing something in-line, not from post-hoc batch work.
+
+### Pick a catalyst when the work is post-hoc, operator-initiated, or integration-shaped
+
+A catalyst is the right answer when the work happens **after the conversation** or **outside the bot's runtime**. Signals:
+
+- The work runs on **submissions, conversation logs, or periodic summaries** — anything that operates on already-captured data.
+- The work is **operator- or scheduler-initiated**, not end-user-initiated. The end user shouldn't have to trigger it by talking to the bot.
+- The work touches **external systems** (CRM, ticketing, calendar, docs, Slack) — those integrations' credentials live in Claude Code, not in the bot's runtime, and that boundary is load-bearing.
+- The work is analytical (signal scanning, gap mining, digesting) rather than conversational.
+- You don't need to change what the bot *says*, just what happens *with* what it captured.
+
+### Quick decision rubric
+
+| What you want | What to build |
+| --- | --- |
+| Bot recognizes a new intent class during a turn and tracks new envelope state | protocol |
+| Bot collects a new shape of structured data from end users | protocol (often a `formGathering` variant) |
+| Bot renders a new UI affordance via the envelope | protocol |
+| Bot reads a new modality from the user (image, audio, etc.) | protocol |
+| Push captured submissions to an external system (CRM, ticketing, calendar) | catalyst |
+| Periodically summarize what the bot collected | catalyst |
+| Scan conversation logs for a signal and route matches externally | catalyst |
+| Cross-bot orchestration, fleet-level analysis | catalyst |
+| Add a new analytical step over historical data | catalyst |
+
+### Common false positives — these look like protocols but are usually catalysts
+
+- *"I want my bot to send leads to HubSpot."* → catalyst. The bot's job ends at submission capture. Adding a protocol would couple mojulo's runtime to a specific destination, which the catalyst architecture deliberately avoids (credentials stay in Claude Code, destinations are user-bound at synthesis time).
+- *"I want a weekly digest of my bot's activity."* → catalyst. The bot has no periodic loop; "weekly" is an operator-scheduler concept.
+- *"I want my bot to file Linear tickets when it sees an urgent complaint."* → catalyst. The bot doesn't initiate outbound calls — the operator's Claude orchestrates this from the read side via [bot-proxy.js](../control/lib/deployers/bot-proxy.js).
+- *"I want to add a new analysis step to conversations."* → almost always catalyst. Real-time analysis goes into the existing `answer` text (no new protocol needed); post-hoc analysis is the catalyst sweet spot.
+
+If after this check you still want a protocol, the recipe below is your starting point.
+
+---
+
 ## Adding a new protocol
 
 The recipe below works whether you're extending a fork or proposing a capability upstream. Bespoke protocols — those specific to one client, vertical, or workflow — belong in forks. Upstream additions should clear a broader-applicability bar (the existing `01_knowledge` through `05_optical-read` cartridges did). The mechanics are identical either way.

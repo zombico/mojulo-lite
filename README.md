@@ -1,14 +1,15 @@
 # Mojulo-Lite
-Auditable AI deployment, on your own infrastructure, with hash-verified conversations and inline retrieval provenance
+Self-hosted AI chatbot builder. Hash-chained conversation logs, offline retrieval, portable artifacts.
 
-> Compile your own AI chatbot into a portable Docker artifact. Self-host it anywhere `docker compose up` runs — your laptop, a $5 VPS, one-click to Fly.io, or fully air-gapped.
+> Compile a chatbot into a portable Docker artifact. Self-host it anywhere `docker compose up` runs — a laptop, a VPS, Fly.io, or an air-gapped host.
 
-Two builders, one artifact:
+Three surfaces, one artifact:
 
-- **Chat builder** — describe what you want, Claude proposes, you dispose.
-- **Wizard** — step-by-step form for when you already know.
+- **Chat builder** — describe the bot you want; Claude drafts the config, you adjust.
+- **Wizard** — step-by-step form for when you already know the shape you want.
+- **MCP** — point Claude Code or Desktop at the control plane and your Claude drives the build loop, mixing mojulo's tools with your other MCP servers (Drive, Linear, Gmail, GitHub). See [docs/mcp-integration.md](docs/mcp-integration.md).
 
-Both produce a `<bot>.zip`. One image, one config, one command.
+All three produce the same `<bot>.zip`.
 
 <!--
   HERO IMAGE — put it here.
@@ -27,40 +28,36 @@ Both produce a `<bot>.zip`. One image, one config, one command.
 
 ## Features
 
-**Standout**
-
-- **Tamper-evident transcripts.** Every turn is content-hashed and chain-linked; verify at `/verify/:id`. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/turn-hashing.md](docs/turn-hashing.md) and [docs/federated-routing.md](docs/federated-routing.md).
-- **Multilingual vector RAG, fully offline.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. A Thai query against a Spanish corpus retrieves the right chunks with no language detection and no embedding-API key at runtime. See [docs/vector-rag.md](docs/vector-rag.md).
-- **Ghost forms — PII never reaches the LLM.** Locale-aware structured fields render client-side and submit through a dedicated endpoint that bypasses the model. The chat history records only an opaque marker like `{contact_form_filled}`. See [docs/form-collection.md](docs/form-collection.md).
-- **Optical Read — structured fields out of an uploaded image.** Name the slots you want (DOB, license #, expiry, prescription dose); a vision-capable LLM reads the artifact, the user reviews and optionally edits before submit. The extraction turn is hashed over the image bytes — the chain breaks if the source image is altered after the fact, so the audit trail covers what the model actually saw. See [docs/optical-read.md](docs/optical-read.md).
-- **Connect Bot.** Read live conversations from anywhere without exporting data. The bot's SQLite stays on the bot; the control plane proxies through a key both sides share. See [docs/conversations-api.md](docs/conversations-api.md).
-
-**Also included**
-
+- **Hash-chained transcripts.** Every turn is content-hashed and chain-linked; `/verify/:id` walks the chain. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/turn-hashing.md](docs/turn-hashing.md) and [docs/federated-routing.md](docs/federated-routing.md).
+- **Multilingual vector RAG, offline at runtime.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. Cross-language retrieval works without a language-detection step or an embedding-API key at runtime — e.g. a Thai query against a Spanish corpus. See [docs/vector-rag.md](docs/vector-rag.md).
+- **Out-of-band forms — PII bypasses the LLM.** Locale-aware structured fields render client-side and submit through a dedicated endpoint that does not call the model. The chat history records only an opaque marker like `{contact_form_filled}`. See [docs/form-collection.md](docs/form-collection.md).
+- **Image extraction with hashed inputs.** Name the slots you want out of an uploaded image (DOB, license #, expiry, prescription dose); a vision-capable LLM reads the artifact, the user reviews and edits before submit. The extraction turn is hashed over the image bytes, so post-hoc edits to the source image break the chain. See [docs/optical-read.md](docs/optical-read.md).
+- **Live conversation viewer.** Read conversations from a deployed bot without copying data out of it. The bot's SQLite stays on the bot; the control plane proxies through a shared key. See [docs/conversations-api.md](docs/conversations-api.md).
 - **Two builders, same output.** Conversational builder for fast iteration, structured wizard for precision.
-- **Multiple LLM providers.** OpenAI, Anthropic, or local Ollama — pick at build time, swap by editing `.env`. Cloud providers and llama3.3 (70B, ~75GB resident) run every protocol; smaller local models (qwen3, mistral-nemo) are gated to knowledge-base bots where the multi-step tool-use a forms/appointments/triage bot needs is unreliable.
-- **Protocol cartridges.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing, optical read.
-- **Localized bot UI and form validation across 20 locales.** The chat widget and ghost-form error messages render in the user's language without operator configuration.
-- **One-click cloud deploy** to Fly.io — paste a token in Settings, click Deploy. Persistent volume, autostart on request, autostop when idle. No shell, no `flyctl`.
+- **Multiple LLM providers.** OpenAI, Anthropic, or local Ollama — pick at build time, swap by editing `.env`. Cloud providers and llama3.3 (70B, ~75GB resident) run every protocol; smaller local models (qwen3, mistral-nemo) are gated to knowledge-base bots, since the multi-step tool-use a forms/appointments/triage bot needs is unreliable on those models.
+- **Composable protocols.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing, image extraction.
+- **Localized bot UI and form validation across 20 locales.** The chat widget and form error messages render in the user's language without operator configuration.
+- **Cloud deploy to Fly.io.** Paste a token in Settings, click Deploy. Persistent volume, autostart on request, autostop when idle. No `flyctl` install required.
 - **Document library.** Upload once, reuse across bots. Optionally bundle the source documents back into the artifact zip for archival or client handoff.
-- **Embeddable widget** + Prometheus metrics + form-submission webhooks.
+- **Embeddable widget**, Prometheus metrics, and form-submission webhooks.
 
 ## Why
 
-Most chatbot builders trap you in their cloud. You get a hosted widget, a recurring bill, and zero ownership.
+Most chatbot builders are hosted SaaS — a managed widget, a recurring bill, no ownership of the artifact itself.
 
-Mojulo-Lite hands you the artifact. The bot you compile is yours — its source is one open-source image, its config is plain JSON, its conversations live in a SQLite file you control. Move it, fork it, audit it, run it offline. The control plane is just the factory; the bot doesn't phone home.
+Mojulo-Lite produces a portable artifact instead. The bot you compile is yours: the source is a single open-source image, the config is plain JSON, conversations live in a SQLite file on the bot. The control plane builds it; the bot doesn't phone home.
 
 ## Who builds with this
 
 A spectrum, all on the same open-source, self-hosted stack:
 
-- **Indie makers** shipping a side-project bot without a SaaS bill — clone, compile, point at a $5 VPS.
+- **Indie makers** shipping a side-project bot without a SaaS bill — clone, compile, point at a small VPS.
 - **Agencies** building a per-client bot per deployment, swapping LLM provider and locale per project.
 - **Internal IT** rolling out an air-gapped helper inside a firewalled network — offline RAG means there's no embedding API to allow-list.
-- **Regulated SMBs** — clinics, law offices, financial pre-screen — where the chained transcript is a compliance artifact, not just a feature.
+- **Regulated SMBs** — clinics, law offices, financial pre-screen — where the chained transcript can serve as a compliance artifact.
+- **Claude Code / Desktop users** driving the control plane via MCP, composing mojulo's build and audit tools with the other MCP servers already in their loop. Recipes in [docs/mcp-integration.md](docs/mcp-integration.md).
 
-Local `docker compose up` or one-click cloud deploy to Fly.io from the dashboard — same artifact, your choice of host. The audit-grade and offline pieces are there when you need them, quiet when you don't.
+Local `docker compose up` or cloud deploy to Fly.io from the dashboard — same artifact, your choice of host. The audit-chain and offline pieces are there when you need them, and stay out of the way when you don't.
 
 ## Quickstart
 
@@ -74,13 +71,13 @@ npm run dev
 
 Open `http://localhost:3001` and:
 
-1. **Settings → Provider Keys** — paste at least one LLM provider key (Anthropic / OpenAI), or point the wizard at a local Ollama host. Optionally add a Fly.io token in the same place if you want one-click cloud deploy. The same store powers the builder, gets baked into compiled bots, and authenticates cloud deploys.
+1. **Settings → Provider Keys** — paste at least one LLM provider key (Anthropic / OpenAI), or point the wizard at a local Ollama host. Optionally add a Fly.io token in the same place to enable cloud deploy from the dashboard. The same store powers the builder, gets baked into compiled bots, and authenticates cloud deploys.
 2. **Chat builder** or **Wizard** — describe the bot.
 3. **My bots** — pick how to run your bot:
-   - **Deploy to cloud** — ship it to Fly.io with one click.
-   - **Download zip** — paste the LLM key into `.env` and run `docker compose up` on your own host. You're at `http://localhost:3000`.
+   - **Deploy to cloud** — ship it to Fly.io from the dashboard.
+   - **Download zip** — paste the LLM key into `.env` and run `docker compose up` on your own host. The bot is at `http://localhost:3000`.
 
-That's it. Five minutes from clone to running bot.
+That's the loop: clone, configure, build, run.
 
 <!--
   IMAGE — Wizard knowledge step.
@@ -107,9 +104,9 @@ unzip my-bot-{id}.zip && cd my-bot-{id}
 docker compose up
 ```
 
-### One-click to Fly.io
+### Fly.io from the dashboard
 
-Paste a Fly API token in **Settings → Provider Keys** (right alongside your LLM key — encrypted at rest, same flow). Hit **Deploy to cloud** on any bot from the dashboard. The control plane provisions the app, allocates a volume, injects your config, and waits for healthchecks while progress streams back live. No shell, no `flyctl` install, no `.env` editing on your part. Your Fly account, your bill.
+Paste a Fly API token in **Settings → Provider Keys**, alongside your LLM key (encrypted at rest, same flow). Click **Deploy to cloud** on a bot from the dashboard. The control plane provisions the app, allocates a volume, injects your config, and waits for healthchecks while progress streams back. No `flyctl` install or local `.env` editing required. Your Fly account, your bill.
 
 <!--
   IMAGE — Cloud deploy pane.
@@ -135,15 +132,15 @@ MOJULO_CLOUD_IMAGE=ghcr.io/your-org/your-bot:0.1.0   # Fly cloud deploy
 
 ---
 
-## Connect Bot: live conversations without exporting
+## Live conversation viewer
 
-Once a bot is running anywhere reachable (localhost, ngrok, Fly, your VPS), paste its URL into the dashboard. The control plane reads conversations live without copying them.
+Once a bot is running anywhere reachable (localhost, ngrok, Fly, your VPS), paste its URL into the dashboard. The control plane reads conversations live, without copying them.
 
 **How it works.** Every dashboard request to `/api/deployments/[id]/conversations*` and `/api/deployments/[id]/submissions*` is forwarded to the bot's read-only API, authenticated by `MOJULO_API_KEY` — a shared secret baked into the artifact at build time and stored alongside the bot's URL on the deployment row.
 
 **What crosses the wire.** Read-only JSON responses: turn lists, hash chains, verification status, form submissions. **What doesn't.** No DB rows are replicated into the control plane, no bot-side write paths are exposed, no background sync runs. The bot's SQLite is the system of record; the control plane is a viewer.
 
-**Why this matters for residency.** Conversation records — including PII captured by ghost forms — stay wherever the bot runs. If you deploy the bot inside a customer's VPC or a country-specific region, the data never leaves that boundary just because you opened the dashboard.
+**Why this matters for residency.** Conversation records — including PII captured by out-of-band forms — stay wherever the bot runs. If you deploy the bot inside a customer's VPC or a country-specific region, the data does not leave that boundary when you open the dashboard.
 
 <!--
   IMAGE — Conversations browser.
@@ -151,11 +148,11 @@ Once a bot is running anywhere reachable (localhost, ngrok, Fly, your VPS), past
   showing a list of conversations on the left, a selected conversation's
   turns on the right, and the green "Connected — last seen 2s ago" pill in
   the header.
-  Why this shot: this is the operator superpower nobody else ships — your
-  data on your bot, viewable from the factory without copying it.
+  Why this shot: shows the read-through model — data on the bot, viewable
+  from the control plane without copying it.
   Suggested filename: docs/images/connect-bot-conversations.png
 -->
-![Connect Bot conversations browser](docs/images/connect-bot-conversations.png)
+![Conversations browser](docs/images/connect-bot-conversations.png)
 
 See [ARCHITECTURE.md §7](ARCHITECTURE.md) for the trust model.
 
@@ -170,9 +167,17 @@ The control plane ships with an **opt-in HTTP login** as a last-line-of-defense 
 - **SSH tunnel.** `ssh -L 3001:localhost:3001 your-host` for occasional remote access to a server install.
 - **Reverse proxy with auth in front.** Caddy, nginx, or Traefik with basic auth — or OAuth2 Proxy, Cloudflare Access, Authelia, Tailscale Funnel. The control plane never sees the auth; your proxy enforces it.
 
-**The bots it compiles are a different posture** — they're designed to face end users. The control plane → bot Connect Bot proxy is authenticated by a key both sides share (`MOJULO_API_KEY`, baked into the artifact at build time), and conversation data stays in the bot's local SQLite.
+**The bots it compiles have a different posture** — they're designed to face end users. The control plane → bot read-through proxy is authenticated by a key both sides share (`MOJULO_API_KEY`, baked into the artifact at build time), and conversation data stays in the bot's local SQLite.
 
 For the threat model and what does or doesn't count as a security issue, see [SECURITY.md](SECURITY.md).
+
+---
+
+## Audit chain posture
+
+The per-turn hash chain (`content_hash` + `chain_hash`, walked by `/verify/:id`) is **tamper-evident, not tamper-proof**. It catches naive retroactive edits to the bot's SQLite — change one row, the chain breaks at every row after it. It does **not** stop a sophisticated operator with DB access from rebuilding a coherent forged history from scratch; there is no signing key and no external anchor.
+
+If your threat model demands non-repudiation against the bot operator themselves, you need an external anchor — **RFC 3161 timestamping**, **OpenTimestamps (Bitcoin anchoring)**, or an **external witness server** that records chain tips out of band. None of these are shipped today; the federated-routing handoff is the existing externalization surface where a pluggable witness sink would land. See [docs/turn-hashing.md](docs/turn-hashing.md) for the full scope statement.
 
 ---
 
@@ -203,15 +208,15 @@ Per-package docs:
 Concept docs:
 
 - [docs/mojulo-bots.md](docs/mojulo-bots.md) — **start here:** plain-language orientation to bots, protocols, and the Control Plane before diving into the deep dives below
-- [docs/wizard-builder.md](docs/wizard-builder.md) — the structured wizard: how steps are generated from protocol toggles, how the live-preview Theatre runs the real bot client, and how its output converges with the chat builder at `buildDeploymentConfig`
-- [docs/chat-builder.md](docs/chat-builder.md) — the conversational builder: the 10 tools Claude orchestrates, two-tier intent evaluation, the streaming tool loop with custom event overlays
+- [docs/wizard-builder.md](docs/wizard-builder.md) — the structured wizard: how steps are generated from protocol toggles, how the live preview runs the real bot client, and how its output converges with the chat builder at `buildDeploymentConfig`
+- [docs/chat-builder.md](docs/chat-builder.md) — the conversational builder: the tools Claude orchestrates, intent evaluation, and the streaming tool loop with custom event overlays
 - [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
-- [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot tamper-evident chain that `/verify/:id` walks
+- [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot hash chain that `/verify/:id` walks
 
 
 ## What this isn't
 
-Mojulo-Lite is for building specialized, focused bots with your documents per knowledge base. Brute-force vector search starts to slow on very large corpora — for that scale, you'd want a dedicated vector database. The control plane is single-user by design.  The artifact format may change between 0.x versions.
+Mojulo-Lite is for building specialized bots over focused document sets. The in-process vector search is linear over the corpus — at very large scale, you'd want a dedicated vector database. The control plane is single-user by design. The artifact format may change between 0.x versions.
 
 ## Status
 

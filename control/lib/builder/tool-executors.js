@@ -433,12 +433,19 @@ async function processDocumentsVector(documents, documentIds, session, userId) {
   const { chunkDocuments } = await import('@/lib/embedder/chunker.js');
   const { LOCAL_EMBEDDING_MODEL } = await import('@/lib/embedder/local.js');
 
-  // Parse all documents.
+  // Parse all documents. Prefer the row's cached parsed_text (every upload
+  // path — web, chat builder, MCP — populates it at ingest time). Falling
+  // back to download+re-parse covers any legacy row whose parsed_text was
+  // never set, and is the only path that can recover a doc whose buffer
+  // changed out-of-band.
   const parsed = [];
   for (const doc of documents) {
     try {
-      const buffer = await downloadToBuffer(doc.storagePath);
-      const text = await parseDocument(buffer, doc.originalName);
+      let text = doc.parsedText;
+      if (!text || text.trim().length === 0) {
+        const buffer = await downloadToBuffer(doc.storagePath);
+        text = await parseDocument(buffer, doc.originalName);
+      }
       if (text && text.trim().length > 0) {
         parsed.push({ id: doc.id, originalName: doc.originalName, text });
       }
