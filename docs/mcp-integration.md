@@ -26,10 +26,6 @@ When `/api/mcp` is enabled, the user's Claude becomes the agent loop and the con
 
    ```bash
    CONTROL_PLANE_MCP_KEY=<your-random-token>
-
-   # Optional: surface conversation / submission / verify tools.
-   # Off by default. Set to 1 to register the read tools.
-   MCP_EXPOSE_CONVERSATIONS=1
    ```
 
 3. Restart the control plane (`cd control && npm run dev`).
@@ -97,20 +93,82 @@ npx @modelcontextprotocol/inspector http://localhost:3001/api/mcp \
 | `start_new_bot`                 | sync              | Reset the builder session — call when the user wants to build a second bot.             |
 | `get_builder_session`           | sync              | Inspect the current in-progress configuration.                                          |
 
-### Operate (gated)
-
-Registered only when `MCP_EXPOSE_CONVERSATIONS=1`:
+### Operate
 
 | Tool                  | Reads from                | Notes                                          |
 | --------------------- | -------------------------- | ---------------------------------------------- |
-| `list_deployments`    | control plane SQLite       | Always on. Filter by status / mode.            |
-| `get_deployment`      | control plane SQLite       | Always on.                                     |
-| `query_conversations` | bot SQLite via bot-proxy   | Conversation data stays on the bot.             |
-| `get_conversation`    | bot SQLite via bot-proxy   |                                                |
+| `list_deployments`    | control plane SQLite       | Filter by status / mode.                       |
+| `get_deployment`      | control plane SQLite       |                                                |
+| `query_conversations` | bot SQLite via bot-proxy   | Summaries only (id, timestamps, turn count). Optional since / until bounds.    |
+| `get_conversation`    | bot SQLite via bot-proxy   | Full turn list for one conversation.            |
+| `export_conversations`| bot SQLite via bot-proxy   | Full turn dump with optional date bounds. Heavy — bound by date on large bots. |
 | `query_submissions`   | bot SQLite via bot-proxy   |                                                |
 | `verify_chain`        | bot                        | Walks the tamper-evident hash chain.            |
 
-`list_deployments` and `get_deployment` are always registered (they're just metadata reads); the transcript-touching tools require the env flag.
+Conversation- and submission-reading tools proxy through to the bot — they never copy transcript rows into the control-plane DB.
+
+---
+
+## Recipes — composing mojulo tools with your other MCP servers
+
+The point of MCP exposure isn't a second way to drive the in-app chat-builder. It's that mojulo's tools sit in the same agent loop as your other MCP servers (Drive, Gmail, Linear, GitHub, Notion). None of the recipes below are reachable from the in-app chat-builder, because it can't see your other tools.
+
+### 1. Drive folder → bot knowledge base
+
+**You need:** the Google Drive MCP server connected alongside mojulo.
+
+**Prompt:** *"Use every doc in my Drive folder 'Practice SOPs' as the knowledge base for a triage bot for my dental clinic."*
+
+**Flow:** Drive lists + reads each doc → pipe the extracted text into `upload_document_from_url` with `text + fileName` (this mode is what skips the binary round-trip through the model when another MCP server already has parsed content) → `process_documents` returns a `jobId` → `poll_job` until done → `recommend_protocols` / `generate_triage_config` / `save_modular_bot`.
+
+### 2. Linear escalations → triage routes
+
+**You need:** the Linear MCP server connected.
+
+**Prompt:** *"Pull the top 10 escalation labels from Linear project SUPPORT for the last quarter and turn them into triage routes for a customer-service bot."*
+
+**Flow:** Linear queries issues by label/priority → Claude aggregates them into route descriptions → `generate_triage_config` embeds each route description into the bot's vector store → `save_modular_bot`.
+
+### 3. Qualify submission → branch CRM workflow
+
+**You need:** a downstream MCP server for the action — CRM (Salesforce / HubSpot), email (Gmail), ticketing (Linear), or a generic webhook MCP for anything else.
+
+**Example.** A dental clinic intake bot captures: name, DOB, insurance carrier, chief complaint, returning-patient Y/N. The skill pulls new submissions, classifies each on those fields plus the free-text, and branches:
+
+- New patient + accepted insurance → CRM `create_contact` + add to onboarding sequence + draft welcome email
+- Returning patient → CRM `update_contact_last_visit` + scheduling email
+- Chief complaint flagged urgent → Linear ticket for the on-call coordinator
+
+**Prompt:** *"For new submissions since `2026-05-15` on deployment `<id>`, run the new-patient routing workflow."*
+
+**Flow:** `query_submissions` with a `since` cursor → Claude classifies on the form fields → routes each submission to the right downstream MCP tool. Conversation rows never leave the bot — `query_submissions` proxies through [bot-proxy.js](../control/lib/deployers/bot-proxy.js).
+
+**Package it as a skill** (`.claude/skills/route-intake.md`) once the classification rules stabilize. Take `deploymentId` and `since` as args; the cursor is what makes the skill idempotent across invocations — re-running it won't double-register a patient because already-seen submissions are below the cursor.
+
+**Two things to be deliberate about:**
+
+- **PII back through the LLM.** The form-gathering protocol's design point is that PII bypasses the LLM at *capture* time. This recipe deliberately reintroduces it at *routing* time, since classifying on insurance carrier or chief complaint requires reading those fields. Fine for many setups; worth thinking through against the data-handling posture you advertised to end users.
+- **Irreversible writes.** For CRM creates, welcome-email sends, anything you can't easily undo — design the skill to propose the routing decision and confirm before firing, rather than fire-and-forget. The MCP tool surface doesn't enforce this; the skill's prompt does.
+
+**Not event-driven.** Skills are invoked, not subscribed — there's no MCP path that fires on a new submission. If you need true event delivery, point the bot's form webhook ([server.js](../lite-template/server.js)'s `/api/send-webhook` proxy) at a listener you control; the skill then becomes the "what to do with what arrived" half, invoked by you or the listener-side automation.
+
+### 4. Sampled mention scan → analytical handoff
+
+**You need:** an output target (Linear / Notion / Slack / Google Doc via the matching MCP).
+
+**Example.** A SaaS support bot. Take a recent sample — say, the last 30 conversations — and scan each for competitor mentions, churn-intent language, or recurring feature requests. Anything that fires: file a Linear ticket tagged `voice-of-customer` with the conversation id and the matching snippet.
+
+**Prompt:** *"Sample the 30 most recent conversations from deployment `<id>` and flag any churn-intent signals as Linear tickets."*
+
+**Flow:** `query_conversations` with a small limit → `get_conversation` per id → Claude scans the turn text → matches go to the downstream MCP.
+
+**Sampling is the point.** This recipe is a pattern proof, not a fleet sweep. A bounded sample keeps token cost predictable and lets you tune the signal prompt against real conversations before scaling up. Once the signal looks reliable, the same skill takes a larger window — or runs on a cadence via `/schedule` for ongoing tuning, without keeping an interactive session open.
+
+**Package it as a skill** (`.claude/skills/scan-conversations.md`) taking `deploymentId`, `sampleSize`, and the signal definition. Different signals (competitor mentions, churn intent, accessibility complaints) become different invocations of the same skill rather than separate skills.
+
+---
+
+Recipes 1 and 2 use another MCP server as the *data source* and mojulo as the artifact producer. Recipes 3 and 4 invert that: mojulo's read tools are the data source, and the downstream MCP servers are the actuators. In both directions, the user's Claude is the glue — and 3 and 4 in particular are the ones worth promoting from ad-hoc prompts to versioned skills, since the orchestration is reusable, the inputs are parameterizable, and the output feeds further automation.
 
 ---
 

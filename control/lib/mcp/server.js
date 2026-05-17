@@ -148,9 +148,6 @@ function toMcpToolResult(result) {
 // Tool registrations run on first request rather than at module load. We use
 // dynamic import to avoid a circular dependency: tool modules import
 // `registerTool` from this file.
-//
-// Ring 1 (build) registers unconditionally. Ring 2 (operate / transcript
-// reads) gates on MCP_EXPOSE_CONVERSATIONS.
 let _registered = false;
 export async function ensureToolsRegistered() {
   if (_registered) return;

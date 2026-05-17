@@ -6,10 +6,6 @@
  * (deployment metadata) or pass through bot-proxy to the bot's own SQLite
  * (conversations, submissions, chain verification) — preserving the
  * "conversation data never leaves the bot's SQLite" invariant.
- *
- * Transcript-touching tools (everything below `list_deployments` /
- * `get_deployment`) are gated behind MCP_EXPOSE_CONVERSATIONS=1 so the
- * read surface is opt-in.
  */
 
 import { DeploymentRepository } from '@/lib/db/repositories/deployments';
@@ -81,10 +77,10 @@ async function loadConnectedDeployment(id) {
   return dep;
 }
 
-async function proxyJson(dep, path) {
+async function proxyJson(dep, path, opts) {
   let response;
   try {
-    response = await fetchFromBot(dep, path);
+    response = await fetchFromBot(dep, path, opts);
   } catch (err) {
     throw new Error(`Could not reach bot: ${err.message || err.name}`);
   }
@@ -98,18 +94,29 @@ async function proxyJson(dep, path) {
   return response.json();
 }
 
-async function queryConversationsHandler(input, _ctx) {
-  const { id, limit, offset, since, until, search } = input || {};
-  const dep = await loadConnectedDeployment(id);
+// Both list and full-dump flows hit /api/conversations/export rather than
+// /api/conversations. The list endpoint has a guardrail that returns 0 rows
+// unless conversationId / startDate / endDate is provided, which surfaced as
+// "0 results but the bot clearly has conversations" through MCP.
+async function fetchExport(dep, { startDate, endDate }) {
   const qs = new URLSearchParams();
-  if (limit != null) qs.set('limit', String(limit));
-  if (offset != null) qs.set('offset', String(offset));
-  if (since) qs.set('since', String(since));
-  if (until) qs.set('until', String(until));
-  if (search) qs.set('search', String(search));
-  const path = `/api/conversations${qs.toString() ? `?${qs.toString()}` : ''}`;
-  const data = await proxyJson(dep, path);
-  return { botName: dep.botName, ...data };
+  if (startDate) qs.set('startDate', String(startDate));
+  if (endDate) qs.set('endDate', String(endDate));
+  const path = `/api/conversations/export${qs.toString() ? `?${qs.toString()}` : ''}`;
+  return proxyJson(dep, path, { timeoutMs: 60000 });
+}
+
+async function queryConversationsHandler(input, _ctx) {
+  const { id, since, until } = input || {};
+  const dep = await loadConnectedDeployment(id);
+  const data = await fetchExport(dep, { startDate: since, endDate: until });
+  const conversations = (Array.isArray(data) ? data : []).map((c) => ({
+    conversationId: c.conversationId,
+    startedAt: c.startedAt,
+    lastActivity: c.lastActivity,
+    turnCount: c.turnCount,
+  }));
+  return { botName: dep.botName, total: conversations.length, conversations };
 }
 
 async function getConversationHandler(input, _ctx) {
@@ -117,6 +124,13 @@ async function getConversationHandler(input, _ctx) {
   if (!conversationId) throw new Error('conversationId is required');
   const dep = await loadConnectedDeployment(id);
   return proxyJson(dep, `/api/conversations/${encodeURIComponent(conversationId)}`);
+}
+
+async function exportConversationsHandler(input, _ctx) {
+  const { id, startDate, endDate } = input || {};
+  const dep = await loadConnectedDeployment(id);
+  const data = await fetchExport(dep, { startDate, endDate });
+  return { botName: dep.botName, conversations: data };
 }
 
 async function querySubmissionsHandler(input, _ctx) {
@@ -172,75 +186,85 @@ export function registerOperateTools() {
     handler: getDeploymentHandler,
   });
 
-  // Transcript-touching tools: gated behind MCP_EXPOSE_CONVERSATIONS=1. The
-  // proxy reads keep conversation data inside the bot's SQLite; the model
-  // sees them only because the user opted in to surfacing them.
-  if (process.env.MCP_EXPOSE_CONVERSATIONS === '1') {
-    registerTool({
-      name: 'query_conversations',
-      description:
-        'List conversations on a connected bot. Proxies through to the bot — conversation rows live in the bot SQLite, never the control plane. Supports limit / offset / since / until / search.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Deployment id.' },
-          limit: { type: 'integer', minimum: 1, maximum: 200 },
-          offset: { type: 'integer', minimum: 0 },
-          since: { type: 'string', description: 'ISO timestamp lower bound.' },
-          until: { type: 'string', description: 'ISO timestamp upper bound.' },
-          search: { type: 'string', description: 'Free-text search.' },
-        },
-        required: ['id'],
+  // Transcript-touching tools. The proxy reads keep conversation data inside
+  // the bot's SQLite — the model sees them but the control-plane DB never does.
+  registerTool({
+    name: 'query_conversations',
+    description:
+      'List conversation summaries on a connected bot (one entry per conversation — id, started_at, last_activity, turn_count). Proxies through to the bot — conversation rows live in the bot SQLite, never the control plane. Optional since / until ISO bounds filter on the first-turn timestamp. Use get_conversation for the full turn list, or export_conversations to pull every turn in one shot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Deployment id.' },
+        since: { type: 'string', description: 'ISO timestamp lower bound on first-turn timestamp.' },
+        until: { type: 'string', description: 'ISO timestamp upper bound on first-turn timestamp.' },
       },
-      handler: queryConversationsHandler,
-    });
+      required: ['id'],
+    },
+    handler: queryConversationsHandler,
+  });
 
-    registerTool({
-      name: 'get_conversation',
-      description:
-        'Get the full turn list for one conversation on a connected bot. Proxies through to the bot.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Deployment id.' },
-          conversationId: { type: 'string', description: 'Conversation id on the bot.' },
-        },
-        required: ['id', 'conversationId'],
+  registerTool({
+    name: 'get_conversation',
+    description:
+      'Get the full turn list for one conversation on a connected bot. Proxies through to the bot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Deployment id.' },
+        conversationId: { type: 'string', description: 'Conversation id on the bot.' },
       },
-      handler: getConversationHandler,
-    });
+      required: ['id', 'conversationId'],
+    },
+    handler: getConversationHandler,
+  });
 
-    registerTool({
-      name: 'query_submissions',
-      description:
-        'List form-gathering submissions on a connected bot. Proxies through to the bot.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Deployment id.' },
-          limit: { type: 'integer', minimum: 1, maximum: 200 },
-          offset: { type: 'integer', minimum: 0 },
-          since: { type: 'string' },
-          until: { type: 'string' },
-        },
-        required: ['id'],
+  registerTool({
+    name: 'export_conversations',
+    description:
+      'Bulk export full conversations on a connected bot, including every turn. Optional startDate / endDate ISO bounds filter on the conversation\'s first turn. Returns one entry per conversation with the full turn list nested under each — use sparingly on bots with many conversations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Deployment id.' },
+        startDate: { type: 'string', description: 'ISO timestamp lower bound on first-turn timestamp.' },
+        endDate: { type: 'string', description: 'ISO timestamp upper bound on first-turn timestamp.' },
       },
-      handler: querySubmissionsHandler,
-    });
+      required: ['id'],
+    },
+    handler: exportConversationsHandler,
+  });
 
-    registerTool({
-      name: 'verify_chain',
-      description:
-        'Walk the tamper-evident hash chain for one conversation. Returns the verification result from the bot. See docs/turn-hashing.md for the chain semantics.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Deployment id.' },
-          conversationId: { type: 'string', description: 'Conversation id on the bot.' },
-        },
-        required: ['id', 'conversationId'],
+  registerTool({
+    name: 'query_submissions',
+    description:
+      'List form-gathering submissions on a connected bot. Proxies through to the bot.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Deployment id.' },
+        limit: { type: 'integer', minimum: 1, maximum: 200 },
+        offset: { type: 'integer', minimum: 0 },
+        since: { type: 'string' },
+        until: { type: 'string' },
       },
-      handler: verifyChainHandler,
-    });
-  }
+      required: ['id'],
+    },
+    handler: querySubmissionsHandler,
+  });
+
+  registerTool({
+    name: 'verify_chain',
+    description:
+      'Walk the tamper-evident hash chain for one conversation. Returns the verification result from the bot. See docs/turn-hashing.md for the chain semantics.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Deployment id.' },
+        conversationId: { type: 'string', description: 'Conversation id on the bot.' },
+      },
+      required: ['id', 'conversationId'],
+    },
+    handler: verifyChainHandler,
+  });
 }
