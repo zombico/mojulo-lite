@@ -2,6 +2,11 @@
 node_modules/
 npm-debug.log*
 
+# Lockfile is platform-pinned by npm (sharp's @img/* optionals only resolve
+# for the dev machine's platform). Excluding it forces npm install in the
+# container to resolve linux-x64 / linux-arm64 binaries from scratch.
+package-lock.json
+
 # Environment files - should be injected at runtime
 .env
 .env.local
