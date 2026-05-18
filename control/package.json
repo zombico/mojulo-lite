@@ -1,9 +1,9 @@
 {
-  "name": "mojulo-lite-control",
+  "name": "mojulo-control",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Mojulo-Lite control plane — portable bot compiler (wizard + chat builder inverted flow)",
+  "description": "Mojulo control plane — portable bot compiler (wizard + chat builder inverted flow)",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",

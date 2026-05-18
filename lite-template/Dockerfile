@@ -33,8 +33,10 @@ COPY package*.json ./
 COPY scripts/ ./scripts/
 RUN npm ci --only=production
 
-# Copy documents
-COPY documents/ ./documents/
+# Documents are runtime-populated from the per-bot volume mount (see
+# docker-compose.yml). The directory only needs to exist as a mount target.
+# Not COPYing because lite-template/documents/ is gitignored — empty in CI.
+RUN mkdir -p ./documents
 
 # Copy the small tokenizer/config files that ship in git (the .onnx weights
 # were already fetched by postinstall above). Idempotent overlay.
