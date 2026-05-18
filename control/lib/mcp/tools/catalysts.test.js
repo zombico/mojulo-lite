@@ -208,8 +208,10 @@ describe('customCatalystHandler', () => {
 });
 
 describe('recommendCatalystsHandler — input validation', () => {
-  it('throws on missing deploymentId', async () => {
-    await expect(recommendCatalystsHandler({})).rejects.toThrow(/deploymentId is required/);
+  it('throws when neither deploymentId nor fleet scope is provided', async () => {
+    await expect(recommendCatalystsHandler({})).rejects.toThrow(
+      /deploymentId is required|fleet/i,
+    );
   });
 
   it('throws on unknown deploymentId', async () => {

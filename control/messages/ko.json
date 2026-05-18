@@ -1889,128 +1889,67 @@
     "clear": "지우기"
   },
   "data": {
-    "title": "대화 데이터",
-    "subtitle": "모든 봇에서 집계된 대화 데이터 탐색 및 분석",
-    "loading": "로딩 중...",
+    "navLabel": "데이터",
+    "title": "플릿 데이터",
+    "subtitle": "연결된 모든 봇의 대화 활동을 탐색하고 집계하세요. 대화 내용은 봇에 그대로 남아 있으며, 집계 횟수만 프로세스 내에서 병합됩니다.",
+    "loading": "로딩 중…",
     "tabs": {
-      "explorer": "데이터 탐색기",
-      "sql": "SQL 탐색기",
+      "explorer": "탐색기",
+      "sql": "SQL",
       "analytics": "분석"
+    },
+    "fleet": {
+      "unreachableBanner": "{total}개 봇 중 {unreachable}개에 연결할 수 없습니다 — 결과가 일부만 표시될 수 있습니다."
     },
     "explorer": {
       "filters": {
-        "botSpace": "봇 스페이스",
-        "allSpaces": "모든 스페이스",
-        "bot": "봇",
-        "allBots": "모든 봇",
-        "type": "유형",
-        "allTypes": "모든 유형",
-        "startDate": "시작 날짜",
-        "endDate": "종료 날짜",
-        "completedOnly": "완료된 항목만"
+        "conversationId": "대화 ID 포함",
+        "startDate": "시작일 이후",
+        "endDate": "시작일 이전"
       },
-      "botTypes": {
-        "knowledge": "지식",
-        "standard": "표준 양식",
-        "triage": "분류",
-        "appointments": "예약"
-      },
-      "export": {
-        "csv": "CSV 내보내기",
-        "json": "JSON 내보내기"
-      },
+      "search": "검색",
+      "searching": "검색 중…",
+      "clear": "지우기",
+      "hint": "대화 ID 일부나 날짜 범위를 입력하면 연결된 모든 봇에 검색을 분산 실행합니다.",
       "pagination": {
-        "showing": "전체 {total}개 중 {start} - {end} 표시",
+        "showing": "전체 {total}개 중 {start} – {end} 표시",
         "previous": "이전",
-        "next": "다음"
+        "next": "다음",
+        "truncatedNotice": "결과는 플릿 전체에서 최초 500개 대화로 제한됩니다. 이전 결과를 보려면 날짜 범위를 좁히세요."
       },
-      "noConversations": "대화를 찾을 수 없습니다. 필터를 조정하거나 다음 동기화를 기다리세요."
+      "noConversations": "필터 조건에 맞는 대화가 없습니다."
     },
     "sql": {
-      "placeholder": "SQL 쿼리를 여기에 입력하세요...",
+      "placeholder": "SELECT bot_name, conversations_7d FROM bot_health ORDER BY conversations_7d DESC",
       "runQuery": "쿼리 실행",
-      "running": "실행 중...",
+      "running": "실행 중…",
       "exportCsv": "CSV 내보내기",
       "exportJson": "JSON 내보내기",
       "keyboardHint": "Cmd/Ctrl + Enter를 눌러 실행",
       "rowCount": "{count}행",
       "truncated": "(10,000개로 잘림)",
-      "noResults": "결과 없음",
-      "help": "도움말",
+      "noResults": "행 없음",
+      "help": "시작 쿼리",
       "starterQueries": {
         "title": "시작 쿼리",
-        "hint": "쿼리를 클릭하여 편집기에 붙여넣으세요. search_term 또는 CONVERSATION_ID_HERE와 같은 플레이스홀더 값을 바꾸는 것을 잊지 마세요.",
-        "recentConversations": "최근 대화",
-        "searchUserMessages": "용어로 사용자 메시지 검색",
-        "searchBotResponses": "용어로 봇 응답 검색",
-        "completedFormSubmissions": "완료된 양식 제출",
-        "dailyStats": "일일 대화 통계",
-        "botHealth": "봇 상태 개요",
-        "fullConversation": "모든 턴이 포함된 전체 대화"
+        "hint": "각 쿼리는 요청마다 각 봇의 분석 엔드포인트에서 조립한 인메모리 롤업 테이블을 읽습니다. 클릭하여 불러오세요.",
+        "dailyStats": "플릿 전체 일일 대화 통계",
+        "botHealth": "봇 상태 (지난 7일)",
+        "protocolDistribution": "프로토콜 사용 분포",
+        "mostActiveBots": "이번 주 가장 활발한 봇",
+        "staleBots": "지난 24시간 동안 보이지 않은 봇",
+        "dailyByBot": "봇 이름과 결합한 일일 활동"
       }
     },
     "schema": {
-      "availableTables": "사용 가능한 테이블",
+      "availableTables": "스키마 참조",
       "clickToShow": "(클릭하여 표시)",
       "clickToHide": "(클릭하여 숨기기)",
       "note": "참고:",
-      "scopeWarning": "모든 쿼리는 접근 가능한 봇 스페이스로 자동 범위가 지정됩니다. 멤버가 아닌 봇 스페이스의 데이터에 접근할 수 없습니다.",
-      "tables": {
-        "conversations": {
-          "name": "conversations",
-          "description": "모든 봇의 집계된 대화"
-        },
-        "conversationTurns": {
-          "name": "conversation_turns",
-          "description": "대화 내 개별 턴"
-        },
-        "dailyBotStats": {
-          "name": "daily_bot_stats",
-          "description": "봇별 일일 집계 통계 (구체화된 뷰)"
-        },
-        "botHealth": {
-          "name": "bot_health",
-          "description": "봇 상태 점수 (구체화된 뷰)"
-        },
-        "protocolStats": {
-          "name": "protocol_stats",
-          "description": "주간 프로토콜 성능 (구체화된 뷰)"
-        }
-      },
-      "columns": {
-        "id": "기본 키",
-        "botId": "배포 참조",
-        "botSpaceId": "봇 스페이스 참조",
-        "botType": "conversational, standard, triage, appointments",
-        "externalId": "컨테이너의 원본 conversation_id",
-        "startedAt": "대화 시작 시점",
-        "endedAt": "대화 종료 시점",
-        "turnCount": "턴 수",
-        "completed": "양식/흐름 완료 여부",
-        "completionData": "최종 양식 상태, 분류 결과 등",
-        "ingestedAt": "PostgreSQL로 동기화된 시점",
-        "conversationId": "대화 참조",
-        "turnNumber": "턴 순서 번호",
-        "timestamp": "턴이 발생한 시점",
-        "userPrompt": "사용자 메시지",
-        "llmResponse": "봇 응답",
-        "machineState": "이 턴 이후의 상태",
-        "ragSources": "사용된 RAG 컨텍스트",
-        "date": "통계 날짜",
-        "conversations": "대화 수",
-        "totalTurns": "전체 턴 수",
-        "avgTurns": "대화당 평균 턴",
-        "completions": "완료된 대화 수",
-        "completionRate": "완료율 (0-1)",
-        "conversations7d": "지난 7일 대화",
-        "avgTurns7d": "지난 7일 평균 턴",
-        "completionRate7d": "7일 완료율",
-        "healthScore": "가중 상태 점수 (0-1)",
-        "week": "주 시작 날짜"
-      }
+      "scopeNote": "이 테이블들은 쿼리마다 프로세스 메모리에 구성됩니다. 롤업 테이블은 봇당 한 행씩, 연결된 각 봇의 분석 엔드포인트를 호출해 채워집니다. 원시 턴 내용은 노출되지 않습니다. 그것이 필요하면 탐색기 탭에서 개별 대화를 파고드세요."
     },
     "analytics": {
-      "title": "플릿 분석",
+      "loading": "플릿 롤업 로딩 중…",
       "dateRange": {
         "last7days": "지난 7일",
         "last14days": "지난 14일",
@@ -2018,22 +1957,19 @@
         "last90days": "지난 90일"
       },
       "summary": {
-        "totalConversations": "전체 대화",
-        "totalTurns": "전체 턴",
-        "avgTurnsPerConversation": "대화당 평균 턴",
-        "activeBots": "활성 봇"
+        "totalConversations": "대화",
+        "totalTurns": "턴",
+        "avgTurnsPerConversation": "평균 턴/대화",
+        "activeBots": "접근 가능한 봇"
       },
       "charts": {
-        "dailyConversations": "일일 대화",
-        "conversationsByBotType": "봇 유형별 대화",
-        "topBotsByActivity": "활동별 상위 봇",
+        "dailyConversations": "일일 턴 볼륨",
+        "topBotsByActivity": "턴 볼륨 기준 상위 봇",
         "activityHeatmap": "활동 히트맵 (지난 7일)"
       },
-      "noData": "선택한 기간에 데이터가 없습니다",
-      "noActivityData": "활동 데이터 없음",
+      "noData": "이 기간에 활동이 없습니다.",
+      "noActivityData": "지난 7일 동안 활동이 없습니다.",
       "convs": "대화",
-      "unknown": "알 수 없음",
-      "conversations": "대화",
       "days": {
         "sun": "일",
         "mon": "월",
@@ -2047,18 +1983,11 @@
     "table": {
       "headers": {
         "bot": "봇",
-        "type": "유형",
         "started": "시작됨",
         "duration": "지속 시간",
         "turns": "턴",
-        "status": "상태",
         "conversationId": "대화 ID"
-      },
-      "status": {
-        "completed": "완료됨",
-        "inProgress": "진행 중"
-      },
-      "unknownBot": "알 수 없는 봇"
+      }
     }
   },
   "documentUploader": {

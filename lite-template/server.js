@@ -810,6 +810,74 @@ app.get('/verify', (req, res) => {
     res.json(verifyConversation());
 });
 
+// API: Detailed chain verification across all conversations (authenticated).
+// Unlike /verify, this returns the per-turn `failed[]` list so the control
+// plane's fleet verifier can surface exactly which conversations broke chain.
+// Optional startDate / endDate bound on the first-turn timestamp.
+app.get('/api/verify/all', validateApiKey, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const where = [];
+        const params = [];
+        if (startDate || endDate) {
+            const inner = [];
+            if (startDate) { inner.push('MIN(timestamp) >= ?'); params.push(startDate.replace('T', ' ')); }
+            if (endDate) { inner.push('MIN(timestamp) <= ?'); params.push(endDate.replace('T', ' ')); }
+            where.push(`conversation_id IN (SELECT conversation_id FROM turns GROUP BY conversation_id HAVING ${inner.join(' AND ')})`);
+        }
+        const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+        const turns = db.prepare(`
+            SELECT id, turn, conversation_id, user_prompt, llm_response, machine_state, content_hash, chain_hash, handoff_hash, event_type, timestamp
+            FROM turns
+            ${whereClause}
+            ORDER BY conversation_id, turn ASC
+        `).all(...params);
+
+        const chainMap = new Map();
+        const failed = [];
+        let invalidTurns = 0;
+
+        for (const turn of turns) {
+            const prevHash = chainMap.get(turn.conversation_id) || turn.handoff_hash || null;
+            const expectedContentHash = hashTurnContent(
+                turn.turn,
+                turn.user_prompt,
+                turn.llm_response,
+                turn.machine_state
+            );
+            const contentValid = expectedContentHash === turn.content_hash;
+            const expectedChainHash = createChainHash(turn.content_hash, prevHash);
+            const chainValid = expectedChainHash === turn.chain_hash;
+            if (!contentValid || !chainValid) {
+                invalidTurns++;
+                failed.push({
+                    conversationId: turn.conversation_id,
+                    turn: turn.turn,
+                    timestamp: turn.timestamp,
+                    reason: !contentValid && !chainValid
+                        ? 'content_and_chain_mismatch'
+                        : !contentValid
+                            ? 'content_hash_mismatch'
+                            : 'chain_hash_mismatch',
+                });
+            }
+            chainMap.set(turn.conversation_id, turn.chain_hash);
+        }
+
+        res.json({
+            valid: invalidTurns === 0,
+            totalTurns: turns.length,
+            invalidTurns,
+            conversationsVerified: chainMap.size,
+            failed,
+        });
+    } catch (error) {
+        console.error('Error in /api/verify/all:', error);
+        res.status(500).json({ error: 'Internal server error', message: error.message });
+    }
+});
+
 // Verify specific conversation
 app.get('/verify/:conversationId', (req, res) => {
     const { conversationId } = req.params;
@@ -1232,6 +1300,178 @@ app.get('/api/conversations', validateApiKey, (req, res) => {
             error: 'Internal server error',
             message: error.message
         });
+    }
+});
+
+// API: Aggregate summary for the control plane's fleet Analytics tab.
+// Returns totals + daily breakdown + a 7-day hour×weekday heatmap. The
+// control plane fans this out across all connected bots and sums the
+// results in memory. Conversation content never crosses — only counts.
+app.get('/api/analytics/summary', validateApiKey, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const where = [];
+        const params = [];
+        if (startDate) { where.push('timestamp >= ?'); params.push(startDate.replace('T', ' ')); }
+        if (endDate) { where.push('timestamp <= ?'); params.push(endDate.replace('T', ' ')); }
+        const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+        const totals = db.prepare(`
+            SELECT
+                COUNT(DISTINCT conversation_id) AS conversations,
+                COUNT(*) AS turns,
+                MIN(timestamp) AS first_at,
+                MAX(timestamp) AS last_at
+            FROM turns
+            ${whereClause}
+        `).get(...params);
+
+        const daily = db.prepare(`
+            SELECT
+                DATE(timestamp) AS date,
+                COUNT(DISTINCT conversation_id) AS conversations,
+                COUNT(*) AS turns
+            FROM turns
+            ${whereClause}
+            GROUP BY DATE(timestamp)
+            ORDER BY date ASC
+        `).all(...params);
+
+        // Heatmap is fixed at last 7 days regardless of filter — meant for
+        // a glance at recent activity rhythm.
+        const heatmap = db.prepare(`
+            SELECT
+                CAST(strftime('%w', timestamp) AS INTEGER) AS dow,
+                CAST(strftime('%H', timestamp) AS INTEGER) AS hour,
+                COUNT(*) AS turns
+            FROM turns
+            WHERE timestamp >= datetime('now', '-7 days')
+            GROUP BY dow, hour
+        `).all();
+
+        res.json({
+            totals: {
+                conversations: totals.conversations || 0,
+                turns: totals.turns || 0,
+                avgTurnsPerConversation: totals.conversations
+                    ? Number((totals.turns / totals.conversations).toFixed(2))
+                    : 0,
+                firstAt: totals.first_at,
+                lastAt: totals.last_at
+            },
+            daily,
+            heatmap
+        });
+    } catch (error) {
+        console.error('Error in /api/analytics/summary:', error);
+        res.status(500).json({ error: 'Internal server error', message: error.message });
+    }
+});
+
+// API: Per-day rows. Loaded by the SQL Explorer into the `daily_bot_stats`
+// table (one row per bot per day, since control plane stamps bot_id at
+// fan-out time).
+app.get('/api/analytics/daily_stats', validateApiKey, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const where = [];
+        const params = [];
+        if (startDate) { where.push('timestamp >= ?'); params.push(startDate.replace('T', ' ')); }
+        if (endDate) { where.push('timestamp <= ?'); params.push(endDate.replace('T', ' ')); }
+        const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+        const rows = db.prepare(`
+            SELECT
+                DATE(timestamp) AS date,
+                COUNT(DISTINCT conversation_id) AS conversations,
+                COUNT(*) AS turns,
+                ROUND(CAST(COUNT(*) AS REAL) / COUNT(DISTINCT conversation_id), 2) AS avg_turns
+            FROM turns
+            ${whereClause}
+            GROUP BY DATE(timestamp)
+            ORDER BY date DESC
+        `).all(...params);
+
+        res.json({ rows });
+    } catch (error) {
+        console.error('Error in /api/analytics/daily_stats:', error);
+        res.status(500).json({ error: 'Internal server error', message: error.message });
+    }
+});
+
+// API: Single-row bot health snapshot — last 7 days. The SQL Explorer's
+// `bot_health` table is one row per bot, stamped with bot_id by the
+// control plane during fan-out.
+app.get('/api/analytics/bot_health', validateApiKey, (req, res) => {
+    try {
+        const row = db.prepare(`
+            SELECT
+                COUNT(DISTINCT conversation_id) AS conversations_7d,
+                COUNT(*) AS turns_7d,
+                CASE
+                    WHEN COUNT(DISTINCT conversation_id) = 0 THEN 0
+                    ELSE ROUND(CAST(COUNT(*) AS REAL) / COUNT(DISTINCT conversation_id), 2)
+                END AS avg_turns_7d,
+                MAX(timestamp) AS last_activity_at
+            FROM turns
+            WHERE timestamp >= datetime('now', '-7 days')
+        `).get();
+
+        const allTime = db.prepare(`
+            SELECT
+                COUNT(DISTINCT conversation_id) AS conversations_total,
+                COUNT(*) AS turns_total
+            FROM turns
+        `).get();
+
+        res.json({
+            conversations7d: row.conversations_7d || 0,
+            turns7d: row.turns_7d || 0,
+            avgTurns7d: row.avg_turns_7d || 0,
+            lastActivityAt: row.last_activity_at,
+            conversationsTotal: allTime.conversations_total || 0,
+            turnsTotal: allTime.turns_total || 0
+        });
+    } catch (error) {
+        console.error('Error in /api/analytics/bot_health:', error);
+        res.status(500).json({ error: 'Internal server error', message: error.message });
+    }
+});
+
+// API: Per-protocol rollup. Derived from machine_state JSON keys —
+// each protocol owns one top-level envelope key (form/triage/
+// appointment/extraction). A turn "touched" a protocol iff that key is
+// non-null in its machine_state.
+app.get('/api/analytics/protocol_stats', validateApiKey, (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const where = [];
+        const params = [];
+        if (startDate) { where.push('timestamp >= ?'); params.push(startDate.replace('T', ' ')); }
+        if (endDate) { where.push('timestamp <= ?'); params.push(endDate.replace('T', ' ')); }
+        const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+        const protocols = ['form', 'triage', 'appointment', 'extraction'];
+        const rows = protocols.map((protocol) => {
+            const r = db.prepare(`
+                SELECT
+                    COUNT(*) AS turns,
+                    COUNT(DISTINCT conversation_id) AS conversations_touched
+                FROM turns
+                ${whereClause}
+                ${whereClause ? 'AND' : 'WHERE'} json_extract(machine_state, '$.${protocol}') IS NOT NULL
+            `).get(...params);
+            return {
+                protocol,
+                turns: r.turns || 0,
+                conversations_touched: r.conversations_touched || 0
+            };
+        }).filter((r) => r.turns > 0);
+
+        res.json({ rows });
+    } catch (error) {
+        console.error('Error in /api/analytics/protocol_stats:', error);
+        res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
 

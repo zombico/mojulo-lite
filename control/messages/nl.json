@@ -1889,128 +1889,67 @@
     "clear": "Wissen"
   },
   "data": {
-    "title": "Gespreksdata",
-    "subtitle": "Verken en analyseer geaggregeerde gespreksdata van al je bots",
-    "loading": "Laden...",
+    "navLabel": "Data",
+    "title": "Fleetdata",
+    "subtitle": "Bekijk en aggregeer gespreksactiviteit van elke verbonden bot. Gesprekinhoud blijft op de bot — alleen tellingen worden in-process samengevoegd.",
+    "loading": "Laden…",
     "tabs": {
-      "explorer": "Data-explorer",
-      "sql": "SQL-explorer",
+      "explorer": "Explorer",
+      "sql": "SQL",
       "analytics": "Analytics"
+    },
+    "fleet": {
+      "unreachableBanner": "{unreachable} van {total} bots niet bereikbaar — resultaten kunnen onvolledig zijn."
     },
     "explorer": {
       "filters": {
-        "botSpace": "Botruimte",
-        "allSpaces": "Alle ruimtes",
-        "bot": "Bot",
-        "allBots": "Alle bots",
-        "type": "Type",
-        "allTypes": "Alle types",
-        "startDate": "Startdatum",
-        "endDate": "Einddatum",
-        "completedOnly": "Alleen voltooide"
+        "conversationId": "Gespreks-ID bevat",
+        "startDate": "Gestart na",
+        "endDate": "Gestart vóór"
       },
-      "botTypes": {
-        "knowledge": "Kennis",
-        "standard": "Standaardformulier",
-        "triage": "Triage",
-        "appointments": "Afspraken"
-      },
-      "export": {
-        "csv": "Exporteren als CSV",
-        "json": "Exporteren als JSON"
-      },
+      "search": "Zoeken",
+      "searching": "Zoeken…",
+      "clear": "Wissen",
+      "hint": "Voer een fragment van een gespreks-ID of een datumbereik in om een zoekopdracht uit te waaieren over elke verbonden bot.",
       "pagination": {
-        "showing": "{start} - {end} van {total} getoond",
+        "showing": "{start} – {end} van {total} getoond",
         "previous": "Vorige",
-        "next": "Volgende"
+        "next": "Volgende",
+        "truncatedNotice": "Resultaatset beperkt tot de eerste 500 gesprekken in de fleet. Verklein je datumbereik voor oudere resultaten."
       },
-      "noConversations": "Geen gesprekken gevonden. Pas je filters aan of wacht op de volgende sync."
+      "noConversations": "Geen gesprekken die aan je filter voldoen."
     },
     "sql": {
-      "placeholder": "Voer je SQL-query hier in...",
+      "placeholder": "SELECT bot_name, conversations_7d FROM bot_health ORDER BY conversations_7d DESC",
       "runQuery": "Query uitvoeren",
-      "running": "Uitvoeren...",
+      "running": "Uitvoeren…",
       "exportCsv": "Exporteren als CSV",
       "exportJson": "Exporteren als JSON",
       "keyboardHint": "Druk op Cmd/Ctrl + Enter om uit te voeren",
       "rowCount": "{count} rijen",
       "truncated": "(afgekapt tot 10.000)",
-      "noResults": "Geen resultaten",
-      "help": "Help",
+      "noResults": "Geen rijen",
+      "help": "Startquery's",
       "starterQueries": {
         "title": "Startquery's",
-        "hint": "Klik op een query om hem in de editor te plakken. Vergeet niet om placeholderwaarden zoals search_term of CONVERSATION_ID_HERE te vervangen.",
-        "recentConversations": "Recente gesprekken",
-        "searchUserMessages": "Zoek gebruikersberichten op een term",
-        "searchBotResponses": "Zoek botantwoorden op een term",
-        "completedFormSubmissions": "Voltooide formulierinzendingen",
-        "dailyStats": "Dagelijkse gesprekstats",
-        "botHealth": "Bot health-overzicht",
-        "fullConversation": "Volledig gesprek met alle beurten"
+        "hint": "Elke query leest uit de in-memory rollup-tabellen die per verzoek worden samengesteld uit de analytics-endpoints van elke bot. Klik om te laden.",
+        "dailyStats": "Dagelijkse gesprekstats over de hele fleet",
+        "botHealth": "Bot health (laatste 7 dagen)",
+        "protocolDistribution": "Verdeling van protocolgebruik",
+        "mostActiveBots": "Meest actieve bots deze week",
+        "staleBots": "Bots niet gezien in de laatste 24u",
+        "dailyByBot": "Dagelijkse activiteit gekoppeld aan botnamen"
       }
     },
     "schema": {
-      "availableTables": "Beschikbare tabellen",
+      "availableTables": "Schemareferentie",
       "clickToShow": "(klik om te tonen)",
       "clickToHide": "(klik om te verbergen)",
       "note": "Opmerking:",
-      "scopeWarning": "Alle queries worden automatisch beperkt tot je toegankelijke botruimtes. Je hebt geen toegang tot data van botruimtes waarin je geen lid bent.",
-      "tables": {
-        "conversations": {
-          "name": "conversations",
-          "description": "Geaggregeerde gesprekken van alle bots"
-        },
-        "conversationTurns": {
-          "name": "conversation_turns",
-          "description": "Individuele beurten binnen gesprekken"
-        },
-        "dailyBotStats": {
-          "name": "daily_bot_stats",
-          "description": "Dagelijks geaggregeerde statistieken per bot (materialized view)"
-        },
-        "botHealth": {
-          "name": "bot_health",
-          "description": "Bot health-scores (materialized view)"
-        },
-        "protocolStats": {
-          "name": "protocol_stats",
-          "description": "Wekelijkse protocolprestaties (materialized view)"
-        }
-      },
-      "columns": {
-        "id": "Primary key",
-        "botId": "Referentie naar deployment",
-        "botSpaceId": "Referentie naar botruimte",
-        "botType": "conversational, standard, triage, appointments",
-        "externalId": "Originele conversation_id van container",
-        "startedAt": "Wanneer gesprek startte",
-        "endedAt": "Wanneer gesprek eindigde",
-        "turnCount": "Aantal beurten",
-        "completed": "Of formulier/flow voltooid is",
-        "completionData": "Eindstatus formulier, triageresultaat, etc.",
-        "ingestedAt": "Wanneer gesynchroniseerd naar PostgreSQL",
-        "conversationId": "Referentie naar gesprek",
-        "turnNumber": "Volgnummer beurt",
-        "timestamp": "Wanneer beurt plaatsvond",
-        "userPrompt": "Gebruikersbericht",
-        "llmResponse": "Botantwoord",
-        "machineState": "Status na deze beurt",
-        "ragSources": "Gebruikte RAG-context",
-        "date": "Datum van stats",
-        "conversations": "Aantal gesprekken",
-        "totalTurns": "Totaal aantal beurten",
-        "avgTurns": "Gemiddeld aantal beurten per gesprek",
-        "completions": "Aantal voltooide gesprekken",
-        "completionRate": "Voltooiingspercentage (0-1)",
-        "conversations7d": "Gesprekken in laatste 7 dagen",
-        "avgTurns7d": "Gem. beurten in laatste 7 dagen",
-        "completionRate7d": "Voltooiingspercentage 7 dagen",
-        "healthScore": "Gewogen health-score (0-1)",
-        "week": "Startdatum week"
-      }
+      "scopeNote": "Deze tabellen worden bij elke query opgebouwd in procesgeheugen — één rij per bot voor de rollup-tabellen, gevuld door de analytics-endpoints van elke verbonden bot aan te roepen. Ruwe beurtinhoud wordt niet blootgesteld; gebruik daarvoor het tabblad Explorer om in te zoomen op een enkel gesprek."
     },
     "analytics": {
-      "title": "Fleet-analytics",
+      "loading": "Fleet-rollups laden…",
       "dateRange": {
         "last7days": "Laatste 7 dagen",
         "last14days": "Laatste 14 dagen",
@@ -2018,22 +1957,19 @@
         "last90days": "Laatste 90 dagen"
       },
       "summary": {
-        "totalConversations": "Totaal aantal gesprekken",
-        "totalTurns": "Totaal aantal beurten",
-        "avgTurnsPerConversation": "Gem. beurten/gesprek",
-        "activeBots": "Actieve bots"
+        "totalConversations": "Gesprekken",
+        "totalTurns": "Beurten",
+        "avgTurnsPerConversation": "Gem. beurten/gespr.",
+        "activeBots": "Bereikbare bots"
       },
       "charts": {
-        "dailyConversations": "Dagelijkse gesprekken",
-        "conversationsByBotType": "Gesprekken per bottype",
-        "topBotsByActivity": "Topbots op activiteit",
+        "dailyConversations": "Dagelijks beurtvolume",
+        "topBotsByActivity": "Topbots op beurtvolume",
         "activityHeatmap": "Activiteitsheatmap (laatste 7 dagen)"
       },
-      "noData": "Geen data voor geselecteerde periode",
-      "noActivityData": "Geen activiteitsdata",
+      "noData": "Geen activiteit in deze periode.",
+      "noActivityData": "Geen activiteit in de laatste 7 dagen.",
       "convs": "gespr.",
-      "unknown": "Onbekend",
-      "conversations": "gesprekken",
       "days": {
         "sun": "Zo",
         "mon": "Ma",
@@ -2047,18 +1983,11 @@
     "table": {
       "headers": {
         "bot": "Bot",
-        "type": "Type",
         "started": "Gestart",
         "duration": "Duur",
         "turns": "Beurten",
-        "status": "Status",
         "conversationId": "Gespreks-ID"
-      },
-      "status": {
-        "completed": "Voltooid",
-        "inProgress": "Bezig"
-      },
-      "unknownBot": "Onbekende bot"
+      }
     }
   },
   "documentUploader": {

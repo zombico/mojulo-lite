@@ -268,18 +268,33 @@ export async function customCatalystHandler(_input, _ctx) {
   return { content: [{ type: 'text', text: CUSTOM_CATALYST_GUIDE }] };
 }
 
-export async function recommendCatalystsHandler(input, _ctx) {
-  const { deploymentId } = input || {};
-  if (!deploymentId) throw new Error('deploymentId is required');
+function enabledProtocolsOf(dep) {
+  const map = dep.config?.enabledProtocols || {};
+  return Object.entries(map)
+    .filter(([, on]) => on)
+    .map(([protocol]) => protocol);
+}
 
+function buildRecommendation(catalyst, applicableDeployments = []) {
+  return {
+    id: catalyst.id,
+    name: catalyst.name,
+    valueHook: catalyst.valueHook,
+    summary: catalyst.summary,
+    category: catalyst.category,
+    destinationCategory: catalyst.requires?.destinationMcpCategory || null,
+    destinationExamples: Array.isArray(catalyst.requires?.destinationExamples)
+      ? catalyst.requires.destinationExamples
+      : [],
+    ...(applicableDeployments.length > 0 ? { applicableDeployments } : {}),
+  };
+}
+
+async function recommendForOneBot(deploymentId) {
   const dep = await DeploymentRepository.findById(deploymentId);
   if (!dep) throw new Error(`Deployment not found: ${deploymentId}`);
 
-  const enabledMap = dep.config?.enabledProtocols || {};
-  const enabledProtocols = Object.entries(enabledMap)
-    .filter(([, on]) => on)
-    .map(([protocol]) => protocol);
-
+  const enabledProtocols = enabledProtocolsOf(dep);
   const applicable = [];
   const requiresProtocolChange = [];
 
@@ -288,37 +303,109 @@ export async function recommendCatalystsHandler(input, _ctx) {
       ? catalyst.requires.protocols
       : [];
     const missingProtocols = required.filter((p) => !enabledProtocols.includes(p));
-
-    const recommendation = {
-      id: catalyst.id,
-      name: catalyst.name,
-      valueHook: catalyst.valueHook,
-      summary: catalyst.summary,
-      category: catalyst.category,
-      destinationCategory: catalyst.requires?.destinationMcpCategory || null,
-      destinationExamples: Array.isArray(catalyst.requires?.destinationExamples)
-        ? catalyst.requires.destinationExamples
-        : [],
-      missingProtocols,
-    };
-
-    if (missingProtocols.length === 0) {
-      applicable.push(recommendation);
-    } else {
-      requiresProtocolChange.push(recommendation);
-    }
+    const rec = { ...buildRecommendation(catalyst), missingProtocols };
+    if (missingProtocols.length === 0) applicable.push(rec);
+    else requiresProtocolChange.push(rec);
   }
 
   return {
     consultationPosture: CONSULTATION_POSTURE,
-    deployment: {
-      id: dep.id,
-      botName: dep.botName,
-      enabledProtocols,
+    deployment: { id: dep.id, botName: dep.botName, enabledProtocols },
+    applicable,
+    requiresProtocolChange,
+  };
+}
+
+async function recommendForFleet(deploymentIds) {
+  let deployments = await DeploymentRepository.list();
+  if (Array.isArray(deploymentIds) && deploymentIds.length > 0) {
+    const wanted = new Set(deploymentIds);
+    deployments = deployments.filter((d) => wanted.has(d.id));
+  }
+  if (deployments.length === 0) {
+    throw new Error('No deployments matched fleet recommendation request');
+  }
+
+  // For each bot, compute the enabled-protocol set once.
+  const botEnabled = deployments.map((d) => ({
+    id: d.id,
+    botName: d.botName,
+    enabledProtocols: enabledProtocolsOf(d),
+  }));
+
+  const applicable = [];
+  const requiresProtocolChange = [];
+
+  for (const catalyst of getCatalystCatalog().values()) {
+    const required = Array.isArray(catalyst.requires?.protocols)
+      ? catalyst.requires.protocols
+      : [];
+
+    const fitting = botEnabled.filter((b) =>
+      required.every((p) => b.enabledProtocols.includes(p)),
+    );
+
+    if (fitting.length > 0) {
+      // crossBot: catalyst applies to ≥2 bots → the value-add of fleet mode.
+      // A skill synthesized from this recommendation should iterate over
+      // applicableDeployments rather than binding to a single bot.
+      const rec = {
+        ...buildRecommendation(
+          catalyst,
+          fitting.map((b) => ({ id: b.id, botName: b.botName })),
+        ),
+        crossBot: fitting.length > 1,
+      };
+      applicable.push(rec);
+    } else {
+      // No bot in the requested set has the required protocols. Surface a
+      // per-bot missingProtocols hint anchored on the smallest gap so the
+      // user can see what'd need to change.
+      const gaps = botEnabled.map((b) => ({
+        botId: b.id,
+        botName: b.botName,
+        missingProtocols: required.filter((p) => !b.enabledProtocols.includes(p)),
+      }));
+      gaps.sort((a, b) => a.missingProtocols.length - b.missingProtocols.length);
+      requiresProtocolChange.push({
+        ...buildRecommendation(catalyst),
+        smallestGap: gaps[0],
+      });
+    }
+  }
+
+  // Sort fleet-applicable by breadth (most bots first) — catalysts that span
+  // the fleet are the new category this surface enables.
+  applicable.sort(
+    (a, b) =>
+      (b.applicableDeployments?.length || 0) - (a.applicableDeployments?.length || 0),
+  );
+
+  return {
+    consultationPosture: CONSULTATION_POSTURE,
+    fleet: {
+      totalBots: deployments.length,
+      bots: botEnabled,
     },
     applicable,
     requiresProtocolChange,
   };
+}
+
+export async function recommendCatalystsHandler(input, _ctx) {
+  const { deploymentId, scope, deploymentIds } = input || {};
+
+  if (deploymentId) {
+    return recommendForOneBot(deploymentId);
+  }
+
+  if (scope === 'fleet' || Array.isArray(deploymentIds)) {
+    return recommendForFleet(deploymentIds);
+  }
+
+  throw new Error(
+    "deploymentId is required, OR pass { scope: 'fleet' } / { deploymentIds: [...] } for cross-bot recommendations",
+  );
 }
 
 export function registerCatalystTools() {
@@ -363,16 +450,26 @@ export function registerCatalystTools() {
   registerTool({
     name: 'recommend_catalysts',
     description:
-      "Given a deployment, return catalysts whose shape matches the bot, annotated with `valueHook` (one-sentence outcome in user terms), `destinationCategory`, `destinationExamples` (named MCPs that satisfy the destination), and `missingProtocols`. Use this — not `list_catalysts` — whenever the user asks 'what can I do with this bot?' or 'what should I automate?'. This is a CONSULTATION surface: catalysts whose `destinationExamples` aren't currently installed in the user's Claude should be surfaced as soft suggestions ('if you installed a CRM MCP like HubSpot, you could…'), never as blockers. The response includes a `consultationPosture` block with the exact framing rules — read it before composing your answer to the user.",
+      "Recommend catalysts that fit either ONE deployment (single-bot mode) or every connected bot (fleet mode). Single-bot: pass `deploymentId`; returns catalysts annotated with `missingProtocols` per the bot's enabled capabilities. Fleet mode: pass `scope: 'fleet'` (every connected bot) or `deploymentIds: [...]` (an explicit subset). Each fleet recommendation is annotated with `applicableDeployments: [{ id, botName }]` so a synthesized skill can iterate across the matching bots, and `crossBot: true` whenever a catalyst applies to ≥2 bots — the new category fleet aggregation unlocks (e.g., 'weekly digest across every intake bot into one CRM'). Use this — not `list_catalysts` — whenever the user asks 'what can I do with this bot?' / 'what can I do across all my bots?' / 'what should I automate?'. CONSULTATION surface: catalysts whose `destinationExamples` aren't installed in the user's Claude should be surfaced as soft suggestions, never as blockers. The response includes a `consultationPosture` block with the exact framing rules — read it before composing your answer.",
     inputSchema: {
       type: 'object',
       properties: {
         deploymentId: {
           type: 'string',
-          description: 'Deployment id of the bot to recommend catalysts for. Get this from list_deployments.',
+          description:
+            'Single-bot mode. Deployment id from list_deployments. Mutually exclusive with scope/deploymentIds.',
+        },
+        scope: {
+          type: 'string',
+          enum: ['fleet'],
+          description: "Pass 'fleet' to recommend across every connected bot.",
+        },
+        deploymentIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Explicit deployment-id subset for fleet mode. Overrides scope: fleet.',
         },
       },
-      required: ['deploymentId'],
     },
     handler: recommendCatalystsHandler,
   });

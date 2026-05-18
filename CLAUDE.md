@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Two-package monorepo. Both must usually be understood together:
 
-- [control/](control/) — Next.js 16 control plane (port 3001). The "factory" that compiles bots.
+- [control/](control/) — Next.js 16 control plane (port 3001). The "factory" that compiles bots **and** the MCP server external Claude Code sessions drive.
 - [lite-template/](lite-template/) — Express 5 bot runtime (port 3000). The thing that gets compiled and shipped.
 
 The control plane stages files from [lite-template/](lite-template/) into a per-bot zip; the same source tree is also published as the GHCR image `ghcr.io/zombico/mojulo-bot:X.Y.Z` via [.github/workflows/publish-bot-image.yml](.github/workflows/publish-bot-image.yml). When you change [lite-template/](lite-template/) you typically also need to bump [BOT_IMAGE](control/.env.example) (or rely on `MOJULO_OFFLINE_BUILD=1` to bundle source instead of pulling).
+
+The control plane is increasingly used **headlessly** — a user runs Claude Code against the control plane's MCP server ([control/lib/mcp/](control/lib/mcp/)) to design, deploy, observe, and act on the bot fleet. The Next.js UI (chat builder + wizard + `/data` pane) and the MCP tools are two faces of the same primitives. Changes that touch builder, deployer, or fleet code should be reviewed against both faces.
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the source of truth for build-time → runtime data flow, including diagrams. Always read it before non-trivial changes that cross the control/lite-template boundary.
 
@@ -49,11 +51,42 @@ Tag a release `bot-vX.Y.Z` and push the tag — [publish-bot-image.yml](.github/
 
 ## Architecture, the parts that need multiple files to grasp
 
-### The "two builders, one config" shape
+### MCP control surface
 
-The chat builder ([control/app/chat-builder/](control/app/chat-builder/), [control/lib/builder/](control/lib/builder/)) and the wizard ([control/components/wizard/modular/](control/components/wizard/modular/)) both converge on [buildDeploymentConfig()](control/lib/config-builder.js) producing the **same deployment config shape**. From that point downstream — composer, embedder, deployer — there is no branch on which builder produced the config. Don't add paradigm-specific logic past `config-builder.js`.
+The control plane runs an MCP server at `/api/mcp` (HTTP transport + bearer auth) so any Claude Code session can drive bot design, deploy, observation, and outcome workflows from outside the UI. Protocol dispatch lives in [control/lib/mcp/server.js](control/lib/mcp/server.js); tools are registered in **rings** under [control/lib/mcp/tools/](control/lib/mcp/tools/):
 
-The chat builder is Claude tool-use over SSE. Tools are defined in [control/lib/builder/tools.js](control/lib/builder/tools.js), executed in [control/lib/builder/tool-executors.js](control/lib/builder/tool-executors.js), driven from [control/app/api/builder/stream/route.js](control/app/api/builder/stream/route.js). See [docs/chat-builder.md](docs/chat-builder.md) and [docs/wizard-builder.md](docs/wizard-builder.md).
+- Ring 0 — [context.js](control/lib/mcp/tools/context.js): `forward_context`. The `initialize` preamble is deliberately tiny; this tool hands the connecting agent the full glossary, capability model, deploy/connect lifecycle, and tool index on demand.
+- Ring 1 — [build.js](control/lib/mcp/tools/build.js): bot design tools that wrap `BuilderSession` and call into the same [tool-executors.js](control/lib/builder/tool-executors.js) the chat builder uses. Sessions are attached via [session-binding.js](control/lib/mcp/session-binding.js) keyed on `mcpSessionId`.
+- Ring 2 — [jobs-tools.js](control/lib/mcp/tools/jobs-tools.js): async deploy / rebuild jobs ([jobs.js](control/lib/mcp/jobs.js)). MCP clients are short-lived, so long-running deploys are surfaced as poll-able jobs.
+- Ring 3 — [operate.js](control/lib/mcp/tools/operate.js): per-bot read tools (`get_deployment`, conversation/submission readers, chain verification). All forward through [bot-proxy.js](control/lib/deployers/bot-proxy.js); none copy data into the control-plane DB.
+- Ring 4 — [fleet.js](control/lib/mcp/tools/fleet.js): cross-bot rollups + the SQL Explorer (see Fleet aggregation below).
+- Ring 5 — [catalysts.js](control/lib/mcp/tools/catalysts.js): `list_catalysts` / `get_catalyst` / `recommend_catalysts` (see Catalysts below).
+
+Tool registration is lazy ([`ensureToolsRegistered`](control/lib/mcp/server.js)) and ordered — `forward_context` first, fleet between per-bot operate and catalysts, so the natural reading order surfaces orientation → per-bot → fleet → outcome. When you add a tool, slot it into the right ring and update the tool index in [context.js](control/lib/mcp/tools/context.js); the agent reads that index to disambiguate, so a missing entry leaves it flying blind.
+
+Auth is `local`-user only: there's no multi-tenant identity inside MCP — every call is scoped to the single control-plane user (see [auth/service.js](control/lib/auth/service.js)).
+
+### Catalysts
+
+Catalysts are curated workflow recipes shipped as markdown in [control/lib/mcp/catalysts/](control/lib/mcp/catalysts/) (e.g. [qualify-lead-to-crm.md](control/lib/mcp/catalysts/qualify-lead-to-crm.md), [appointment-to-calendar.md](control/lib/mcp/catalysts/appointment-to-calendar.md), [scan-conversations-for-signal.md](control/lib/mcp/catalysts/scan-conversations-for-signal.md)). The connecting agent pulls one via `get_catalyst`, combines it with a specific bot's shape (via Ring 3 tools) and the user's already-installed MCPs (Gmail, Drive, Calendar, CRM, ticketing, warehouse, etc.), and **synthesizes a local Claude Code skill** into the user's `.claude/skills/<name>/SKILL.md`. The catalyst is the nucleation point, not the artifact — it persists, the synthesized skill is what actually runs.
+
+Frontmatter is **JSON** (not YAML) and the loader ([catalysts/loader.js](control/lib/mcp/catalysts/loader.js)) requires `id`, `name`, `summary`, and `valueHook` (one-sentence outcome framing used by `recommend_catalysts` in consultation mode). Validation faults throw — the library is curated, not user input. Authoring is repo-side only; there is no user-writable catalyst directory. Use the [/write-catalyst](.claude/skills/) skill to draft a new one. See [docs/catalysts.md](docs/catalysts.md).
+
+### Fleet aggregation, read-only
+
+The control plane has a `/data` pane (Explorer / Analytics / SQL Explorer tabs) and Ring 4 MCP tools that give fleet-wide visibility **without** persisting conversation content to the control-plane DB. The posture: "conversation data never leaves the bot's SQLite" extends to fleet too.
+
+- [bot-fleet.js](control/lib/deployers/bot-fleet.js) fans out the existing per-bot proxy across all connected deployments (timeout + concurrency capped).
+- Each bot computes its own rollups via local `/api/analytics/*` endpoints (SELECT/COUNT/GROUP-BY over its turns table).
+- The SQL Explorer ([control/lib/fleet/scoped-sql.js](control/lib/fleet/scoped-sql.js)) assembles a **fresh in-memory SQLite** per query from rollup endpoints, validates the user's SQL (SELECT/WITH only, single statement, no ATTACH/PRAGMA/destructive verbs), runs it with row + duration caps, and discards the DB. Nothing crosses to control-plane SQLite.
+
+We deliberately deferred the event-driven push variant (bots POSTing turns home). See [FLEET_AGGREGATION_PLAN.md](FLEET_AGGREGATION_PLAN.md) for the rationale and the conditions under which that decision flips.
+
+### Three entry points, one config
+
+The chat builder ([control/app/chat-builder/](control/app/chat-builder/), [control/lib/builder/](control/lib/builder/)), the wizard ([control/components/wizard/modular/](control/components/wizard/modular/)), and the MCP Ring 1 `build_*` tools all converge on [buildDeploymentConfig()](control/lib/config-builder.js), producing the **same deployment config shape**. From that point downstream — composer, embedder, deployer — there is no branch on which builder produced the config. Don't add paradigm-specific logic past `config-builder.js`.
+
+The chat builder is Claude tool-use over SSE. Tools are defined in [control/lib/builder/tools.js](control/lib/builder/tools.js), executed in [control/lib/builder/tool-executors.js](control/lib/builder/tool-executors.js), driven from [control/app/api/builder/stream/route.js](control/app/api/builder/stream/route.js). The MCP build ring wraps the **same `BuilderSession` + executor pair** so MCP-driven design behaves identically to in-UI chat. See [docs/chat-builder.md](docs/chat-builder.md) and [docs/wizard-builder.md](docs/wizard-builder.md).
 
 ### Build pipeline (control plane → zip)
 

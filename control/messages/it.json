@@ -1889,128 +1889,67 @@
     "clear": "Cancella"
   },
   "data": {
-    "title": "Dati conversazione",
-    "subtitle": "Esplora e analizza dati di conversazione aggregati di tutti i tuoi bot",
-    "loading": "Caricamento...",
+    "navLabel": "Dati",
+    "title": "Dati fleet",
+    "subtitle": "Sfoglia e aggrega l'attività di conversazione su ogni bot connesso. Il contenuto delle conversazioni resta sul bot — vengono uniti in-process solo i conteggi.",
+    "loading": "Caricamento…",
     "tabs": {
-      "explorer": "Esploratore dati",
-      "sql": "Esploratore SQL",
+      "explorer": "Esploratore",
+      "sql": "SQL",
       "analytics": "Analytics"
+    },
+    "fleet": {
+      "unreachableBanner": "{unreachable} di {total} bot non raggiungibili — i risultati potrebbero essere parziali."
     },
     "explorer": {
       "filters": {
-        "botSpace": "Spazio bot",
-        "allSpaces": "Tutti gli spazi",
-        "bot": "Bot",
-        "allBots": "Tutti i bot",
-        "type": "Tipo",
-        "allTypes": "Tutti i tipi",
-        "startDate": "Data inizio",
-        "endDate": "Data fine",
-        "completedOnly": "Solo completate"
+        "conversationId": "L'ID conversazione contiene",
+        "startDate": "Iniziata dopo",
+        "endDate": "Iniziata prima"
       },
-      "botTypes": {
-        "knowledge": "Conoscenza",
-        "standard": "Form standard",
-        "triage": "Triage",
-        "appointments": "Appuntamenti"
-      },
-      "export": {
-        "csv": "Esporta CSV",
-        "json": "Esporta JSON"
-      },
+      "search": "Cerca",
+      "searching": "Ricerca in corso…",
+      "clear": "Cancella",
+      "hint": "Inserisci un frammento di ID conversazione o un intervallo di date per estendere la ricerca a ogni bot connesso.",
       "pagination": {
-        "showing": "Mostrate {start} - {end} di {total}",
+        "showing": "Mostrate {start} – {end} di {total}",
         "previous": "Precedente",
-        "next": "Successiva"
+        "next": "Successiva",
+        "truncatedNotice": "Risultati limitati alle prime 500 conversazioni del fleet. Restringi l'intervallo di date per risultati più vecchi."
       },
-      "noConversations": "Nessuna conversazione trovata. Modifica i tuoi filtri o aspetta la prossima sincronizzazione."
+      "noConversations": "Nessuna conversazione corrisponde al filtro."
     },
     "sql": {
-      "placeholder": "Inserisci qui la tua query SQL...",
+      "placeholder": "SELECT bot_name, conversations_7d FROM bot_health ORDER BY conversations_7d DESC",
       "runQuery": "Esegui query",
-      "running": "Esecuzione...",
+      "running": "Esecuzione…",
       "exportCsv": "Esporta CSV",
       "exportJson": "Esporta JSON",
       "keyboardHint": "Premi Cmd/Ctrl + Invio per eseguire",
       "rowCount": "{count} righe",
       "truncated": "(troncato a 10.000)",
-      "noResults": "Nessun risultato",
-      "help": "Aiuto",
+      "noResults": "Nessuna riga",
+      "help": "Query di partenza",
       "starterQueries": {
         "title": "Query di partenza",
-        "hint": "Clicca su una query per incollarla nell'editor. Ricordati di sostituire i valori placeholder come search_term o CONVERSATION_ID_HERE.",
-        "recentConversations": "Conversazioni recenti",
-        "searchUserMessages": "Cerca messaggi utente per un termine",
-        "searchBotResponses": "Cerca risposte bot per un termine",
-        "completedFormSubmissions": "Invii form completati",
-        "dailyStats": "Statistiche conversazione giornaliere",
-        "botHealth": "Panoramica salute bot",
-        "fullConversation": "Conversazione completa con tutti i turni"
+        "hint": "Ogni query legge dalle tabelle di rollup in memoria assemblate per ogni richiesta dagli endpoint analytics di ciascun bot. Clicca per caricare.",
+        "dailyStats": "Statistiche conversazione giornaliere del fleet",
+        "botHealth": "Salute bot (ultimi 7 giorni)",
+        "protocolDistribution": "Distribuzione di utilizzo dei protocolli",
+        "mostActiveBots": "Bot più attivi questa settimana",
+        "staleBots": "Bot non visti nelle ultime 24h",
+        "dailyByBot": "Attività giornaliera unita ai nomi dei bot"
       }
     },
     "schema": {
-      "availableTables": "Tabelle disponibili",
+      "availableTables": "Riferimento schema",
       "clickToShow": "(clicca per mostrare)",
       "clickToHide": "(clicca per nascondere)",
       "note": "Nota:",
-      "scopeWarning": "Tutte le query sono automaticamente limitate agli spazi bot accessibili. Non puoi accedere ai dati di spazi bot in cui non hai appartenenza.",
-      "tables": {
-        "conversations": {
-          "name": "conversations",
-          "description": "Conversazioni aggregate da tutti i bot"
-        },
-        "conversationTurns": {
-          "name": "conversation_turns",
-          "description": "Singoli turni all'interno delle conversazioni"
-        },
-        "dailyBotStats": {
-          "name": "daily_bot_stats",
-          "description": "Statistiche giornaliere aggregate per bot (vista materializzata)"
-        },
-        "botHealth": {
-          "name": "bot_health",
-          "description": "Punteggi di salute bot (vista materializzata)"
-        },
-        "protocolStats": {
-          "name": "protocol_stats",
-          "description": "Performance settimanale dei protocolli (vista materializzata)"
-        }
-      },
-      "columns": {
-        "id": "Chiave primaria",
-        "botId": "Riferimento al deployment",
-        "botSpaceId": "Riferimento allo spazio bot",
-        "botType": "conversational, standard, triage, appointments",
-        "externalId": "conversation_id originale dal container",
-        "startedAt": "Quando la conversazione è iniziata",
-        "endedAt": "Quando la conversazione è terminata",
-        "turnCount": "Numero di turni",
-        "completed": "Se form/flusso è completato",
-        "completionData": "Stato finale form, risultato triage, ecc.",
-        "ingestedAt": "Quando sincronizzato in PostgreSQL",
-        "conversationId": "Riferimento alla conversazione",
-        "turnNumber": "Numero di sequenza del turno",
-        "timestamp": "Quando è avvenuto il turno",
-        "userPrompt": "Messaggio utente",
-        "llmResponse": "Risposta bot",
-        "machineState": "Stato dopo questo turno",
-        "ragSources": "Contesto RAG usato",
-        "date": "Data delle statistiche",
-        "conversations": "Numero di conversazioni",
-        "totalTurns": "Numero totale di turni",
-        "avgTurns": "Turni medi per conversazione",
-        "completions": "Numero di conversazioni completate",
-        "completionRate": "Tasso di completamento (0-1)",
-        "conversations7d": "Conversazioni negli ultimi 7 giorni",
-        "avgTurns7d": "Turni medi negli ultimi 7 giorni",
-        "completionRate7d": "Tasso di completamento a 7 giorni",
-        "healthScore": "Punteggio salute ponderato (0-1)",
-        "week": "Data inizio settimana"
-      }
+      "scopeNote": "Queste tabelle sono costruite nella memoria di processo a ogni query — una riga per bot per le tabelle di rollup, popolate chiamando gli endpoint analytics di ciascun bot connesso. Il contenuto grezzo dei turni non è esposto; per quello, usa la scheda Esploratore per analizzare una singola conversazione."
     },
     "analytics": {
-      "title": "Analytics fleet",
+      "loading": "Caricamento rollup fleet…",
       "dateRange": {
         "last7days": "Ultimi 7 giorni",
         "last14days": "Ultimi 14 giorni",
@@ -2018,22 +1957,19 @@
         "last90days": "Ultimi 90 giorni"
       },
       "summary": {
-        "totalConversations": "Conversazioni totali",
-        "totalTurns": "Turni totali",
-        "avgTurnsPerConversation": "Media turni/conversazione",
-        "activeBots": "Bot attivi"
+        "totalConversations": "Conversazioni",
+        "totalTurns": "Turni",
+        "avgTurnsPerConversation": "Media turni/conv",
+        "activeBots": "Bot raggiungibili"
       },
       "charts": {
-        "dailyConversations": "Conversazioni giornaliere",
-        "conversationsByBotType": "Conversazioni per tipo di bot",
-        "topBotsByActivity": "Top bot per attività",
+        "dailyConversations": "Volume turni giornaliero",
+        "topBotsByActivity": "Top bot per volume di turni",
         "activityHeatmap": "Heatmap attività (ultimi 7 giorni)"
       },
-      "noData": "Nessun dato per il periodo selezionato",
-      "noActivityData": "Nessun dato di attività",
+      "noData": "Nessuna attività in questo periodo.",
+      "noActivityData": "Nessuna attività negli ultimi 7 giorni.",
       "convs": "conv",
-      "unknown": "Sconosciuto",
-      "conversations": "conversazioni",
       "days": {
         "sun": "Dom",
         "mon": "Lun",
@@ -2047,18 +1983,11 @@
     "table": {
       "headers": {
         "bot": "Bot",
-        "type": "Tipo",
         "started": "Iniziata",
         "duration": "Durata",
         "turns": "Turni",
-        "status": "Stato",
         "conversationId": "ID conversazione"
-      },
-      "status": {
-        "completed": "Completata",
-        "inProgress": "In corso"
-      },
-      "unknownBot": "Bot sconosciuto"
+      }
     }
   },
   "documentUploader": {

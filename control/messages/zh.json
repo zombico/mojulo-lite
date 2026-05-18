@@ -1889,128 +1889,64 @@
     "clear": "清除"
   },
   "data": {
-    "title": "会话数据",
-    "subtitle": "探索并分析所有机器人的聚合会话数据",
-    "loading": "加载中...",
+    "title": "舰队数据",
+    "subtitle": "浏览并聚合所有已连接机器人的会话活动。会话内容保留在机器人本地，仅在进程内合并计数。",
+    "loading": "加载中…",
+    "navLabel": "数据",
     "tabs": {
-      "explorer": "数据浏览器",
-      "sql": "SQL 浏览器",
+      "explorer": "浏览器",
+      "sql": "SQL",
       "analytics": "分析"
     },
     "explorer": {
       "filters": {
-        "botSpace": "机器人空间",
-        "allSpaces": "所有空间",
-        "bot": "机器人",
-        "allBots": "所有机器人",
-        "type": "类型",
-        "allTypes": "所有类型",
-        "startDate": "开始日期",
-        "endDate": "结束日期",
-        "completedOnly": "仅已完成"
-      },
-      "botTypes": {
-        "knowledge": "知识",
-        "standard": "标准表单",
-        "triage": "分流",
-        "appointments": "预约"
-      },
-      "export": {
-        "csv": "导出 CSV",
-        "json": "导出 JSON"
+        "startDate": "开始时间晚于",
+        "endDate": "开始时间早于",
+        "conversationId": "会话 ID 包含"
       },
       "pagination": {
-        "showing": "显示 {start} - {end} / {total}",
+        "showing": "显示 {start} – {end} / {total}",
         "previous": "上一页",
-        "next": "下一页"
+        "next": "下一页",
+        "truncatedNotice": "结果集上限为整个舰队的前 500 条会话。请缩小日期范围以获取更早的结果。"
       },
-      "noConversations": "未找到会话。请调整你的筛选条件或等待下一次同步。"
+      "noConversations": "没有符合筛选条件的会话。",
+      "search": "搜索",
+      "searching": "搜索中…",
+      "clear": "清除",
+      "hint": "输入会话 ID 片段或日期范围，即可在每个已连接的机器人上展开搜索。"
     },
     "sql": {
-      "placeholder": "在此输入你的 SQL 查询...",
+      "placeholder": "SELECT bot_name, conversations_7d FROM bot_health ORDER BY conversations_7d DESC",
       "runQuery": "运行查询",
-      "running": "运行中...",
+      "running": "运行中…",
       "exportCsv": "导出 CSV",
       "exportJson": "导出 JSON",
       "keyboardHint": "按 Cmd/Ctrl + Enter 运行",
       "rowCount": "{count} 行",
       "truncated": "（已截断至 10,000）",
-      "noResults": "无结果",
-      "help": "帮助",
+      "noResults": "无行",
+      "help": "入门查询",
       "starterQueries": {
         "title": "入门查询",
-        "hint": "点击查询将其粘贴到编辑器中。记得替换 search_term 或 CONVERSATION_ID_HERE 等占位值。",
-        "recentConversations": "最近会话",
-        "searchUserMessages": "按词搜索用户消息",
-        "searchBotResponses": "按词搜索机器人响应",
-        "completedFormSubmissions": "已完成的表单提交",
-        "dailyStats": "每日会话统计",
-        "botHealth": "机器人健康概览",
-        "fullConversation": "包含所有轮次的完整会话"
+        "hint": "每个查询都从按请求由各机器人的分析接口组装的内存中汇总表读取数据。点击即可加载。",
+        "dailyStats": "整个舰队的每日会话统计",
+        "botHealth": "机器人健康（最近 7 天）",
+        "protocolDistribution": "协议使用分布",
+        "mostActiveBots": "本周最活跃的机器人",
+        "staleBots": "最近 24 小时内未出现的机器人",
+        "dailyByBot": "按机器人名称关联的每日活动"
       }
     },
     "schema": {
-      "availableTables": "可用表",
+      "availableTables": "结构参考",
       "clickToShow": "（点击显示）",
       "clickToHide": "（点击隐藏）",
       "note": "注意：",
-      "scopeWarning": "所有查询会自动限定在你可访问的机器人空间内。你无法访问不属于你的机器人空间中的数据。",
-      "tables": {
-        "conversations": {
-          "name": "conversations",
-          "description": "来自所有机器人的聚合会话"
-        },
-        "conversationTurns": {
-          "name": "conversation_turns",
-          "description": "会话内的单独轮次"
-        },
-        "dailyBotStats": {
-          "name": "daily_bot_stats",
-          "description": "每个机器人的每日聚合统计（物化视图）"
-        },
-        "botHealth": {
-          "name": "bot_health",
-          "description": "机器人健康分数（物化视图）"
-        },
-        "protocolStats": {
-          "name": "protocol_stats",
-          "description": "每周协议表现（物化视图）"
-        }
-      },
-      "columns": {
-        "id": "主键",
-        "botId": "对部署的引用",
-        "botSpaceId": "对机器人空间的引用",
-        "botType": "conversational、standard、triage、appointments",
-        "externalId": "来自容器的原始 conversation_id",
-        "startedAt": "会话开始时间",
-        "endedAt": "会话结束时间",
-        "turnCount": "轮次数",
-        "completed": "表单/流程是否完成",
-        "completionData": "最终表单状态、分流结果等",
-        "ingestedAt": "同步到 PostgreSQL 的时间",
-        "conversationId": "对会话的引用",
-        "turnNumber": "轮次序号",
-        "timestamp": "轮次发生时间",
-        "userPrompt": "用户消息",
-        "llmResponse": "机器人响应",
-        "machineState": "此轮次后的状态",
-        "ragSources": "使用的 RAG 上下文",
-        "date": "统计日期",
-        "conversations": "会话数",
-        "totalTurns": "轮次总数",
-        "avgTurns": "每会话平均轮次",
-        "completions": "已完成会话数",
-        "completionRate": "完成率（0-1）",
-        "conversations7d": "最近 7 天的会话数",
-        "avgTurns7d": "最近 7 天的平均轮次",
-        "completionRate7d": "7 天完成率",
-        "healthScore": "加权健康分数（0-1）",
-        "week": "周开始日期"
-      }
+      "scopeNote": "这些表在每次查询时于进程内存中构建——对于汇总表，每个机器人一行，数据通过调用各已连接机器人的分析接口填充。原始轮次内容不会被暴露；如需查看，请使用浏览器选项卡深入某个具体会话。"
     },
     "analytics": {
-      "title": "舰队分析",
+      "loading": "加载舰队汇总中…",
       "dateRange": {
         "last7days": "最近 7 天",
         "last14days": "最近 14 天",
@@ -2018,22 +1954,19 @@
         "last90days": "最近 90 天"
       },
       "summary": {
-        "totalConversations": "会话总数",
-        "totalTurns": "轮次总数",
+        "totalConversations": "会话",
+        "totalTurns": "轮次",
         "avgTurnsPerConversation": "平均轮次/会话",
-        "activeBots": "活跃机器人"
+        "activeBots": "可达机器人"
       },
       "charts": {
-        "dailyConversations": "每日会话",
-        "conversationsByBotType": "按机器人类型的会话",
-        "topBotsByActivity": "按活跃度排名的机器人",
+        "dailyConversations": "每日轮次量",
+        "topBotsByActivity": "按轮次量排名的机器人",
         "activityHeatmap": "活动热力图（最近 7 天）"
       },
-      "noData": "所选期间无数据",
-      "noActivityData": "无活动数据",
+      "noData": "此期间无活动。",
+      "noActivityData": "最近 7 天内无活动。",
       "convs": "会话",
-      "unknown": "未知",
-      "conversations": "会话",
       "days": {
         "sun": "周日",
         "mon": "周一",
@@ -2047,18 +1980,14 @@
     "table": {
       "headers": {
         "bot": "机器人",
-        "type": "类型",
         "started": "开始",
         "duration": "时长",
         "turns": "轮次",
-        "status": "状态",
         "conversationId": "会话 ID"
-      },
-      "status": {
-        "completed": "已完成",
-        "inProgress": "进行中"
-      },
-      "unknownBot": "未知机器人"
+      }
+    },
+    "fleet": {
+      "unreachableBanner": "{total} 个机器人中有 {unreachable} 个不可达——结果可能不完整。"
     }
   },
   "documentUploader": {

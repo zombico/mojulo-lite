@@ -1889,128 +1889,66 @@
     "clear": "クリア"
   },
   "data": {
-    "title": "会話データ",
-    "subtitle": "すべてのボットにわたる集約された会話データを探索および分析",
-    "loading": "読み込み中...",
+    "title": "フリートデータ",
+    "subtitle": "接続されているすべてのボットの会話アクティビティを閲覧・集計します。会話の内容はボット側に残り、件数のみがインプロセスでマージされます。",
+    "loading": "読み込み中…",
+    "navLabel": "データ",
     "tabs": {
-      "explorer": "データエクスプローラ",
-      "sql": "SQLエクスプローラ",
+      "explorer": "エクスプローラ",
+      "sql": "SQL",
       "analytics": "分析"
+    },
+    "fleet": {
+      "unreachableBanner": "{total}台中{unreachable}台のボットに到達できません — 結果が部分的になる可能性があります。"
     },
     "explorer": {
       "filters": {
-        "botSpace": "ボットスペース",
-        "allSpaces": "すべてのスペース",
-        "bot": "ボット",
-        "allBots": "すべてのボット",
-        "type": "タイプ",
-        "allTypes": "すべてのタイプ",
-        "startDate": "開始日",
-        "endDate": "終了日",
-        "completedOnly": "完了済みのみ"
-      },
-      "botTypes": {
-        "knowledge": "ナレッジ",
-        "standard": "標準フォーム",
-        "triage": "トリアージ",
-        "appointments": "予約"
-      },
-      "export": {
-        "csv": "CSVエクスポート",
-        "json": "JSONエクスポート"
+        "startDate": "開始日(以降)",
+        "endDate": "開始日(以前)",
+        "conversationId": "会話IDに含む"
       },
       "pagination": {
-        "showing": "{total}件のうち{start} - {end}を表示中",
+        "showing": "{total}件のうち{start} – {end}を表示中",
         "previous": "前へ",
-        "next": "次へ"
+        "next": "次へ",
+        "truncatedNotice": "結果はフリート全体で最初の500会話に制限されています。より古い結果を表示するには日付範囲を絞り込んでください。"
       },
-      "noConversations": "会話が見つかりません。フィルタを調整するか、次回の同期を待ってください。"
+      "search": "検索",
+      "searching": "検索中…",
+      "clear": "クリア",
+      "hint": "会話IDの一部または日付範囲を入力すると、接続されているすべてのボットに対して検索を展開します。",
+      "noConversations": "フィルタに一致する会話はありません。"
     },
     "sql": {
-      "placeholder": "ここにSQLクエリを入力...",
+      "placeholder": "SELECT bot_name, conversations_7d FROM bot_health ORDER BY conversations_7d DESC",
       "runQuery": "クエリを実行",
-      "running": "実行中...",
+      "running": "実行中…",
       "exportCsv": "CSVエクスポート",
       "exportJson": "JSONエクスポート",
       "keyboardHint": "Cmd/Ctrl + Enterで実行",
       "rowCount": "{count}行",
       "truncated": "(10,000行に切り詰められました)",
-      "noResults": "結果なし",
-      "help": "ヘルプ",
+      "noResults": "行なし",
+      "help": "スタータークエリ",
       "starterQueries": {
         "title": "スタータークエリ",
-        "hint": "クエリをクリックしてエディタに貼り付けます。search_termやCONVERSATION_ID_HEREなどのプレースホルダー値を置き換えることを忘れないでください。",
-        "recentConversations": "最近の会話",
-        "searchUserMessages": "ユーザーメッセージから語句を検索",
-        "searchBotResponses": "ボット応答から語句を検索",
-        "completedFormSubmissions": "完了したフォーム送信",
-        "dailyStats": "日次会話統計",
-        "botHealth": "ボットヘルス概要",
-        "fullConversation": "すべてのターンを含む完全な会話"
+        "hint": "各クエリは、リクエストごとに各ボットの分析エンドポイントから組み立てられたインメモリのロールアップテーブルを参照します。クリックすると読み込まれます。",
+        "dailyStats": "フリート全体の日次会話統計",
+        "botHealth": "ボットヘルス(過去7日間)",
+        "protocolDistribution": "プロトコル利用状況の分布",
+        "mostActiveBots": "今週最もアクティブなボット",
+        "staleBots": "過去24時間以内に確認されていないボット",
+        "dailyByBot": "ボット名と結合した日次アクティビティ"
       }
     },
     "schema": {
-      "availableTables": "利用可能なテーブル",
+      "availableTables": "スキーマリファレンス",
       "clickToShow": "(クリックして表示)",
       "clickToHide": "(クリックして非表示)",
       "note": "注意:",
-      "scopeWarning": "すべてのクエリは、アクセス可能なボットスペースに自動的にスコープされます。メンバーシップを持たないボットスペースのデータにはアクセスできません。",
-      "tables": {
-        "conversations": {
-          "name": "conversations",
-          "description": "すべてのボットからの集約された会話"
-        },
-        "conversationTurns": {
-          "name": "conversation_turns",
-          "description": "会話内の個別のターン"
-        },
-        "dailyBotStats": {
-          "name": "daily_bot_stats",
-          "description": "ボットごとの日次集計統計(マテリアライズドビュー)"
-        },
-        "botHealth": {
-          "name": "bot_health",
-          "description": "ボットヘルススコア(マテリアライズドビュー)"
-        },
-        "protocolStats": {
-          "name": "protocol_stats",
-          "description": "週次プロトコルパフォーマンス(マテリアライズドビュー)"
-        }
-      },
-      "columns": {
-        "id": "プライマリキー",
-        "botId": "デプロイメントへの参照",
-        "botSpaceId": "ボットスペースへの参照",
-        "botType": "conversational、standard、triage、appointments",
-        "externalId": "コンテナの元のconversation_id",
-        "startedAt": "会話開始時刻",
-        "endedAt": "会話終了時刻",
-        "turnCount": "ターン数",
-        "completed": "フォーム/フローが完了したかどうか",
-        "completionData": "最終フォーム状態、トリアージ結果など",
-        "ingestedAt": "PostgreSQLに同期された時刻",
-        "conversationId": "会話への参照",
-        "turnNumber": "ターンシーケンス番号",
-        "timestamp": "ターン発生時刻",
-        "userPrompt": "ユーザーメッセージ",
-        "llmResponse": "ボット応答",
-        "machineState": "このターン後の状態",
-        "ragSources": "使用されたRAGコンテキスト",
-        "date": "統計の日付",
-        "conversations": "会話数",
-        "totalTurns": "総ターン数",
-        "avgTurns": "会話あたりの平均ターン数",
-        "completions": "完了した会話数",
-        "completionRate": "完了率(0-1)",
-        "conversations7d": "過去7日間の会話数",
-        "avgTurns7d": "過去7日間の平均ターン数",
-        "completionRate7d": "7日間の完了率",
-        "healthScore": "加重ヘルススコア(0-1)",
-        "week": "週開始日"
-      }
+      "scopeNote": "これらのテーブルは、クエリごとにインプロセスメモリ上で構築されます — ロールアップテーブルではボットごとに1行となり、接続されている各ボットの分析エンドポイントを呼び出して生成されます。ターンの生コンテンツは公開されません。それを参照するには、エクスプローラタブで個々の会話にドリルダウンしてください。"
     },
     "analytics": {
-      "title": "フリート分析",
       "dateRange": {
         "last7days": "過去7日間",
         "last14days": "過去14日間",
@@ -2018,22 +1956,20 @@
         "last90days": "過去90日間"
       },
       "summary": {
-        "totalConversations": "会話総数",
-        "totalTurns": "総ターン数",
+        "totalConversations": "会話",
+        "totalTurns": "ターン",
         "avgTurnsPerConversation": "平均ターン数/会話",
-        "activeBots": "アクティブボット"
+        "activeBots": "到達可能なボット"
       },
       "charts": {
-        "dailyConversations": "日次会話",
-        "conversationsByBotType": "ボットタイプ別会話",
-        "topBotsByActivity": "アクティビティ別上位ボット",
+        "dailyConversations": "日次ターン数",
+        "topBotsByActivity": "ターン数上位のボット",
         "activityHeatmap": "アクティビティヒートマップ(過去7日間)"
       },
-      "noData": "選択した期間のデータがありません",
-      "noActivityData": "アクティビティデータがありません",
+      "loading": "フリートのロールアップを読み込み中…",
+      "noData": "この期間のアクティビティはありません。",
+      "noActivityData": "過去7日間のアクティビティはありません。",
       "convs": "件",
-      "unknown": "不明",
-      "conversations": "会話",
       "days": {
         "sun": "日",
         "mon": "月",
@@ -2047,18 +1983,11 @@
     "table": {
       "headers": {
         "bot": "ボット",
-        "type": "タイプ",
         "started": "開始",
         "duration": "期間",
         "turns": "ターン",
-        "status": "ステータス",
         "conversationId": "会話ID"
-      },
-      "status": {
-        "completed": "完了",
-        "inProgress": "進行中"
-      },
-      "unknownBot": "不明なボット"
+      }
     }
   },
   "documentUploader": {

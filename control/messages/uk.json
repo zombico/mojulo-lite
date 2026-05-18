@@ -1889,128 +1889,67 @@
     "clear": "Очистити"
   },
   "data": {
-    "title": "Дані розмов",
-    "subtitle": "Досліджуйте та аналізуйте агреговані дані розмов з усіх ваших ботів",
-    "loading": "Завантаження...",
+    "navLabel": "Дані",
+    "title": "Дані флоту",
+    "subtitle": "Переглядайте та агрегуйте активність розмов з усіх підключених ботів. Вміст розмов залишається на боті — у процесі об’єднуються лише підрахунки.",
+    "loading": "Завантаження…",
     "tabs": {
-      "explorer": "Провідник даних",
-      "sql": "SQL-провідник",
+      "explorer": "Провідник",
+      "sql": "SQL",
       "analytics": "Аналітика"
+    },
+    "fleet": {
+      "unreachableBanner": "{unreachable} з {total} ботів недоступні — результати можуть бути неповними."
     },
     "explorer": {
       "filters": {
-        "botSpace": "Простір ботів",
-        "allSpaces": "Усі простори",
-        "bot": "Бот",
-        "allBots": "Усі боти",
-        "type": "Тип",
-        "allTypes": "Усі типи",
-        "startDate": "Дата початку",
-        "endDate": "Дата завершення",
-        "completedOnly": "Лише завершені"
+        "conversationId": "ID розмови містить",
+        "startDate": "Розпочато після",
+        "endDate": "Розпочато до"
       },
-      "botTypes": {
-        "knowledge": "Знання",
-        "standard": "Стандартна форма",
-        "triage": "Сортування",
-        "appointments": "Зустрічі"
-      },
-      "export": {
-        "csv": "Експортувати CSV",
-        "json": "Експортувати JSON"
-      },
+      "search": "Пошук",
+      "searching": "Пошук…",
+      "clear": "Очистити",
+      "hint": "Введіть фрагмент ID розмови або діапазон дат, щоб розгорнути пошук на всіх підключених ботів.",
       "pagination": {
-        "showing": "Показано {start} - {end} з {total}",
+        "showing": "Показано {start} – {end} з {total}",
         "previous": "Попередній",
-        "next": "Наступний"
+        "next": "Наступний",
+        "truncatedNotice": "Набір результатів обмежено першими 500 розмовами по всьому флоту. Звузьте діапазон дат для старіших результатів."
       },
-      "noConversations": "Розмов не знайдено. Налаштуйте фільтри або зачекайте на наступну синхронізацію."
+      "noConversations": "Жодна розмова не відповідає вашому фільтру."
     },
     "sql": {
-      "placeholder": "Введіть тут ваш SQL-запит...",
+      "placeholder": "SELECT bot_name, conversations_7d FROM bot_health ORDER BY conversations_7d DESC",
       "runQuery": "Виконати запит",
-      "running": "Виконання...",
+      "running": "Виконання…",
       "exportCsv": "Експортувати CSV",
       "exportJson": "Експортувати JSON",
       "keyboardHint": "Натисніть Cmd/Ctrl + Enter для виконання",
       "rowCount": "{count} рядків",
       "truncated": "(скорочено до 10 000)",
-      "noResults": "Немає результатів",
-      "help": "Довідка",
+      "noResults": "Немає рядків",
+      "help": "Стартові запити",
       "starterQueries": {
         "title": "Стартові запити",
-        "hint": "Натисніть на запит, щоб вставити його в редактор. Не забудьте замінити значення-заповнювачі, такі як search_term або CONVERSATION_ID_HERE.",
-        "recentConversations": "Нещодавні розмови",
-        "searchUserMessages": "Шукати в повідомленнях користувачів за терміном",
-        "searchBotResponses": "Шукати у відповідях бота за терміном",
-        "completedFormSubmissions": "Завершені надсилання форм",
-        "dailyStats": "Щоденна статистика розмов",
-        "botHealth": "Огляд стану ботів",
-        "fullConversation": "Повна розмова з усіма ходами"
+        "hint": "Кожен запит читає з таблиць-зведень у пам’яті, які збираються для кожного запиту з аналітичних точок доступу кожного бота. Натисніть, щоб завантажити.",
+        "dailyStats": "Щоденна статистика розмов по всьому флоту",
+        "botHealth": "Стан ботів (останні 7 днів)",
+        "protocolDistribution": "Розподіл використання протоколів",
+        "mostActiveBots": "Найактивніші боти цього тижня",
+        "staleBots": "Боти, не помічені за останні 24 години",
+        "dailyByBot": "Щоденна активність з прив’язкою до імен ботів"
       }
     },
     "schema": {
-      "availableTables": "Доступні таблиці",
+      "availableTables": "Довідка по схемі",
       "clickToShow": "(натисніть, щоб показати)",
       "clickToHide": "(натисніть, щоб сховати)",
       "note": "Примітка:",
-      "scopeWarning": "Усі запити автоматично обмежуються вашими доступними просторами ботів. Ви не можете отримати доступ до даних з просторів ботів, у яких у вас немає членства.",
-      "tables": {
-        "conversations": {
-          "name": "conversations",
-          "description": "Агреговані розмови з усіх ботів"
-        },
-        "conversationTurns": {
-          "name": "conversation_turns",
-          "description": "Окремі ходи в розмовах"
-        },
-        "dailyBotStats": {
-          "name": "daily_bot_stats",
-          "description": "Щоденна агрегована статистика на бота (матеріалізоване подання)"
-        },
-        "botHealth": {
-          "name": "bot_health",
-          "description": "Оцінки стану ботів (матеріалізоване подання)"
-        },
-        "protocolStats": {
-          "name": "protocol_stats",
-          "description": "Тижнева продуктивність протоколів (матеріалізоване подання)"
-        }
-      },
-      "columns": {
-        "id": "Первинний ключ",
-        "botId": "Посилання на розгортання",
-        "botSpaceId": "Посилання на простір ботів",
-        "botType": "conversational, standard, triage, appointments",
-        "externalId": "Оригінальний conversation_id з контейнера",
-        "startedAt": "Коли розпочалася розмова",
-        "endedAt": "Коли завершилася розмова",
-        "turnCount": "Кількість ходів",
-        "completed": "Чи завершено форму/потік",
-        "completionData": "Кінцевий стан форми, результат сортування тощо.",
-        "ingestedAt": "Коли синхронізовано з PostgreSQL",
-        "conversationId": "Посилання на розмову",
-        "turnNumber": "Порядковий номер ходу",
-        "timestamp": "Коли стався хід",
-        "userPrompt": "Повідомлення користувача",
-        "llmResponse": "Відповідь бота",
-        "machineState": "Стан після цього ходу",
-        "ragSources": "Використаний контекст RAG",
-        "date": "Дата статистики",
-        "conversations": "Кількість розмов",
-        "totalTurns": "Загальна кількість ходів",
-        "avgTurns": "Середня кількість ходів на розмову",
-        "completions": "Кількість завершених розмов",
-        "completionRate": "Рівень завершення (0-1)",
-        "conversations7d": "Розмови за останні 7 днів",
-        "avgTurns7d": "Сер. ходів за останні 7 днів",
-        "completionRate7d": "7-денний рівень завершення",
-        "healthScore": "Зважена оцінка стану (0-1)",
-        "week": "Дата початку тижня"
-      }
+      "scopeNote": "Ці таблиці будуються в пам’яті процесу для кожного запиту — по одному рядку на бота для таблиць-зведень, наповнюються викликом аналітичних точок доступу кожного підключеного бота. Сирий вміст ходів не розкривається; для цього скористайтеся вкладкою Провідник, щоб поглибитися в окрему розмову."
     },
     "analytics": {
-      "title": "Аналітика флоту",
+      "loading": "Завантаження зведень флоту…",
       "dateRange": {
         "last7days": "Останні 7 днів",
         "last14days": "Останні 14 днів",
@@ -2018,22 +1957,19 @@
         "last90days": "Останні 90 днів"
       },
       "summary": {
-        "totalConversations": "Усього розмов",
-        "totalTurns": "Усього ходів",
-        "avgTurnsPerConversation": "Сер. ходів/розмову",
-        "activeBots": "Активні боти"
+        "totalConversations": "Розмови",
+        "totalTurns": "Ходи",
+        "avgTurnsPerConversation": "Сер. ходів/розм.",
+        "activeBots": "Доступні боти"
       },
       "charts": {
-        "dailyConversations": "Щоденні розмови",
-        "conversationsByBotType": "Розмови за типом бота",
-        "topBotsByActivity": "Топ ботів за активністю",
+        "dailyConversations": "Щоденний обсяг ходів",
+        "topBotsByActivity": "Топ ботів за обсягом ходів",
         "activityHeatmap": "Теплова карта активності (останні 7 днів)"
       },
-      "noData": "Немає даних за вибраний період",
-      "noActivityData": "Немає даних активності",
+      "noData": "Немає активності за цей період.",
+      "noActivityData": "Немає активності за останні 7 днів.",
       "convs": "розм.",
-      "unknown": "Невідомо",
-      "conversations": "розмов",
       "days": {
         "sun": "Нд",
         "mon": "Пн",
@@ -2047,18 +1983,11 @@
     "table": {
       "headers": {
         "bot": "Бот",
-        "type": "Тип",
         "started": "Розпочато",
         "duration": "Тривалість",
         "turns": "Ходи",
-        "status": "Статус",
         "conversationId": "ID розмови"
-      },
-      "status": {
-        "completed": "Завершено",
-        "inProgress": "У процесі"
-      },
-      "unknownBot": "Невідомий бот"
+      }
     }
   },
   "documentUploader": {

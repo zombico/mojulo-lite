@@ -168,13 +168,17 @@ export async function ensureToolsRegistered() {
   const { registerBuildTools } = await import('@/lib/mcp/tools/build');
   const { registerJobsTools } = await import('@/lib/mcp/tools/jobs-tools');
   const { registerOperateTools } = await import('@/lib/mcp/tools/operate');
+  const { registerFleetTools } = await import('@/lib/mcp/tools/fleet');
   const { registerCatalystTools } = await import('@/lib/mcp/tools/catalysts');
   // Order matters only for tools/list output (insertion order). Putting
   // forward_context first means clients that surface the tool list to the
-  // model see the orientation tool at the top.
+  // model see the orientation tool at the top. Fleet tools sit between
+  // per-bot operate and catalysts so the natural reading order is
+  // per-bot → fleet → outcome.
   registerContextTools();
   registerBuildTools();
   registerJobsTools();
   registerOperateTools();
+  registerFleetTools();
   registerCatalystTools();
 }
