@@ -31,7 +31,7 @@ WORKDIR /app
 # bot's runtime offline (env.allowRemoteModels = false in helper/embedder-local.js).
 COPY package*.json ./
 COPY scripts/ ./scripts/
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Documents are runtime-populated from the per-bot volume mount (see
 # docker-compose.yml). The directory only needs to exist as a mount target.
