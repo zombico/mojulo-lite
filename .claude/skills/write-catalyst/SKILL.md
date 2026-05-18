@@ -63,9 +63,19 @@ Path: `control/lib/mcp/catalysts/<id>.md`.
 
 ### Frontmatter
 
-JSON, between two `---` fences. Required: `id`, `name` (human-readable title), `summary` (one line, used in `list_catalysts`). Optional: `version` (default 1), `category`, `requires.protocols`, `requires.optionalProtocols`, `requires.destinationMcpCategory`, `parameters`, `mcpTools.mojulo`, `mcpTools.destination.description`.
+JSON, between two `---` fences.
 
-The `mcpTools.destination.description` field is *abstract* — describe the shape of MCP the synthesized skill needs and name 2-4 example MCPs that fit. Do not bind to a specific MCP.
+**Required:**
+
+- `id`, `name` (human-readable title), `summary` (one line, used in `list_catalysts`)
+- `valueHook` — one sentence in **user-outcome** terms ("Turn yesterday's intake submissions into qualified CRM contacts overnight, deduped and scored"). This is the consultation surface — `recommend_catalysts` reads it aloud to position the catalyst to the user, *before* the user has decided to read the body. Don't restate the `summary`; the summary is implementation-shaped ("score new submissions and create matching CRM records"), the valueHook is outcome-shaped ("CRM contacts overnight, deduped and scored").
+
+**Optional:**
+
+- `version` (default 1), `category`, `requires.protocols`, `requires.optionalProtocols`, `requires.destinationMcpCategory`, `parameters`, `mcpTools.mojulo`, `mcpTools.destination.description`.
+- `requires.destinationExamples` — array of 3-5 named MCPs that satisfy the `destinationMcpCategory` (e.g., for `crm-like`: `["HubSpot", "Salesforce", "Pipedrive", "Attio", "Close"]`). **Required in practice when `destinationMcpCategory` is set** — the loader test asserts this. The `recommend_catalysts` tool surfaces these as consultation suggestions ("you could install HubSpot to unlock this"), so a missing or empty list is a hole in the consultation posture.
+
+The `mcpTools.destination.description` field is *abstract* — describe the shape of MCP the synthesized skill needs and name 2-4 example MCPs that fit. Do not bind to a specific MCP. (`requires.destinationExamples` is the structured equivalent the tooling reads; the description is the prose version the catalyst body's mapping section can quote.)
 
 ### Body — the six-section template
 
@@ -102,20 +112,16 @@ Before reporting back to the user, validate the draft parses:
 cd control && npx vitest run lib/mcp/catalysts/loader.test.js
 ```
 
-Two things will happen:
+The loader parses your file at startup — if frontmatter is malformed, required fields are missing, the body is empty, or `requires.destinationMcpCategory` is set without a matching `destinationExamples` array, the test fails with a clear error pointing at your file. Fix and re-run. Don't ship a draft that fails the loader.
 
-1. **The loader parses your file at startup** — if frontmatter is malformed, required fields are missing, or the body is empty, the test fails with a clear error pointing at your file. Fix and re-run.
-2. **The "canonical catalysts we expect to ship" assertion will fail** — the test in [control/lib/mcp/catalysts/loader.test.js](control/lib/mcp/catalysts/loader.test.js) (around line 68-83) has a hardcoded sorted list of expected ids. You added a new one — update that list to include your new id (keep it sorted). This is documented in the catalyst-adding checklist ([docs/catalysts.md:151-157](docs/catalysts.md#L151-L157)).
-
-Re-run the test after updating; it should pass green. If it doesn't, fix and re-run — don't ship a draft that fails the loader.
+The loader test enumerates structural properties of the catalog (every catalyst has required fields, every one with a destination category has examples, etc.) but does *not* assert a fixed list of canonical ids — a new `.md` file is picked up automatically, no test edit needed.
 
 ## Step 6 — Hand off to the user
 
 Tell the user:
 
 - Where the file is (`control/lib/mcp/catalysts/<id>.md`)
-- Which loader-test edit you made (the expected-ids list)
-- That the next step is to **PR the catalyst + the test update** per the checklist in [docs/catalysts.md:151-157](docs/catalysts.md#L151-L157)
+- That the next step is to **PR the catalyst** per the checklist in [docs/catalysts.md:151-157](docs/catalysts.md#L151-L157)
 - If the new catalyst's category surfaces a discoverability gap (e.g. it's the first `itsm` catalyst, or you proposed a new category), mention that [docs/mcp-integration.md](docs/mcp-integration.md) recipes section may want a mention — but don't auto-edit it, that's a user call.
 
 ## Final reminders

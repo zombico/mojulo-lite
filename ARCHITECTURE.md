@@ -1,6 +1,6 @@
-# Mojulo Lite: Compiled Artifact Architecture
+# Mojulo: Compiled Artifact Architecture
 
-Mojulo Lite produces a **portable, self-contained Docker bot** packaged as a downloadable ZIP. Unlike the main Mojulo control plane (which deploys bots to a managed Kubernetes cluster), Mojulo Lite hands the user a ready-to-run artifact they can launch anywhere Docker runs.
+Mojulo produces a **portable, self-contained Docker bot** packaged as a downloadable ZIP. Unlike the main Mojulo control plane (which deploys bots to a managed Kubernetes cluster), Mojulo hands the user a ready-to-run artifact they can launch anywhere Docker runs.
 
 ---
 
@@ -10,7 +10,7 @@ The control plane's [DockerDeployer](control/lib/deployers/docker.js) assembles 
 
 ```
                      ┌──────────────────────────────────────┐
-                     │    Mojulo Lite Control Plane         │
+                     │        Mojulo Control Plane          │
                      │         (Next.js app)                │
                      │                                      │
                      │  User configures bot in wizard:      │
@@ -493,5 +493,5 @@ Key files:
 
 ## 9. Prior art
 
-The protocol cartridge pattern — composing a bot's behavior from layered, opt-in instruction blocks — was first published in Oct 2025 in [zombico/sati](https://github.com/zombico/sati) with an example artifact. Mojulo-lite is the production-grade version: the cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/) trace their shape to that earlier work.
+The protocol cartridge pattern — composing a bot's behavior from layered, opt-in instruction blocks — was first published in Oct 2025 in [zombico/sati](https://github.com/zombico/sati) with an example artifact. Mojulo is the production-grade version: the cartridges in [control/lib/composer/protocols/](control/lib/composer/protocols/) trace their shape to that earlier work.
 

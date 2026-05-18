@@ -153,5 +153,5 @@ Bot-shape introspection is intentionally not a separate tool — `get_deployment
 1. Pick an unused `id` (slug).
 2. Write `control/lib/mcp/catalysts/<id>.md` following the format above.
 3. Pick or reuse a `category`. Don't proliferate categories — six should cover most workflows.
-4. Run `npx vitest run lib/mcp/catalysts/loader.test.js` from `control/` — the loader test will fail-load if the file is malformed and will assert the catalyst is in the expected library set (update the list in the test).
-5. PR the catalyst file + the test update. No code change to the loader or the MCP tools is needed.
+4. Run `npx vitest run lib/mcp/catalysts/loader.test.js` from `control/` — the loader test will fail-load if the file is malformed, has missing required fields, or sets `requires.destinationMcpCategory` without `requires.destinationExamples`. New `.md` files are picked up automatically; no test edit is required.
+5. PR the catalyst file. No code change to the loader, the MCP tools, or the test is needed.

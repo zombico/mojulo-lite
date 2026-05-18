@@ -850,7 +850,7 @@ app.get('/api/conversations/export', validateApiKey, (req, res) => {
 
         // Fetch full turns for each conversation
         const getTurns = db.prepare(`
-            SELECT turn, timestamp, user_prompt, llm_response, machine_state, rag_context, event_type, handoff_hash
+            SELECT id, conversation_id, turn, timestamp, user_prompt, llm_response, machine_state, rag_context, content_hash, chain_hash, event_type, handoff_hash
             FROM turns
             WHERE conversation_id = ?
             ORDER BY turn ASC
@@ -862,12 +862,16 @@ app.get('/api/conversations/export', validateApiKey, (req, res) => {
             lastActivity: conv.last_activity,
             turnCount: conv.turn_count,
             turns: getTurns.all(conv.conversation_id).map(t => ({
+                id: t.id,
+                conversationId: t.conversation_id,
                 turn: t.turn,
                 timestamp: t.timestamp,
                 userPrompt: t.user_prompt,
                 llmResponse: t.llm_response,
                 machineState: t.machine_state,
                 ragContext: t.rag_context,
+                contentHash: t.content_hash,
+                chainHash: t.chain_hash,
                 eventType: t.event_type,
                 handoffHash: t.handoff_hash
             }))

@@ -3,11 +3,13 @@
   "id": "weekly-submissions-digest",
   "name": "Periodic submissions digest",
   "summary": "Produce a recurring digest of recent bot submissions (counts, trends, notable items) and post it to a doc, channel, or email.",
+  "valueHook": "A recurring summary of recent submissions — counts, trends, notable items — posted where stakeholders see it.",
   "version": 1,
   "category": "digest",
   "requires": {
     "protocols": ["formGathering"],
-    "destinationMcpCategory": "doc-or-channel-like"
+    "destinationMcpCategory": "doc-or-channel-like",
+    "destinationExamples": ["Notion", "Slack", "Gmail", "Google Docs"]
   },
   "parameters": [
     {

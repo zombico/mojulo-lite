@@ -43,7 +43,12 @@ import { fileURLToPath } from 'node:url';
 
 const CATALYST_DIR = dirname(fileURLToPath(import.meta.url));
 
-const REQUIRED_FIELDS = ['id', 'name', 'summary'];
+// `valueHook` is required: it's the consultation-mode sentence we read aloud
+// to position the catalyst when surfacing it via `recommend_catalysts` — one
+// sentence in user-outcome terms ("turn yesterday's submissions into qualified
+// CRM contacts"). Without it, the agent has only the `summary` (which is
+// implementation-shaped) and consultation suggestions sound bureaucratic.
+const REQUIRED_FIELDS = ['id', 'name', 'summary', 'valueHook'];
 const FRONTMATTER_FENCE = /^---\s*\n([\s\S]*?)\n---\s*\n?/;
 
 let _catalog = null;
@@ -74,6 +79,7 @@ function parseCatalystFile(filePath, raw) {
     id: meta.id,
     name: meta.name,
     summary: meta.summary,
+    valueHook: meta.valueHook,
     version: meta.version ?? 1,
     category: meta.category || null,
     requires: meta.requires || {},
@@ -115,6 +121,7 @@ export function listCatalysts({ category } = {}) {
       id: catalyst.id,
       name: catalyst.name,
       summary: catalyst.summary,
+      valueHook: catalyst.valueHook,
       category: catalyst.category,
       requires: catalyst.requires,
     });

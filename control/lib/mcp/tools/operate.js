@@ -138,11 +138,36 @@ async function queryConversationsHandler(input, _ctx) {
   return { botName: dep.botName, total: conversations.length, conversations };
 }
 
+// The bot's /api/conversations/:id endpoint emits raw snake_case columns, while
+// /api/conversations/export hand-maps to camelCase. Normalize the by-id turn
+// shape so consumers see one casing across both tools.
+function normalizeTurn(t) {
+  if (!t || typeof t !== 'object') return t;
+  return {
+    id: t.id,
+    conversationId: t.conversation_id,
+    turn: t.turn,
+    timestamp: t.timestamp,
+    userPrompt: t.user_prompt,
+    llmResponse: t.llm_response,
+    machineState: t.machine_state,
+    ragContext: t.rag_context,
+    contentHash: t.content_hash,
+    chainHash: t.chain_hash,
+    eventType: t.event_type,
+    handoffHash: t.handoff_hash,
+  };
+}
+
 async function getConversationHandler(input, _ctx) {
   const { id, conversationId } = input || {};
   if (!conversationId) throw new Error('conversationId is required');
   const dep = await loadConnectedDeployment(id);
-  return proxyJson(dep, `/api/conversations/${encodeURIComponent(conversationId)}`);
+  const data = await proxyJson(dep, `/api/conversations/${encodeURIComponent(conversationId)}`);
+  return {
+    ...data,
+    turns: Array.isArray(data?.turns) ? data.turns.map(normalizeTurn) : data?.turns,
+  };
 }
 
 async function exportConversationsHandler(input, _ctx) {

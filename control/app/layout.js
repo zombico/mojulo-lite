@@ -15,8 +15,8 @@ const outfit = Outfit({
 });
 
 export const metadata = {
-  title: 'Mojulo-Lite',
-  description: 'Portable AI bot compiler — wizard + chat builder inverted flow',
+  title: 'Mojulo',
+  description: 'MCP-native bot fleet — compile, deploy, and pilot AI bots from Claude and other MCP clients',
 };
 
 export default async function RootLayout({ children }) {

@@ -3,12 +3,14 @@
   "id": "submission-to-ticket",
   "name": "Submission to ITSM ticket",
   "summary": "Turn new submissions (or triaged conversations) into tickets in Linear/Jira/ServiceNow with routing, priority, and assignment.",
+  "valueHook": "Bot intake becomes routed, prioritized tickets in your team's tracker — no manual triage step.",
   "version": 1,
   "category": "itsm",
   "requires": {
     "protocols": ["formGathering"],
     "optionalProtocols": ["triage"],
-    "destinationMcpCategory": "ticketing-like"
+    "destinationMcpCategory": "ticketing-like",
+    "destinationExamples": ["Linear", "Jira", "ServiceNow", "GitHub Issues"]
   },
   "parameters": [
     {

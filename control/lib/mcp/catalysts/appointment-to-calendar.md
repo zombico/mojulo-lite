@@ -3,11 +3,13 @@
   "id": "appointment-to-calendar",
   "name": "Appointment booking to calendar",
   "summary": "Sync new appointment-protocol bookings into a calendar MCP (Google Calendar, Cal.com, Outlook), with attendee + reminder wiring.",
+  "valueHook": "Bookings the bot collects show up as real calendar events for your team, with attendees invited and reminders set — no manual transfer.",
   "version": 1,
   "category": "calendar",
   "requires": {
     "protocols": ["appointments"],
-    "destinationMcpCategory": "calendar-like"
+    "destinationMcpCategory": "calendar-like",
+    "destinationExamples": ["Google Calendar", "Cal.com", "Outlook Calendar", "Fastmail Calendar"]
   },
   "parameters": [
     {

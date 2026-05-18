@@ -3,11 +3,13 @@
   "id": "conversations-to-channel-digest",
   "name": "Conversation digest to channel",
   "summary": "Generate a recurring narrative summary of what end users have been saying to the bot — themes, recurring questions, sentiment, notable conversations — and post to a channel (Slack/email/Notion).",
+  "valueHook": "A recurring narrative of what users are actually saying to the bot, posted where your team already pays attention.",
   "version": 1,
   "category": "digest",
   "requires": {
     "protocols": [],
-    "destinationMcpCategory": "channel-like"
+    "destinationMcpCategory": "channel-like",
+    "destinationExamples": ["Slack", "Gmail", "Notion", "Microsoft Teams", "Discord"]
   },
   "parameters": [
     {

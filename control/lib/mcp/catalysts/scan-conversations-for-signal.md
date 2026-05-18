@@ -3,11 +3,13 @@
   "id": "scan-conversations-for-signal",
   "name": "Scan conversations for a signal",
   "summary": "Sample recent bot conversations, scan each for a user-defined signal (churn intent, competitor mentions, recurring complaints), and route matches to an actuator MCP.",
+  "valueHook": "Sample recent conversations for a signal you care about — churn intent, competitor mentions, recurring complaints — and route matches where the team can act.",
   "version": 1,
   "category": "analysis",
   "requires": {
     "protocols": [],
-    "destinationMcpCategory": "actuator-like"
+    "destinationMcpCategory": "actuator-like",
+    "destinationExamples": ["Linear", "Slack", "Notion", "Google Sheets"]
   },
   "parameters": [
     {

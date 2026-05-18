@@ -3,11 +3,13 @@
   "id": "submissions-to-warehouse",
   "name": "Submissions to data warehouse",
   "summary": "Append form submissions to an analytical warehouse table (BigQuery/Snowflake/Postgres/Redshift) with stable schema and incremental cursor — append-only, no qualifying logic, ready for SQL analysis downstream.",
+  "valueHook": "Submissions land in your analytics warehouse with a stable schema, ready for SQL analysis and dashboards downstream.",
   "version": 1,
   "category": "warehouse",
   "requires": {
     "protocols": ["formGathering"],
-    "destinationMcpCategory": "warehouse-like"
+    "destinationMcpCategory": "warehouse-like",
+    "destinationExamples": ["BigQuery", "Snowflake", "Postgres", "Redshift", "DuckDB"]
   },
   "parameters": [
     {

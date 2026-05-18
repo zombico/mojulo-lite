@@ -3,11 +3,13 @@
   "id": "qualify-lead-to-crm",
   "name": "Qualify lead and sync to CRM",
   "summary": "Score new submissions against the user's rubric and create matching CRM records, skipping low-quality leads.",
+  "valueHook": "Turn yesterday's intake submissions into qualified CRM contacts overnight, deduped and scored.",
   "version": 1,
   "category": "crm-sync",
   "requires": {
     "protocols": ["formGathering"],
-    "destinationMcpCategory": "crm-like"
+    "destinationMcpCategory": "crm-like",
+    "destinationExamples": ["HubSpot", "Salesforce", "Pipedrive", "Attio", "Close"]
   },
   "parameters": [
     {

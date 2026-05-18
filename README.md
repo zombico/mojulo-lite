@@ -1,102 +1,137 @@
-# Mojulo-Lite
-Self-hosted AI chatbot builder. Hash-chained conversation logs, offline retrieval, portable artifacts.
+# Mojulo
 
-> Compile a chatbot into a portable Docker artifact. Self-host it anywhere `docker compose up` runs — a laptop, a VPS, Fly.io, or an air-gapped host.
+You want a triage bot for your dental practice — one that answers basic questions from your intake docs, collects new-patient fields without piping PII through the LLM, and routes anything urgent to the on-call coordinator. You describe that to Claude in one sentence. Mojulo compiles `dental-triage-{id}.zip`. You `docker compose up`. Conversations start accumulating in a SQLite file on the bot, hash-chained turn by turn.
 
-Three surfaces, one artifact:
+The whole loop — describe, compile, deploy, read back what was captured, automate the followup — runs in a Claude session. Mojulo's MCP server composes alongside the other MCP servers you already have installed (Drive, Gmail, your CRM), so the bot you just built can route new submissions into the rest of your toolchain without leaving the agent loop. That's the part most other chatbot builders don't do.
 
-- **Chat builder** — describe the bot you want; Claude drafts the config, you adjust.
-- **Wizard** — step-by-step form for when you already know the shape you want.
-- **MCP** — point Claude Code or Desktop at the control plane and your Claude drives the build loop, mixing mojulo's tools with your other MCP servers (Drive, Linear, Gmail, GitHub). See [docs/mcp-integration.md](docs/mcp-integration.md).
+The bot's config — what mojulo writes into the zip and the bot reads at start — is plain JSON:
 
-All three produce the same `<bot>.zip`.
+```json
+{
+  "name": "dental-triage",
+  "identity": { "name": "Smile Clinic Assistant", "tone": "warm, plainspoken" },
+  "enabledProtocols": { "knowledge": true, "formGathering": true, "triage": true },
+  "formGathering": { "fields": ["full_name", "dob", "insurance_carrier", "chief_complaint"] },
+  "triage": { "routes": [{ "label": "urgent — on-call coordinator", "destination": "..." }] }
+}
+```
+
+You can edit it, you can `cat` it, you can move the bot to another host by copying the zip. The bot is yours.
 
 <!--
   HERO IMAGE — put it here.
-  Recommended shot: a side-by-side or single screenshot of the chat builder
-  mid-conversation. The user has typed something like "I want a triage bot
-  for a dental clinic" and Modulo (the avatar) is responding with proposed
-  protocol toggles + a form schema in the side panel.
-  Why this shot: it's the pitch in one frame — natural language in,
-  structured bot config out.
-  Suggested filename: docs/images/hero-chat-builder.png
+  Recommended shot: Claude Code or Claude Desktop mid-tool-call against
+  mojulo. Ideally `forward_context` → `infer_intent` → `save_modular_bot`
+  in the transcript, with a fragment of the resulting deployment row
+  visible in the dashboard. The pitch is "Claude drives the loop"; the
+  image has to read that way at a glance.
+  Suggested filename: docs/images/hero-mcp-loop.png
   Width: 100% / aspect ~16:9
 -->
-![Chat builder hero shot](docs/images/hero-chat-builder.png)
+![MCP-driven build loop](docs/images/hero-mcp-loop.png)
+
+The control plane is usable via **app** and via **MCP** — two surfaces over the same encrypted config:
+
+- **MCP.** Point Claude Desktop or Claude Code at mojulo and your Claude drives the build/deploy/operate loop, composing mojulo's tools with the rest of your MCP servers. See [docs/mcp-integration.md](docs/mcp-integration.md).
+- **App.** Browser dashboard at `localhost:3001`. Paste your LLM and Fly.io API keys here — they get AES-encrypted at rest, and your Claude never sees them; the MCP tools just consume them out of the store. The app also hosts a step-by-step wizard (and a conversational in-app builder) if you'd rather click through a build than describe it.
+
+Both produce the same `<bot>.zip`.
 
 ---
 
-## Features
+## Quickstart
 
-- **Hash-chained transcripts.** Every turn is content-hashed and chain-linked; `/verify/:id` walks the chain. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain, and the sender records the routing transition as a chained event row. See [docs/turn-hashing.md](docs/turn-hashing.md) and [docs/federated-routing.md](docs/federated-routing.md).
-- **Multilingual vector RAG, offline at runtime.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. Cross-language retrieval works without a language-detection step or an embedding-API key at runtime — e.g. a Thai query against a Spanish corpus. See [docs/vector-rag.md](docs/vector-rag.md).
-- **Out-of-band forms — PII bypasses the LLM.** Locale-aware structured fields render client-side and submit through a dedicated endpoint that does not call the model. The chat history records only an opaque marker like `{contact_form_filled}`. See [docs/form-collection.md](docs/form-collection.md).
-- **Image extraction with hashed inputs.** Name the slots you want out of an uploaded image (DOB, license #, expiry, prescription dose); a vision-capable LLM reads the artifact, the user reviews and edits before submit. The extraction turn is hashed over the image bytes, so post-hoc edits to the source image break the chain. See [docs/optical-read.md](docs/optical-read.md).
-- **Live conversation viewer.** Read conversations from a deployed bot without copying data out of it. The bot's SQLite stays on the bot; the control plane proxies through a shared key. See [docs/conversations-api.md](docs/conversations-api.md).
-- **Two builders, same output.** Conversational builder for fast iteration, structured wizard for precision.
-- **Multiple LLM providers.** OpenAI, Anthropic, or local Ollama — pick at build time, swap by editing `.env`. Cloud providers and llama3.3 (70B, ~75GB resident) run every protocol; smaller local models (qwen3, mistral-nemo) are gated to knowledge-base bots, since the multi-step tool-use a forms/appointments/triage bot needs is unreliable on those models.
-- **Composable protocols.** Mix and match: knowledge retrieval, form gathering, appointment scheduling, triage routing, image extraction.
-- **Localized bot UI and form validation across 20 locales.** The chat widget and form error messages render in the user's language without operator configuration.
-- **Cloud deploy to Fly.io.** Paste a token in Settings, click Deploy. Persistent volume, autostart on request, autostop when idle. No `flyctl` install required.
-- **Document library.** Upload once, reuse across bots. Optionally bundle the source documents back into the artifact zip for archival or client handoff.
-- **Embeddable widget**, Prometheus metrics, and form-submission webhooks.
+### MCP
+
+```bash
+# 1. Wire mojulo into Claude (Claude Code or Claude Desktop)
+claude mcp add mojulo --command "npx -y mojulo"
+
+# 2. Configure at least one LLM provider key.
+#    Safer: paste it in the app's Settings → Provider Keys page (below).
+#    The CLI works too, but the key lands in your shell history:
+npx -y mojulo config set anthropic sk-ant-...
+
+# 3. In a Claude session, ask:
+#    "build me a triage bot for my dental practice"
+```
+
+Compiled bots land in `~/.mojulo/data/artifacts/`. Run them with `docker compose up`, or set a Fly token (`mojulo config set fly fo1_...`) and ask Claude to deploy to the cloud.
+
+When Claude first connects, it calls `forward_context` to read mojulo's concept glossary, lifecycle, and tool index — so the first session orients itself before doing anything destructive.
+
+### App
+
+To run the app (Settings UI for key paste, wizard, in-app builder, and the optional HTTP MCP route for remote clients):
+
+```bash
+git clone https://github.com/zombico/mojulo.git
+cd mojulo/control
+cp .env.example .env
+npm install         # postinstall fetches a 113MB ONNX model for offline RAG (~30–60s)
+npm run dev         # http://localhost:3001
+```
+
+Paste an LLM provider key under **Settings → Provider Keys**. To enable HTTP MCP for a remote Claude, also set `CONTROL_PLANE_MCP_KEY` in `control/.env` — see [docs/mcp-integration.md](docs/mcp-integration.md).
+
+---
+
+## The loop: build → deploy → connect → operate
+
+**Build.** A bot's capabilities are called **protocols** — five of them ship: `knowledge` (in-process RAG), `formGathering` (structured field capture, PII bypasses the LLM), `appointments`, `triage` (cross-bot routing), `opticalRead` (vision-based extraction). To build a bot, pick which protocols it needs, upload any documents it should know from, and compose its identity. From Claude, describe the bot in free text and the build tools sequence themselves starting at `infer_intent`; in the app, the wizard or in-app builder walks the same steps.
+
+**Deploy.** `save_modular_bot` compiles the configured bot into a zip artifact. Run it locally (`docker compose up`), in the cloud (Fly.io from the dashboard or via MCP), or air-gapped with the source bundled in. The container image is bot-agnostic — per-bot config is injected at start time, so the same image runs every bot you have.
+
+**Connect.** Once a bot starts, it phones home to the control plane with its URL. From then on the control plane can reach it through a bearer-authenticated proxy. **Conversation data stays in the bot's SQLite forever** — the control plane only stores `url` and `last_seen_at`. Any tool that needs transcript content proxies through to the bot in real time.
+
+**Operate.** Read what bots have captured (`query_conversations`, `query_submissions`, `verify_chain`) or use catalysts — curated workflow recipes — to turn that captured signal into action via your other installed MCPs.
+
+---
+
+## What you get
+
+Two terms recur below: **protocols** are the bot capabilities defined in *The loop* above (knowledge, form-gathering, appointments, triage, optical-read); **catalysts** are curated workflow recipes that Claude reads and turns into local skills in your `.claude/skills/`. Full glossary in [docs/mojulo-bots.md](docs/mojulo-bots.md).
+
+### As an MCP server
+
+- **Composable with the rest of your toolchain.** Drive folder → bot knowledge base. Linear escalations → triage routes. Intake submissions → CRM contact + welcome email + ticket. None of this is reachable from the in-app builders, because they can't see your other MCPs. See the recipes in [docs/mcp-integration.md](docs/mcp-integration.md).
+- **Catalysts.** `list_catalysts` exposes curated patterns — `qualify-lead-to-crm`, `appointment-to-calendar`, `submission-to-ticket`, `scan-conversations-for-signal`, `weekly-submissions-digest`, `knowledge-gap-miner`. Claude reads one, binds it to a destination MCP you already have installed, and writes a local skill into `.claude/skills/`. The catalyst stays in mojulo; the resulting skill is yours. See [docs/catalysts.md](docs/catalysts.md).
+- **The reasoning bill moves to your Claude.** When you drive it from MCP, the control plane doesn't need an Anthropic key for builder-time work — your Claude is the agent loop. The in-loop LLM calls that *do* stay server-side (form generation, identity composition, bot summary) use whichever provider you configured.
+
+### As an artifact
+
+- **Hash-chained transcripts.** Every turn is content-hashed and chain-linked; `/verify/:id` walks the chain. Chains continue across triage handoffs — the receiver's first turn descends from the sender's tip-of-chain. Image-extraction turns hash over the image bytes, so post-hoc edits to the source image break the chain. See [docs/turn-hashing.md](docs/turn-hashing.md) and [docs/federated-routing.md](docs/federated-routing.md).
+- **Multilingual vector RAG, fully offline at runtime.** Knowledge documents and triage routes are embedded with `multilingual-e5-small` ONNX baked into the bot image. Cross-language retrieval works without a language-detection step or an embedding-API key — e.g. a Thai query against a Spanish corpus. See [docs/vector-rag.md](docs/vector-rag.md).
+- **Out-of-band forms — PII bypasses the LLM.** Locale-aware structured fields render client-side and submit through a dedicated endpoint that doesn't call the model. The transcript records only an opaque marker like `{contact_form_filled}`. See [docs/form-collection.md](docs/form-collection.md).
+- **Image extraction with hashed inputs.** Name the slots you want out of an uploaded image (DOB, license #, expiry, prescription dose); a vision-capable LLM reads the artifact, the user reviews and edits before submit. See [docs/optical-read.md](docs/optical-read.md).
+- **Multiple LLM providers.** OpenAI, Anthropic, or local Ollama — pick at build time, swap by editing `.env`. Cloud providers and llama3.3 (70B) run every protocol; smaller local models (qwen3, mistral-nemo) are gated to knowledge-only bots since multi-step tool use is unreliable on them.
+- **Localized bot UI and form validation across 20 locales** — the chat widget and form error messages render in the user's language without operator configuration.
+- **Embeddable widget, Prometheus metrics, form-submission webhooks.**
+
+---
 
 ## Why
 
-Most chatbot builders are hosted SaaS — a managed widget, a recurring bill, no ownership of the artifact itself.
+Most chatbot builders are hosted SaaS — a managed widget, a recurring bill, no ownership of the artifact itself. The bot is something they run for you.
 
-Mojulo-Lite produces a portable artifact instead. The bot you compile is yours: the source is a single open-source image, the config is plain JSON, conversations live in a SQLite file on the bot. The control plane builds it; the bot doesn't phone home.
+Mojulo produces an artifact instead. The bot you compile is yours: the source is a single open-source image, the config is plain JSON, conversations live in a SQLite file on the bot. The control plane builds it; the bot doesn't phone home for inference; the dashboard reads conversations live without copying them. And because mojulo is MCP-native, the build/deploy/operate loop is something **your** Claude drives — not a UI you log into to click around.
 
 ## Who builds with this
 
-A spectrum, all on the same open-source, self-hosted stack:
+A spectrum, all driving the same open-source, self-hosted stack from their own Claude:
 
-- **Indie makers** shipping a side-project bot without a SaaS bill — clone, compile, point at a small VPS.
-- **Agencies** building a per-client bot per deployment, swapping LLM provider and locale per project.
+- **Indie makers** shipping a side-project bot without a SaaS bill — describe it once, point the resulting artifact at a small VPS.
+- **Agencies** building a per-client bot per deployment, swapping LLM provider and locale per project, then wiring each client's bot into that client's CRM in the same agent session.
 - **Internal IT** rolling out an air-gapped helper inside a firewalled network — offline RAG means there's no embedding API to allow-list.
-- **Regulated SMBs** — clinics, law offices, financial pre-screen — where the chained transcript can serve as a compliance artifact.
-- **Claude Code / Desktop users** driving the control plane via MCP, composing mojulo's build and audit tools with the other MCP servers already in their loop. Recipes in [docs/mcp-integration.md](docs/mcp-integration.md).
-
-Local `docker compose up` or cloud deploy to Fly.io from the dashboard — same artifact, your choice of host. The audit-chain and offline pieces are there when you need them, and stay out of the way when you don't.
-
-## Quickstart
-
-```bash
-git clone https://github.com/zombico/mojulo-lite.git
-cd mojulo-lite/control
-cp .env.example .env
-npm install         # first install fetches a 113MB ONNX model for offline RAG (~30–60s)
-npm run dev
-```
-
-Open `http://localhost:3001` and:
-
-1. **Settings → Provider Keys** — paste at least one LLM provider key (Anthropic / OpenAI), or point the wizard at a local Ollama host. Optionally add a Fly.io token in the same place to enable cloud deploy from the dashboard. The same store powers the builder, gets baked into compiled bots, and authenticates cloud deploys.
-2. **Chat builder** or **Wizard** — describe the bot.
-3. **My bots** — pick how to run your bot:
-   - **Deploy to cloud** — ship it to Fly.io from the dashboard.
-   - **Download zip** — paste the LLM key into `.env` and run `docker compose up` on your own host. The bot is at `http://localhost:3000`.
-
-That's the loop: clone, configure, build, run.
-
-<!--
-  IMAGE — Wizard knowledge step.
-  Recommended shot: the wizard's knowledge / RAG step with a couple of
-  uploaded PDFs visible and the embedding progress bar mid-run, OR the
-  triage step with a few destination bots configured.
-  Why this shot: makes the "drag in your docs, get a vector index" story
-  concrete. Pairs well with the "vector RAG, fully offline" bullet above.
-  Suggested filename: docs/images/wizard-knowledge.png
--->
-![Wizard knowledge step](docs/images/wizard-knowledge.png)
+- **Regulated SMBs** — clinics, law offices, financial pre-screen — where the tamper-evident transcript provides an internal audit trail (see [Audit chain posture](#audit-chain-posture) below for what's guaranteed and what isn't).
 
 ---
 
 ## Deploy options
 
-### Locally (the default)
+### Locally (default)
 
-The downloaded zip pulls a pinned bot image from GHCR and runs it. No build step on your laptop:
+The compiled zip pulls a pinned bot image from GHCR and runs it. No build step on your laptop:
 
 ```bash
 unzip my-bot-{id}.zip && cd my-bot-{id}
@@ -104,68 +139,36 @@ unzip my-bot-{id}.zip && cd my-bot-{id}
 docker compose up
 ```
 
-### Fly.io from the dashboard
+### Fly.io
 
-Paste a Fly API token in **Settings → Provider Keys**, alongside your LLM key (encrypted at rest, same flow). Click **Deploy to cloud** on a bot from the dashboard. The control plane provisions the app, allocates a volume, injects your config, and waits for healthchecks while progress streams back. No `flyctl` install or local `.env` editing required. Your Fly account, your bill.
-
-<!--
-  IMAGE — Cloud deploy pane.
-  Recommended shot: the deploy panel with the live progress log streaming
-  ("Ensuring app…", "Allocating IPs…", "Waiting for machine to start…",
-  "Deployed at https://abc1234-bot.fly.dev"). Status pill green.
-  Why this shot: shows that cloud deploy isn't a stub — there's a real
-  lifecycle behind it.
-  Suggested filename: docs/images/cloud-deploy-progress.png
--->
-![Cloud deploy progress](docs/images/cloud-deploy-progress.png)
+Configure a Fly API token (`mojulo config set fly fo1_...`, or paste it in **Settings → Provider Keys**), then deploy from the dashboard or ask Claude to deploy via MCP. Persistent volume, autostart on request, autostop when idle. No `flyctl` install required. Your Fly account, your bill.
 
 ### Air-gapped / your own registry
 
-Set `MOJULO_OFFLINE_BUILD=1` on the control plane. The artifact bundles full source + Dockerfile and builds locally on the user's machine — no GHCR reachability required.
+Set `MOJULO_OFFLINE_BUILD=1` on the control plane. The artifact bundles full source + Dockerfile and builds locally on the target machine — no GHCR reachability required.
 
 To point the prebuilt path at your own registry:
 
 ```bash
-BOT_IMAGE=ghcr.io/your-org/your-bot:0.1.0   # control plane local build
-MOJULO_CLOUD_IMAGE=ghcr.io/your-org/your-bot:0.1.0   # Fly cloud deploy
+BOT_IMAGE=ghcr.io/your-org/your-bot:0.1.0           # control plane local build
+MOJULO_CLOUD_IMAGE=ghcr.io/your-org/your-bot:0.1.0  # Fly cloud deploy
 ```
-
----
-
-## Live conversation viewer
-
-Once a bot is running anywhere reachable (localhost, ngrok, Fly, your VPS), paste its URL into the dashboard. The control plane reads conversations live, without copying them.
-
-**How it works.** Every dashboard request to `/api/deployments/[id]/conversations*` and `/api/deployments/[id]/submissions*` is forwarded to the bot's read-only API, authenticated by `MOJULO_API_KEY` — a shared secret baked into the artifact at build time and stored alongside the bot's URL on the deployment row.
-
-**What crosses the wire.** Read-only JSON responses: turn lists, hash chains, verification status, form submissions. **What doesn't.** No DB rows are replicated into the control plane, no bot-side write paths are exposed, no background sync runs. The bot's SQLite is the system of record; the control plane is a viewer.
-
-**Why this matters for residency.** Conversation records — including PII captured by out-of-band forms — stay wherever the bot runs. If you deploy the bot inside a customer's VPC or a country-specific region, the data does not leave that boundary when you open the dashboard.
-
-<!--
-  IMAGE — Conversations browser.
-  Recommended shot: the dashboard's conversations page for a connected bot,
-  showing a list of conversations on the left, a selected conversation's
-  turns on the right, and the green "Connected — last seen 2s ago" pill in
-  the header.
-  Why this shot: shows the read-through model — data on the bot, viewable
-  from the control plane without copying it.
-  Suggested filename: docs/images/connect-bot-conversations.png
--->
-![Conversations browser](docs/images/connect-bot-conversations.png)
-
-See [ARCHITECTURE.md §7](ARCHITECTURE.md) for the trust model.
 
 ---
 
 ## Security & deployment posture
 
-The control plane ships with an **opt-in HTTP login** as a last-line-of-defense affordance. Set `CONTROL_PLANE_USER` and `CONTROL_PLANE_PASSWORD` in `control/.env` to enable it; leave them blank to preserve the historical no-auth default. Sessions are HMAC-signed with the password itself, so rotating the password invalidates every outstanding session with no extra bookkeeping. The login is intentionally minimal — no MFA, no lockout, no multi-user — and should not be treated as a substitute for network isolation. Pick the gating that matches your environment:
+The control plane is **single-user, self-hosted**. Two access-control affordances, both opt-in:
 
-- **Run on `localhost`** (the default). Bind to `127.0.0.1`, never expose port 3001. This is the right posture for "build a bot on my laptop, ship the artifact."
-- **Tailscale / WireGuard / VPN.** Reach the control plane only from your tailnet or VPN. Zero-config, works offline, no public surface.
-- **SSH tunnel.** `ssh -L 3001:localhost:3001 your-host` for occasional remote access to a server install.
-- **Reverse proxy with auth in front.** Caddy, nginx, or Traefik with basic auth — or OAuth2 Proxy, Cloudflare Access, Authelia, Tailscale Funnel. The control plane never sees the auth; your proxy enforces it.
+- **HTTP login** (for the dashboard UI). Set `CONTROL_PLANE_USER` + `CONTROL_PLANE_PASSWORD` in `control/.env`. Sessions are HMAC-signed with the password itself, so rotating the password invalidates every outstanding session with no extra bookkeeping. Intentionally minimal — no MFA, no lockout, no multi-user — and not a substitute for network isolation.
+- **MCP bearer token** (for HTTP MCP). Set `CONTROL_PLANE_MCP_KEY` to enable `/api/mcp`; with the key unset, the route 404s and the surface is invisible. One token, one user. The stdio transport (`npx -y mojulo`) is local-only and doesn't use this key.
+
+**Network posture:** don't expose the control plane to the public internet. Pick whichever fits:
+
+- **Run on `localhost`** (the default). Right for "build a bot on my laptop, ship the artifact."
+- **Tailscale / WireGuard / VPN.** Reach the control plane only from your tailnet.
+- **SSH tunnel.** `ssh -L 3001:localhost:3001 your-host` for occasional remote access.
+- **Reverse proxy with auth in front.** Caddy, nginx, Traefik with basic auth — or OAuth2 Proxy, Cloudflare Access, Authelia, Tailscale Funnel.
 
 **The bots it compiles have a different posture** — they're designed to face end users. The control plane → bot read-through proxy is authenticated by a key both sides share (`MOJULO_API_KEY`, baked into the artifact at build time), and conversation data stays in the bot's local SQLite.
 
@@ -183,9 +186,13 @@ If your threat model demands non-repudiation against the bot operator themselves
 
 ## Architecture in one paragraph
 
-The control plane is a Next.js app. The wizard or chat builder produces a deployment config (same shape both ways), then [DockerDeployer](control/lib/deployers/docker.js) composes a per-bot `instructions.txt` from protocol cartridges, bakes documents + triage routes into a `embeddings.json` vector index, and packages config + `docker-compose.yml` + `.env.example` into a zip.
+The control plane is a Next.js app exposing both a dashboard and an MCP server (stdio for the npm package, HTTP for remote clients).
+
+Builder tools — driven from your Claude over MCP or from the in-app chat builder / wizard — produce a deployment config (same shape regardless of entry point). From there, [DockerDeployer](control/lib/deployers/docker.js) composes a per-bot `instructions.txt` from protocol cartridges, bakes documents + triage routes into an `embeddings.json` vector index, and packages config + `docker-compose.yml` + `.env.example` into a zip.
 
 The runtime is a separate Express container ([lite-template/](lite-template/)) published to GHCR — pull it, mount the per-bot config, you have a bot. Cloud deploys go to Fly Machines, injecting the same config files via the Machines API instead of a zip.
+
+The dashboard reads conversations from connected bots live, through a bearer-authenticated proxy — transcript rows never get replicated into the control-plane DB.
 
 Full diagrams: [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -194,53 +201,33 @@ Full diagrams: [ARCHITECTURE.md](ARCHITECTURE.md).
 ## Repo layout
 
 ```
-mojulo-lite/
-├── control/        Next.js control plane: builders, wizard, dashboard, deploy pipeline
+mojulo/
+├── control/        Next.js control plane: MCP server, dashboard, builders, deploy pipeline
 ├── lite-template/  The bot itself: Express server, RAG, LLM client, Dockerfile
 └── ARCHITECTURE.md How it all fits together
 ```
 
-Per-package docs:
+Per-package docs: [control/README.md](control/README.md) — running the control plane in dev. [lite-template/](lite-template/) — bot runtime internals.
 
-- [control/README.md](control/README.md) — running the control plane in dev
-- [lite-template/](lite-template/) — bot runtime internals
+Concept docs (start with the first three):
 
-Concept docs:
+- [docs/mojulo-bots.md](docs/mojulo-bots.md) — plain-language orientation to bots, protocols, and the control plane
+- [docs/mcp-integration.md](docs/mcp-integration.md) — the MCP surface, the composition recipes, the session model
+- [docs/catalysts.md](docs/catalysts.md) — what a catalyst is and how to author one
+- [docs/wizard-builder.md](docs/wizard-builder.md), [docs/chat-builder.md](docs/chat-builder.md) — the in-app build paths
+- [docs/vector-rag.md](docs/vector-rag.md), [docs/turn-hashing.md](docs/turn-hashing.md), [docs/federated-routing.md](docs/federated-routing.md) — the artifact properties
+- [docs/form-collection.md](docs/form-collection.md), [docs/optical-read.md](docs/optical-read.md), [docs/conversations-api.md](docs/conversations-api.md) — capture & read paths
 
-- [docs/mojulo-bots.md](docs/mojulo-bots.md) — **start here:** plain-language orientation to bots, protocols, and the Control Plane before diving into the deep dives below
-- [docs/wizard-builder.md](docs/wizard-builder.md) — the structured wizard: how steps are generated from protocol toggles, how the live preview runs the real bot client, and how its output converges with the chat builder at `buildDeploymentConfig`
-- [docs/chat-builder.md](docs/chat-builder.md) — the conversational builder: the tools Claude orchestrates, intent evaluation, and the streaming tool loop with custom event overlays
-- [docs/vector-rag.md](docs/vector-rag.md) — how the in-process multilingual vector index is built and queried (knowledge + triage routes share one cosine index)
-- [docs/turn-hashing.md](docs/turn-hashing.md) — per-turn `content_hash` + `chain_hash`, the single-bot hash chain that `/verify/:id` walks
-
-
-## What this isn't
-
-Mojulo-Lite is for building specialized bots over focused document sets. The in-process vector search is linear over the corpus — at very large scale, you'd want a dedicated vector database. The control plane is single-user by design. The artifact format may change between 0.x versions.
-
-## Status
-
-Currently versioned `0.x` — APIs and config shapes can change between minor versions. The artifact format and bot image are pinned to the control-plane version they were built with.
-
+---
 
 ## Contributing
 
-**One maintainer, no SLA.** Issues and PRs are read, but triage and review can
-take days or weeks depending on what's already in flight — a non-trivial PR may
-sit until I've had time to catch up on the surfaces it touches. Opening an issue
-first, even for a one-line PR, is the fastest path to a decision: it lets the
-scope conversation happen before the code does, so nobody's work waits in the
-queue for a "no, retarget that."
+**One maintainer, no SLA.** Issues and PRs are read, but triage and review can take days or weeks depending on what's already in flight — a non-trivial PR may sit until I've had time to catch up on the surfaces it touches. Opening an issue first, even for a one-line PR, is the fastest path to a decision: it lets the scope conversation happen before the code does, so nobody's work waits in the queue for a "no, retarget that."
 
-The codebase is functionally modular but tightly integrated — a change to the
-envelope schema, the cartridge composer, or a deployer touches multiple surfaces
-(control plane wizard, bot runtime, locales, model gates). That integration
-density is load-bearing for the artifact-portability and audit-chain guarantees,
-and it's also the reason contribution policy is channeled by surface rather than
-open across the board.
+The codebase is functionally modular but tightly integrated — a change to the envelope schema, the cartridge composer, a deployer, or the MCP tool surface touches multiple surfaces (control plane wizard, bot runtime, locales, model gates, catalyst contracts). That integration density is load-bearing for the artifact-portability and audit-chain guarantees, and it's also the reason contribution policy is channeled by surface rather than open across the board.
 
 **Always welcome — open an issue:**
-- Bug reports with a reproducer (especially RAG/locale/cartridge edge cases)
+- Bug reports with a reproducer (especially RAG/locale/cartridge/MCP edge cases)
 - Translation quality issues (any locale, any string)
 - Documentation gaps or errors
 - Questions about whether something should be a PR
@@ -255,17 +242,12 @@ open across the board.
 - Custom protocols (your bot's specific behavior shape)
 - New provider adapters
 - Bespoke wizard flows or steps
+- Custom catalysts that don't merit promotion to the canonical library
 - Anything narrow to a client, vertical, or workflow
 
-These belong in forks — the upstream repo stays abstract so the artifact format
-and audit guarantees stay stable. See
-[docs/protocol-composition.md#adding-a-new-protocol](docs/protocol-composition.md#adding-a-new-protocol)
-for the recipe; it works whether you keep changes in your fork or, for
-capabilities with broad applicability, eventually propose them upstream.
+These belong in forks — the upstream repo stays abstract so the artifact format and audit guarantees stay stable. See [docs/protocol-composition.md#adding-a-new-protocol](docs/protocol-composition.md#adding-a-new-protocol) for the protocol recipe and [docs/catalysts.md](docs/catalysts.md) for the catalyst author spec.
 
-Before opening a PR, read [ARCHITECTURE.md](ARCHITECTURE.md) so we're working
-from the same picture, and see [CONTRIBUTING.md](CONTRIBUTING.md) for the test
-surface, file layout, and pre-submit checklist.
+Before opening a PR, read [ARCHITECTURE.md](ARCHITECTURE.md) so we're working from the same picture, and see [CONTRIBUTING.md](CONTRIBUTING.md) for the test surface, file layout, and pre-submit checklist.
 
 ## License
 

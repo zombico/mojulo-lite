@@ -3,12 +3,14 @@
   "id": "document-extract-to-store",
   "name": "Optical extraction to durable store",
   "summary": "Persist optical-read extractions to a structured store (Notion/Airtable/Sheets rows) or a vector store (Pinecone/Qdrant/Chroma chunks), preserving traceability back to the source image and submission.",
+  "valueHook": "Photos and screenshots the bot reads become queryable rows or searchable embeddings — extractions stop being one-shot.",
   "version": 1,
   "category": "extraction-pipeline",
   "requires": {
     "protocols": ["opticalRead"],
     "optionalProtocols": ["formGathering"],
-    "destinationMcpCategory": "data-store-like"
+    "destinationMcpCategory": "data-store-like",
+    "destinationExamples": ["Notion", "Airtable", "Google Sheets", "Pinecone", "Qdrant"]
   },
   "parameters": [
     {

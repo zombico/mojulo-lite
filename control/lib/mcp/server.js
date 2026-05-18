@@ -19,6 +19,17 @@ const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'mojulo-control-plane';
 const SERVER_VERSION = '0.1.0';
 
+// Surfaced to the connecting model on `initialize`. Most MCP clients hand this
+// to the agent as a system-prompt-style preamble — it has to fit and stick
+// even on clients that truncate aggressively. We keep it deliberately short
+// and noun-free: one framing sentence + one explicit pointer to load the full
+// briefing on demand. The heavy lifting (glossary, capability model,
+// lifecycle, tool index) lives in the `forward_context` tool's response so
+// the agent only pays the context cost when the user actually needs it.
+const SERVER_INSTRUCTIONS = `Mojulo is a control plane for **chatbot-based solutions** — chatbots that talk to your users, capture what they say, and turn those conversations into real outcomes in the tools the user already runs (CRM, calendar, ticketing, drive, warehouse).
+
+**When the user asks what mojulo is, how it works, or which tools to pick — call \`forward_context\` first.** It returns the concept glossary, the bot capability model, the deploy/connect lifecycle, and a one-line description of every tool, so you can orient before acting.`;
+
 const registeredTools = new Map();
 
 export function registerTool(tool) {
@@ -73,6 +84,7 @@ export async function dispatchMcpRequest(message, context) {
                 tools: { listChanged: false },
               },
               serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
+              instructions: SERVER_INSTRUCTIONS,
             });
 
       case 'notifications/initialized':
@@ -152,10 +164,15 @@ let _registered = false;
 export async function ensureToolsRegistered() {
   if (_registered) return;
   _registered = true;
+  const { registerContextTools } = await import('@/lib/mcp/tools/context');
   const { registerBuildTools } = await import('@/lib/mcp/tools/build');
   const { registerJobsTools } = await import('@/lib/mcp/tools/jobs-tools');
   const { registerOperateTools } = await import('@/lib/mcp/tools/operate');
   const { registerCatalystTools } = await import('@/lib/mcp/tools/catalysts');
+  // Order matters only for tools/list output (insertion order). Putting
+  // forward_context first means clients that surface the tool list to the
+  // model see the orientation tool at the top.
+  registerContextTools();
   registerBuildTools();
   registerJobsTools();
   registerOperateTools();

@@ -10,16 +10,33 @@ describe('parseCatalystFile', () => {
   it('parses a well-formed catalyst', () => {
     const raw =
       '---\n' +
-      JSON.stringify({ id: 'x', name: 'X', summary: 'a test', category: 'misc' }) +
+      JSON.stringify({
+        id: 'x',
+        name: 'X',
+        summary: 'a test',
+        valueHook: 'a value hook',
+        category: 'misc',
+      }) +
       '\n---\n\n# Body\n\nProse.';
     const catalyst = parseCatalystFile('test.md', raw);
     expect(catalyst.id).toBe('x');
     expect(catalyst.name).toBe('X');
     expect(catalyst.summary).toBe('a test');
+    expect(catalyst.valueHook).toBe('a value hook');
     expect(catalyst.category).toBe('misc');
     expect(catalyst.body).toBe('# Body\n\nProse.');
     expect(catalyst.version).toBe(1);
     expect(catalyst.parameters).toEqual([]);
+  });
+
+  it('throws when valueHook is missing', () => {
+    const raw =
+      '---\n' +
+      JSON.stringify({ id: 'x', name: 'X', summary: 's' }) +
+      '\n---\n\nbody';
+    expect(() => parseCatalystFile('test.md', raw)).toThrow(
+      /missing required string field 'valueHook'/
+    );
   });
 
   it('throws when frontmatter fences are missing', () => {
@@ -39,7 +56,7 @@ describe('parseCatalystFile', () => {
   it('throws when body is empty', () => {
     const raw =
       '---\n' +
-      JSON.stringify({ id: 'x', name: 'X', summary: 's' }) +
+      JSON.stringify({ id: 'x', name: 'X', summary: 's', valueHook: 'v' }) +
       '\n---\n\n   \n';
     expect(() => parseCatalystFile('test.md', raw)).toThrow(/empty body/);
   });
@@ -59,37 +76,48 @@ describe('built-in catalyst catalog', () => {
       expect(catalyst.name.length).toBeGreaterThan(0);
       expect(typeof catalyst.summary).toBe('string');
       expect(catalyst.summary.length).toBeGreaterThan(0);
+      expect(typeof catalyst.valueHook).toBe('string');
+      expect(catalyst.valueHook.length).toBeGreaterThan(0);
       expect(typeof catalyst.body).toBe('string');
       expect(catalyst.body.length).toBeGreaterThan(100); // bodies are substantive
       expect(Array.isArray(catalyst.parameters)).toBe(true);
     }
   });
 
-  it('lists the canonical catalysts we expect to ship', () => {
-    const ids = listCatalysts().map((c) => c.id).sort();
-    expect(ids).toEqual(
-      [
-        'appointment-to-calendar',
-        'conversations-to-channel-digest',
-        'document-extract-to-store',
-        'knowledge-gap-miner',
-        'qualify-lead-to-crm',
-        'scan-conversations-for-signal',
-        'submission-to-ticket',
-        'submissions-to-warehouse',
-        'weekly-submissions-digest',
-      ].sort()
-    );
+  it('every shipped catalyst with a destinationMcpCategory also lists destinationExamples', () => {
+    // The recommend_catalysts tool surfaces destinationExamples as
+    // consultation suggestions ("you could install HubSpot to unlock this"),
+    // so a catalyst with a destination category but no examples is a hole
+    // in the consultation posture.
+    const catalog = getCatalystCatalog();
+    for (const [id, catalyst] of catalog) {
+      const requires = catalyst.requires || {};
+      if (!requires.destinationMcpCategory) continue;
+      expect(
+        Array.isArray(requires.destinationExamples),
+        `${id}: requires.destinationExamples must be an array`
+      ).toBe(true);
+      expect(
+        requires.destinationExamples.length,
+        `${id}: requires.destinationExamples must be non-empty`
+      ).toBeGreaterThan(0);
+      for (const example of requires.destinationExamples) {
+        expect(typeof example).toBe('string');
+        expect(example.length).toBeGreaterThan(0);
+      }
+    }
   });
+
 });
 
 describe('listCatalysts', () => {
-  it('returns id/name/summary/category/requires (not body)', () => {
+  it('returns id/name/summary/valueHook/category/requires (not body)', () => {
     const catalysts = listCatalysts();
     for (const c of catalysts) {
       expect(c).toHaveProperty('id');
       expect(c).toHaveProperty('name');
       expect(c).toHaveProperty('summary');
+      expect(c).toHaveProperty('valueHook');
       expect(c).toHaveProperty('category');
       expect(c).toHaveProperty('requires');
       expect(c).not.toHaveProperty('body');

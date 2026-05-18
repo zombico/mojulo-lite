@@ -21,7 +21,8 @@
  * [docs/catalysts.md](docs/catalysts.md).
  */
 
-import { getCatalyst, listCatalysts } from '@/lib/mcp/catalysts/loader';
+import { getCatalyst, getCatalystCatalog, listCatalysts } from '@/lib/mcp/catalysts/loader';
+import { DeploymentRepository } from '@/lib/db/repositories/deployments';
 import { registerTool } from '@/lib/mcp/server';
 
 // Prepended to every catalyst body returned by get_catalyst. Two jobs:
@@ -76,6 +77,250 @@ export async function getCatalystHandler(input, _ctx) {
   return { ...catalyst, body: SYNTHESIZER_BRIEFING + catalyst.body };
 }
 
+// Returned by custom_catalyst. The audience here is the **opposite** of the
+// in-repo /write-catalyst skill's audience: this body is for a Claude Code
+// session connected to mojulo over MCP whose user wants to contribute a new
+// catalyst back to the library. They do not have the mojulo repo, the spec
+// doc, the loader, or the exemplar files on disk — so this body has to be
+// self-contained. The exemplars are reachable via the existing `get_catalyst`
+// tool; we point at them rather than inlining them.
+//
+// Exported for tests.
+export const CUSTOM_CATALYST_GUIDE = `# Drafting a custom catalyst — author's guide
+
+You are about to help the user draft a new mojulo catalyst — a curated workflow recipe that ships through this MCP. Catalysts you author here are **proposals** to the mojulo library. If a maintainer accepts the PR, your catalyst ships to every mojulo user as a peer of the canonical entries. That is the bar to write to.
+
+A catalyst is *not* a Claude Code skill, *not* a mojulo bot capability ("protocol"), and *not* a one-off automation for this specific user. If you're unclear on the distinction, call \`forward_context\` first — it disambiguates all three terms.
+
+---
+
+## Read these first
+
+Before you write a single line, anchor on what the bar looks like. Call:
+
+1. \`list_catalysts\` — see every shipped pattern (id, summary, category).
+2. \`get_catalyst("qualify-lead-to-crm")\` — the canonical exemplar. Study its mapping section, idempotency section, and pitfalls section specifically. That is the density you have to match.
+3. \`get_catalyst("<closest existing id>")\` — whichever catalyst is closest in shape to the user's intent. If the user wants a digest pattern, read \`weekly-submissions-digest\`. If extraction, read \`document-extract-to-store\`. Etc.
+
+The body you draft is a **prompt that has to teach a future Claude how to synthesize a working skill on first try.** It is not documentation for a human reader. The exemplars show what that looks like. Don't skim them.
+
+---
+
+## Step 1 — Posture-check (push back here, before gathering anything else)
+
+A catalyst is the **wrong tool** in these cases. If any apply, stop and tell the user — don't try to force the request into a catalyst shape.
+
+1. **The request changes what the bot *does* during a conversation.** That's a mojulo protocol, not a catalyst. Protocols change what the bot does *inside* a conversation; catalysts change what happens with the bot's data *afterward*. Protocols are a control-plane code change, not a contributor catalyst.
+2. **The workflow writes back to the bot's corpus or config.** Forbidden by body principle 4 below. Catalysts read from mojulo and write to *destinations* only — never back into the bot.
+3. **The request is bot-specific or one-off.** Catalysts are shipped library entries — reusable across bots and users. If it's bespoke, the user should have you synthesize a \`.claude/skills/\` skill directly with no catalyst — that's already a supported path.
+4. **The destination is one specific MCP, not a category.** A catalyst's value is destination-agnostic mapping intent (\`crm-like\`, \`calendar-like\`, \`actuator-like\`, etc.). "Sync to my specific Notion database with this exact schema" is a skill, not a catalyst.
+5. **The "mapping intent" is generic.** If the user can't articulate at least one non-obvious, opinionated decision the catalyst encodes — a specific field-mapping choice, a default behavior, a calibration heuristic — the catalyst won't pay rent.
+   - **Bad mapping insight:** "map the form fields to the CRM contact fields by name." (The synthesizer would already do this without a catalyst.)
+   - **Good mapping insight:** "HubSpot splits identity into \`firstname\`/\`lastname\` while Salesforce uses \`FirstName\`/\`LastName\` and Attio uses object/attribute pairs — synthesize the right shape from the destination MCP's surface, never assume a flat \`name\` field." (Specific, opinionated, would be guessed wrong by default.)
+6. **No clear idempotency story.** Without a cursor field AND a dedupe key, the Idempotency section becomes hand-waving and the synthesized skill will double-write or skip records under real conditions.
+   - **Bad idempotency story:** "the skill should be idempotent." (Aspiration, not mechanism.)
+   - **Good idempotency story:** "cursor on submission \`captured_at\` via a \`since\` parameter; dedupe on the user-configured \`dedupeKey\` (typically email or phone) with a search-before-create against the destination — two layers because the cursor doesn't catch a user re-running an old window."
+
+When pushing back, name the specific failure and suggest the right alternative (mojulo protocol PR, local-only skill, more specific request). Don't soften — the library is curated, and a thin catalyst dilutes it.
+
+**Example pushback exchange (do this, don't fudge):**
+
+> User: "I want a catalyst that automatically emails me a daily summary of conversations from my bot."
+>
+> You: That's not catalyst-shaped — it's closer to the existing \`conversations-to-channel-digest\` pattern, but as you described it, the destination is "email me" (one specific surface) and the mapping insight is "summarize the day's conversations" (generic). Two options: (a) call \`get_catalyst("conversations-to-channel-digest")\` and we synthesize a personal skill for you that emails the digest via Gmail — no PR needed; (b) if you want to *contribute* a digest variant, the value-add would need to be a specific decision the existing digest catalyst doesn't make, like "group by triage outcome" or "elevate any conversation with a low CSAT signal." Which fits?
+
+---
+
+## Step 2 — Gather context (one batched round)
+
+If the posture-check passes, ask the user the following in one message. Don't drip questions out one at a time. Skip questions the user already answered in their intent.
+
+1. **Workflow intent in one paragraph.** What mojulo data → what destination concept, and the user's motivation.
+2. **Mojulo source surface.** Which existing mojulo MCP tools (\`query_submissions\`, \`query_conversations\`, \`get_deployment\`, \`get_conversation\`, etc.) does the synthesized skill call? Common shapes: form-side (\`query_submissions\` + \`get_deployment\`), conversation-side (\`query_conversations\` + \`get_conversation\` + \`get_deployment\`), or both.
+3. **Required protocols.** Which mojulo bot capabilities does the target bot need enabled — \`formGathering\`, \`appointments\`, \`triage\`, \`opticalRead\`, \`knowledge\`, or none? Separate required from optional.
+4. **Destination MCP category.** Pick from existing categories where possible: \`crm-like\`, \`calendar-like\`, \`ticketing-like\`, \`actuator-like\`, \`doc-or-channel-like\`, \`data-store-like\`. If proposing a new category, the user must justify why none fit — don't proliferate categories.
+5. **Catalyst category (the \`category\` frontmatter field).** Existing: \`crm-sync\`, \`itsm\`, \`calendar\`, \`digest\`, \`analysis\`, \`rag-curation\`, \`extraction-pipeline\`. Same discipline — ask before adding a new one.
+6. **Mapping insight — the value-add.** What's the specific, opinionated decision this catalyst encodes that a future Claude would otherwise have to guess at? Apply the bad-vs-good rubric from posture rule 5.
+7. **Idempotency strategy.** Cursor field (usually a submission/conversation timestamp via a \`since\` input) AND dedupe key (usually a destination-side search-before-create on a stable id). Apply the bad-vs-good rubric from posture rule 6.
+8. **Pitfalls.** PII exposure, irreversible writes, rate limits, calibration drift are universal — surface those automatically. Ask the user for any domain-specific pitfalls (timezone bugs, confidence thresholds, schema drift).
+9. **Parameters to ask the user at synthesis time.** Each \`parameters[]\` entry the synthesized skill needs to be parameterized over (\`name\`, \`prompt\`, optional \`default\`). Typically 2-4. More than 5 usually means the catalyst is trying to do two things — push back.
+
+---
+
+## Step 3 — Pick the id and slug
+
+The \`id\` is the file slug and frontmatter \`id\`. Conventions:
+
+- kebab-case, descriptive, ≤ ~40 chars
+- shape: \`<source>-to-<destination>\` (e.g. \`qualify-lead-to-crm\`, \`appointment-to-calendar\`) or \`<verb>-<source>-<modifier>\` (e.g. \`scan-conversations-for-signal\`, \`knowledge-gap-miner\`)
+- must not collide with an existing id — check \`list_catalysts\` output before committing
+
+---
+
+## Step 4 — Draft the file
+
+Save as \`<id>.md\` in a working directory the user picks (e.g. \`./catalyst-proposals/<id>.md\`). The file has two parts: JSON frontmatter between \`---\` fences, then a markdown body.
+
+### Frontmatter (JSON, between \`---\` fences)
+
+**Required string fields:**
+
+- \`id\` — kebab-case slug, matches the filename.
+- \`name\` — human-readable title.
+- \`summary\` — one line, implementation-shaped. Used in \`list_catalysts\`.
+- \`valueHook\` — one sentence in **user-outcome** terms. Read aloud by \`recommend_catalysts\` to position the catalyst *before* the user has decided to read the body. Outcome-shaped ("CRM contacts overnight, deduped and scored"), not implementation-shaped — don't just restate the \`summary\`.
+
+**Optional fields:**
+
+- \`version\` (number, default 1)
+- \`category\` (string — see Step 2.5)
+- \`requires.protocols\` (array of protocol names the target bot must have)
+- \`requires.optionalProtocols\` (array — nice to have but not required)
+- \`requires.destinationMcpCategory\` (one of the categories from Step 2.4)
+- \`requires.destinationExamples\` — **required if \`destinationMcpCategory\` is set.** Array of 3-5 named MCPs that satisfy the category (e.g., for \`crm-like\`: \`["HubSpot", "Salesforce", "Pipedrive", "Attio", "Close"]\`). The \`recommend_catalysts\` tool surfaces these as consultation suggestions ("you could install HubSpot to unlock this") — missing or empty is a hole in the consultation posture.
+- \`parameters\` (array of \`{ name, prompt, default? }\`)
+- \`mcpTools.mojulo\` (array of mojulo tool names the skill calls)
+- \`mcpTools.destination.description\` — *abstract* prose describing the shape of MCP needed plus 2-4 example MCPs. Do not bind to a specific MCP.
+
+### Body — the six-section template
+
+Every shipped catalyst follows this. Don't deviate without reason.
+
+1. **Opening paragraph** — what this catalyst does in plain English, ~2-3 sentences. Frame the source protocol or data shape it operates on.
+2. **How to synthesize the skill** — numbered steps. First step is almost always \`get_deployment(deploymentId)\` to read the bot's shape. Then "ask the user the N \`parameters\` questions" (batched). Then "inspect the bound destination MCP" to discover its concrete surface. Last step: where to write the file (\`.claude/skills/<bot-slug>-<purpose>/SKILL.md\`) — name the slug pattern.
+3. **Mapping intent** — the load-bearing section. Specific field-to-field guidance, what to do when a field doesn't fit, when to ask the user vs. when to assume. This is where the value-add lives. Be concrete — quote field names, name destination shapes.
+4. **Idempotency** — cursor strategy AND dedupe key. Always pair them — the cursor is the primary defense, search-before-create is the safety net.
+5. **Pitfalls** — bullets, each with a specific mitigation (not just the risk). At minimum touch on: PII exposure (especially anything where the LLM reads form/conversation content), irreversible writes (default \`dryRun: true\`, opt-in to live), rate limits, calibration drift. Add domain-specific pitfalls the user surfaced.
+6. **Skill behavior contract** — bullets for \`Inputs:\`, \`Outputs:\`, \`Side effects (live mode):\`. Inputs always include \`deploymentId\` (required), \`since\` (optional ISO), \`dryRun\` (default true).
+
+### Body principles to enforce
+
+- Default \`dryRun: true\` in the contract. Live mode is per-run opt-in.
+- Always require mojulo trace (submission id, conversation id, deployment id, captured-at) in destination payloads.
+- Surface PII concerns explicitly when the synthesized skill will read form/conversation content through the LLM.
+- Don't write back to the bot. Catalysts read from mojulo, write to destinations.
+- Sample, don't sweep. Analytical catalysts default to bounded samples (typically 30) — the user graduates after calibration.
+
+### What NOT to write in the body
+
+- Don't restate vocabulary disambiguation (catalyst vs. skill vs. protocol). The synthesizer briefing prepended to every \`get_catalyst\` response already does that — you'd be duplicating.
+- Don't restate the "adapt freely, posture is starting point not contract" preamble. Same reason.
+- Don't pad sections that don't apply. If there's no meaningful trend-delta concern, skip it — don't fabricate.
+
+---
+
+## Step 5 — Self-validate the draft
+
+You can't run mojulo's test suite from here. Walk this checklist by hand before handing off:
+
+- [ ] Frontmatter is valid JSON (parses without error).
+- [ ] All four required string fields are present and non-empty: \`id\`, \`name\`, \`summary\`, \`valueHook\`.
+- [ ] If \`requires.destinationMcpCategory\` is set, \`requires.destinationExamples\` is a non-empty array of strings.
+- [ ] \`valueHook\` is outcome-shaped (what the *user* gets), not implementation-shaped (what the *skill* does).
+- [ ] The body has all six sections in order. No section is fabricated padding.
+- [ ] Mapping intent contains at least one specific, non-obvious decision (re-check posture rule 5).
+- [ ] Idempotency section names both a cursor field and a dedupe key (re-check posture rule 6).
+- [ ] Pitfalls section has a specific mitigation per bullet, not just a stated risk.
+- [ ] Skill behavior contract names \`deploymentId\`, \`since\`, \`dryRun\` inputs.
+
+If any check fails, fix before handing off. A maintainer's first review pass will run the same checks plus the loader's structural parse.
+
+---
+
+## Step 6 — Hand off to the user
+
+Tell the user:
+
+- Where you wrote the file in their working directory (e.g. \`./catalyst-proposals/<id>.md\`).
+- That this is a **proposal** to the mojulo library, not a local skill. Accepted catalysts ship to every mojulo user.
+- To contribute, open a PR against **https://github.com/zombico/mojulo** adding the file under \`control/lib/mcp/catalysts/\`. No other files need to change — the loader picks new \`.md\` files up automatically.
+- The maintainers will review against the posture-check rules above and the loader's structural parse, and may push back on mapping density or value-add. If the catalyst is bot-specific or thin, expect the maintainers to suggest converting it to a local skill instead.
+
+---
+
+## Final reminders
+
+- **Push back early.** Once you've drafted a hollow catalyst with the user, it's hard to un-write. The posture-check in Step 1 is the most valuable thing you do here.
+- **Anchor on exemplars.** Re-read the catalysts you pulled in Step 1 before drafting each section. The skill's quality scales with how closely you match the existing tone, density, and opinionatedness.
+- **The body is a prompt, not documentation.** The reader is a future Claude trying to write a working skill in one pass. Optimize for their decisions, not the user's understanding of how the catalyst works.
+`;
+
+// Returned in every recommend_catalysts response so the agent re-encounters
+// the consultation posture at the moment of acting on it. Mirrors the role
+// SYNTHESIZER_BRIEFING plays for get_catalyst — the rules are easier to
+// follow when they sit next to the data they apply to.
+//
+// Exported for tests.
+export const CONSULTATION_POSTURE = `# How to use these recommendations — consultation, not gatekeeping
+
+This tool returns catalysts whose shape fits the bot you named, each annotated with a \`destinationCategory\` (the kind of MCP that satisfies it) and \`destinationExamples\` (named MCPs that fit). Mojulo does **not** know which MCPs are installed in the user's Claude — only you do.
+
+Cross-reference \`destinationExamples\` against the MCPs available in this session:
+
+- **Example IS installed** → present as something the user can do now. Lead with the \`valueHook\`. Ask if they want to read the catalyst.
+- **No example installed** → present as a soft suggestion, not a blocker. Lead with the \`valueHook\` and add: "you'd need a CRM MCP — HubSpot, Salesforce, Pipedrive, Attio — wired into Claude for this." Never gatekeep ("can't do this") — frame as an opt-in upgrade.
+- **\`missingProtocols\` non-empty** → the bot's protocols don't currently support this catalyst. Mention it as a possibility unlocked by editing the bot, not by installing an MCP.
+
+Lead with the user's outcome (\`valueHook\`), not the catalyst's name. The catalyst id is a handle to fetch the recipe with \`get_catalyst\`; it's not how you describe the value to the user.`;
+
+export async function customCatalystHandler(_input, _ctx) {
+  // Plain text content (not JSON-stringified) so the agent reads it as prose.
+  return { content: [{ type: 'text', text: CUSTOM_CATALYST_GUIDE }] };
+}
+
+export async function recommendCatalystsHandler(input, _ctx) {
+  const { deploymentId } = input || {};
+  if (!deploymentId) throw new Error('deploymentId is required');
+
+  const dep = await DeploymentRepository.findById(deploymentId);
+  if (!dep) throw new Error(`Deployment not found: ${deploymentId}`);
+
+  const enabledMap = dep.config?.enabledProtocols || {};
+  const enabledProtocols = Object.entries(enabledMap)
+    .filter(([, on]) => on)
+    .map(([protocol]) => protocol);
+
+  const applicable = [];
+  const requiresProtocolChange = [];
+
+  for (const catalyst of getCatalystCatalog().values()) {
+    const required = Array.isArray(catalyst.requires?.protocols)
+      ? catalyst.requires.protocols
+      : [];
+    const missingProtocols = required.filter((p) => !enabledProtocols.includes(p));
+
+    const recommendation = {
+      id: catalyst.id,
+      name: catalyst.name,
+      valueHook: catalyst.valueHook,
+      summary: catalyst.summary,
+      category: catalyst.category,
+      destinationCategory: catalyst.requires?.destinationMcpCategory || null,
+      destinationExamples: Array.isArray(catalyst.requires?.destinationExamples)
+        ? catalyst.requires.destinationExamples
+        : [],
+      missingProtocols,
+    };
+
+    if (missingProtocols.length === 0) {
+      applicable.push(recommendation);
+    } else {
+      requiresProtocolChange.push(recommendation);
+    }
+  }
+
+  return {
+    consultationPosture: CONSULTATION_POSTURE,
+    deployment: {
+      id: dep.id,
+      botName: dep.botName,
+      enabledProtocols,
+    },
+    applicable,
+    requiresProtocolChange,
+  };
+}
+
 export function registerCatalystTools() {
   registerTool({
     name: 'list_catalysts',
@@ -105,5 +350,30 @@ export function registerCatalystTools() {
       required: ['id'],
     },
     handler: getCatalystHandler,
+  });
+
+  registerTool({
+    name: 'custom_catalyst',
+    description:
+      "Return an author's guide for drafting a new catalyst to contribute back to the mojulo library. Use this when the user says they want to write, propose, or contribute a new catalyst — NOT when they want to automate something for themselves (that's a local skill, synthesized from get_catalyst or directly from intent). The returned body is self-contained: posture-check rules with worked examples (so you push back on requests that aren't catalyst-shaped before drafting), batched context-gathering questions, the JSON frontmatter spec, the six-section body template, body principles, a by-hand validation checklist, and PR hand-off instructions. The guide tells you to anchor on existing exemplars via list_catalysts + get_catalyst before drafting — do that. The output of the workflow is a single .md file saved in the user's working directory, ready for them to PR to github.com/zombico/mojulo under control/lib/mcp/catalysts/.",
+    inputSchema: { type: 'object', properties: {} },
+    handler: customCatalystHandler,
+  });
+
+  registerTool({
+    name: 'recommend_catalysts',
+    description:
+      "Given a deployment, return catalysts whose shape matches the bot, annotated with `valueHook` (one-sentence outcome in user terms), `destinationCategory`, `destinationExamples` (named MCPs that satisfy the destination), and `missingProtocols`. Use this — not `list_catalysts` — whenever the user asks 'what can I do with this bot?' or 'what should I automate?'. This is a CONSULTATION surface: catalysts whose `destinationExamples` aren't currently installed in the user's Claude should be surfaced as soft suggestions ('if you installed a CRM MCP like HubSpot, you could…'), never as blockers. The response includes a `consultationPosture` block with the exact framing rules — read it before composing your answer to the user.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        deploymentId: {
+          type: 'string',
+          description: 'Deployment id of the bot to recommend catalysts for. Get this from list_deployments.',
+        },
+      },
+      required: ['deploymentId'],
+    },
+    handler: recommendCatalystsHandler,
   });
 }

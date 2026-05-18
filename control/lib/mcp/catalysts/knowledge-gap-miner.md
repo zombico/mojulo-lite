@@ -3,11 +3,13 @@
   "id": "knowledge-gap-miner",
   "name": "Knowledge gap miner",
   "summary": "Analyze recent conversations on a knowledge-protocol bot to find questions the RAG corpus answered poorly, and propose additions to the user's documentation backlog.",
+  "valueHook": "Find the questions your RAG corpus is answering badly, so your docs can fill the gap before users notice.",
   "version": 1,
   "category": "rag-curation",
   "requires": {
     "protocols": ["knowledge"],
-    "destinationMcpCategory": "optional-doc-backlog"
+    "destinationMcpCategory": "optional-doc-backlog",
+    "destinationExamples": ["Notion", "Linear", "GitHub Issues"]
   },
   "parameters": [
     {
